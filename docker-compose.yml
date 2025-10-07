@@ -29,6 +29,7 @@ services:
       - "8021:8021"
     environment:
       - GENESIS_URL=${ACAPY_GENESIS_URL}
+    entrypoint: aca-py
     command:
       - start
       - --auto-provision
