@@ -25,8 +25,8 @@ services:
       dockerfile: Dockerfile.acapy
     container_name: acapy-agent
     ports:
-      - "8020:8020" # Admin API
-      - "8021:8021" # Public API
+      - "8020:8020"
+      - "8021:8021"
     environment:
       - GENESIS_URL=${ACAPY_GENESIS_URL}
     command:
@@ -97,19 +97,20 @@ services:
 
   # Aplicación Moodle
   moodle-app:
-    image: moodlehq/moodle-php-apache:latest
+    build:
+      context: ./moodle
+      dockerfile: Dockerfile
     container_name: moodle-app
     ports:
       - "8080:80"
       - "8443:443"
     environment:
-      MOODLE_DOCKER_DBTYPE: pgsql
-      MOODLE_DOCKER_DBHOST: moodle-db
-      MOODLE_DOCKER_DBNAME: ${MOODLE_DB_NAME}
-      MOODLE_DOCKER_DBUSER: ${MOODLE_DB_USER}
-      MOODLE_DOCKER_DBPASS: ${MOODLE_DB_PASSWORD}
-      MOODLE_DOCKER_DBPORT: 5432
-      MOODLE_DOCKER_WWWROOT: /var/www/html
+      MOODLE_DB_TYPE: pgsql
+      MOODLE_DB_HOST: moodle-db
+      MOODLE_DB_PORT: 5432
+      MOODLE_DB_NAME: ${MOODLE_DB_NAME}
+      MOODLE_DB_USER: ${MOODLE_DB_USER}
+      MOODLE_DB_PASS: ${MOODLE_DB_PASSWORD}
     volumes:
       - moodle_data:/var/www/moodledata
       - ./moodle/moodle-plugin/credenciales:/var/www/html/blocks/credenciales
@@ -138,7 +139,7 @@ services:
       - "5432:5432"
 
 
-  # Servicios de Hyperledger Fabric
+  # Servicios de Hyperledger Fabric (sin cambios)
   orderer.example.com:
     container_name: orderer.example.com
     image: hyperledger/fabric-orderer:latest
