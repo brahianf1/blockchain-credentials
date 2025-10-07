@@ -16,7 +16,7 @@ networks:
   acapy_network:
     driver: bridge
   # Red para el proxy inverso de Dokploy (Traefik)
-  dokploy-proxy:
+  dokploy-network:
     external: true
 
 
@@ -69,7 +69,7 @@ services:
       - --auto-ping-connection
     networks:
       - acapy_network
-      - dokploy-proxy # Conectar a la red del proxy
+      - dokploy-network # Conectar a la red del proxy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8020/status/live"]
@@ -116,7 +116,7 @@ services:
       - moodle_network
       - fabric_network
       - acapy_network
-      - dokploy-proxy # Conectar a la red del proxy
+      - dokploy-network # Conectar a la red del proxy
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
@@ -147,7 +147,7 @@ services:
       - moodle-db
     networks:
       - moodle_network
-      - dokploy-proxy # Conectar a la red del proxy
+      - dokploy-network # Conectar a la red del proxy
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
