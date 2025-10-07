@@ -176,8 +176,8 @@ services:
     working_dir: /root
     command: orderer
     volumes:
-      - ./hyperledger-fabric/test-network/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp:/var/hyperledger/orderer/msp
-      - ./hyperledger-fabric/test-network/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/tls/:/var/hyperledger/orderer/tls
+      - ${CRYPTO_CONFIG_PATH}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp:/var/hyperledger/orderer/msp:ro
+      - ${CRYPTO_CONFIG_PATH}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/tls/:/var/hyperledger/orderer/tls:ro
       - orderer.example.com:/var/hyperledger/production/orderer
     ports:
       - 7050:7050
@@ -214,7 +214,7 @@ services:
       - CHAINCODE_AS_A_SERVICE_BUILDER_CONFIG={"peername":"peer0org1"}
       - CORE_CHAINCODE_EXECUTETIMEOUT=300s
     volumes:
-      - ./hyperledger-fabric/test-network/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com:/etc/hyperledger/fabric
+      - ${CRYPTO_CONFIG_PATH}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com:/etc/hyperledger/fabric:ro
       - peer0.org1.example.com:/var/hyperledger/production
     working_dir: /root
     command: peer node start
@@ -252,7 +252,7 @@ services:
       - CHAINCODE_AS_A_SERVICE_BUILDER_CONFIG={"peername":"peer0org2"}
       - CORE_CHAINCODE_EXECUTETIMEOUT=300s
     volumes:
-      - ./hyperledger-fabric/test-network/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com:/etc/hyperledger/fabric
+      - ${CRYPTO_CONFIG_PATH}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com:/etc/hyperledger/fabric:ro
       - peer0.org2.example.com:/var/hyperledger/production
     working_dir: /root
     command: peer node start
@@ -278,7 +278,7 @@ services:
     command: /bin/sh
     volumes:
       - /var/run/:/host/var/run/
-      - ./hyperledger-fabric/test-network/organizations:/opt/gopath/src/github.com/hyperledger/fabric/peer/organizations
+      - ${CRYPTO_CONFIG_PATH}/organizations:/opt/gopath/src/github.com/hyperledger/fabric/peer/organizations:ro
       - ./hyperledger-fabric/test-network/scripts:/opt/gopath/src/github.com/hyperledger/fabric/peer/scripts
     depends_on:
       - orderer.example.com
