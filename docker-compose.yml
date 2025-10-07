@@ -1,5 +1,3 @@
-version: '3.7'
-
 volumes:
   db_data:
     driver: local
@@ -95,7 +93,7 @@ services:
 
   # Aplicación Moodle
   moodle-app:
-    image: bitnami/moodle:4.3.5
+    image: docker.io/bitnami/moodle:4.4
     container_name: moodle-app
     ports:
       - "8080:8080"
