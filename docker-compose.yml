@@ -15,6 +15,9 @@ networks:
     driver: bridge
   acapy_network:
     driver: bridge
+  # Red para el proxy inverso de Dokploy (Traefik)
+  dokploy-proxy:
+    external: true
 
 
 services:
@@ -24,11 +27,14 @@ services:
       context: ./backend/acapy
       dockerfile: Dockerfile.acapy
     container_name: acapy-agent
-    ports:
-      - "8020:8020"
-      - "8021:8021"
+    # Los puertos se exponen a través de Traefik, no directamente.
     environment:
       - GENESIS_URL=${ACAPY_GENESIS_URL}
+      - ACAPY_DID_SEED=${ACAPY_DID_SEED}
+      # ACAPY_ENDPOINT será la URL pública, ej: https://acapy.tudominio.com
+      - ACAPY_ENDPOINT=https://${ACAPY_DOMAIN}
+      - ACAPY_WALLET_NAME=${ACAPY_WALLET_NAME}
+      - ACAPY_WALLET_KEY=${ACAPY_WALLET_KEY}
     entrypoint: aca-py
     command:
       - start
@@ -63,6 +69,7 @@ services:
       - --auto-ping-connection
     networks:
       - acapy_network
+      - dokploy-proxy # Conectar a la red del proxy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8020/status/live"]
@@ -70,6 +77,19 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      # Router para el endpoint público de ACA-Py (comunicación entre agentes)
+      - "traefik.http.routers.acapy-public.rule=Host(`${ACAPY_DOMAIN}`)"
+      - "traefik.http.routers.acapy-public.entrypoints=websecure"
+      - "traefik.http.routers.acapy-public.tls.certresolver=myresolver" # Dokploy gestiona esto
+      - "traefik.http.services.acapy-public.loadbalancer.server.port=8021"
+      # Router para la API de administración (opcional, para depuración)
+      # ¡Asegúrate de proteger este endpoint si lo expones en producción!
+      - "traefik.http.routers.acapy-admin.rule=Host(`${ACAPY_ADMIN_DOMAIN}`)"
+      - "traefik.http.routers.acapy-admin.entrypoints=websecure"
+      - "traefik.http.routers.acapy-admin.tls.certresolver=myresolver" # Dokploy gestiona esto
+      - "traefik.http.services.acapy-admin.loadbalancer.server.port=8020"
 
 
   # Controller Python
@@ -78,11 +98,10 @@ services:
       context: ./backend
       dockerfile: Dockerfile.controller
     container_name: python-controller
-    ports:
-      - "3010:3000"
+    # El puerto se expone a través de Traefik
     environment:
       - ACAPY_ADMIN_URL=http://acapy-agent:8020
-      - ACAPY_PUBLIC_URL=http://acapy-agent:8021
+      - ACAPY_PUBLIC_URL=https://${ACAPY_DOMAIN} # El endpoint público del agente
       - FABRIC_NETWORK_PATH=/crypto-config
       - OPENID_PRIVATE_KEY_PATH=/run/secrets/openid_private_key
       - OPENID_PUBLIC_KEY_PATH=/run/secrets/openid_public_key
@@ -97,7 +116,14 @@ services:
       - moodle_network
       - fabric_network
       - acapy_network
+      - dokploy-proxy # Conectar a la red del proxy
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.controller.rule=Host(`${CONTROLLER_DOMAIN}`)"
+      - "traefik.http.routers.controller.entrypoints=websecure"
+      - "traefik.http.routers.controller.tls.certresolver=myresolver" # Dokploy gestiona esto
+      - "traefik.http.services.controller.loadbalancer.server.port=3000"
 
 
   # Aplicación Moodle
@@ -106,9 +132,7 @@ services:
       context: ./moodle
       dockerfile: Dockerfile
     container_name: moodle-app
-    ports:
-      - "8080:80"
-      - "8443:443"
+    # El puerto se expone a través de Traefik
     environment:
       MOODLE_DB_TYPE: pgsql
       MOODLE_DB_HOST: moodle-db
@@ -123,7 +147,14 @@ services:
       - moodle-db
     networks:
       - moodle_network
+      - dokploy-proxy # Conectar a la red del proxy
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.moodle.rule=Host(`${MOODLE_DOMAIN}`)"
+      - "traefik.http.routers.moodle.entrypoints=websecure"
+      - "traefik.http.routers.moodle.tls.certresolver=myresolver" # Dokploy gestiona esto
+      - "traefik.http.services.moodle.loadbalancer.server.port=80"
 
 
   # Base de datos de Moodle
@@ -140,8 +171,10 @@ services:
     networks:
       - moodle_network
     restart: unless-stopped
+    # Exponer el puerto de la BD de forma configurable para depuración.
+    # En producción, considera no exponerlo a internet.
     ports:
-      - "5432:5432"
+      - "${MOODLE_DB_PORT_EXT}:5432"
 
 
   # Servicios de Hyperledger Fabric (sin cambios)
@@ -180,9 +213,9 @@ services:
       - ${CRYPTO_CONFIG_PATH}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/tls/:/var/hyperledger/orderer/tls:ro
       - orderer.example.com:/var/hyperledger/production/orderer
     ports:
-      - 7050:7050
-      - 7053:7053
-      - 9443:9443
+      - "${ORDERER_PORT_EXT}:7050"
+      - "${ORDERER_ADMIN_PORT_EXT}:7053"
+      - "${ORDERER_OPERATIONS_PORT_EXT}:9443"
     networks:
       - fabric_network
 
@@ -218,8 +251,8 @@ services:
     working_dir: /root
     command: peer node start
     ports:
-      - 7051:7051
-      - 9444:9444
+      - "${ORG1_PEER0_PORT_EXT}:7051"
+      - "${ORG1_PEER0_OPERATIONS_PORT_EXT}:9444"
     networks:
       - fabric_network
 
@@ -255,8 +288,8 @@ services:
     working_dir: /root
     command: peer node start
     ports:
-      - 9051:9051
-      - 9445:9445
+      - "${ORG2_PEER0_PORT_EXT}:9051"
+      - "${ORG2_PEER0_OPERATIONS_PORT_EXT}:9445"
     networks:
       - fabric_network
 
