@@ -97,24 +97,21 @@ services:
 
   # Aplicación Moodle
   moodle-app:
-    image: ellakcy/moodle:postgresql_maria_moodle
+    image: moodlehq/moodle-php-apache:latest
     container_name: moodle-app
     ports:
       - "8080:80"
       - "8443:443"
     environment:
-      MOODLE_DB_TYPE: pgsql
-      MOODLE_DB_HOST: moodle-db
-      MOODLE_DB_PORT: 5432
-      MOODLE_DB_NAME: ${MOODLE_DB_NAME}
-      MOODLE_DB_USER: ${MOODLE_DB_USER}
-      MOODLE_DB_PASSWORD: ${MOODLE_DB_PASSWORD}
-      MOODLE_ADMIN: ${MOODLE_ADMIN_USER}
-      MOODLE_ADMIN_PASSWORD: ${MOODLE_ADMIN_PASSWORD}
-      MOODLE_ADMIN_EMAIL: ${MOODLE_ADMIN_EMAIL}
-      MOODLE_URL: ${ISSUER_URL}
+      MOODLE_DOCKER_DBTYPE: pgsql
+      MOODLE_DOCKER_DBHOST: moodle-db
+      MOODLE_DOCKER_DBNAME: ${MOODLE_DB_NAME}
+      MOODLE_DOCKER_DBUSER: ${MOODLE_DB_USER}
+      MOODLE_DOCKER_DBPASS: ${MOODLE_DB_PASSWORD}
+      MOODLE_DOCKER_DBPORT: 5432
+      MOODLE_DOCKER_WWWROOT: /var/www/html
     volumes:
-      - moodle_data:/var/moodledata
+      - moodle_data:/var/www/moodledata
       - ./moodle/moodle-plugin/credenciales:/var/www/html/blocks/credenciales
     depends_on:
       - moodle-db
