@@ -1,0 +1,41 @@
+# Crear archivo .gitignore
+@"
+# Archivos sensibles (se regeneran automáticamente)
+crypto-config/*/users/*/msp/keystore/
+crypto-config/*/users/*/msp/signcerts/
+crypto-config/*/peers/*/msp/keystore/
+crypto-config/*/peers/*/msp/signcerts/
+
+# Logs y temporales
+*.log
+logs/
+__pycache__/
+*.pyc
+*.pyo
+venv/
+env/
+
+# Node.js (respaldo)
+node_modules/
+npm-debug.log
+
+# Docker locales
+.env
+docker-compose.override.yml
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.tmp
+
+# MANTENER estos archivos importantes:
+!crypto-config/connection-org1.json
+!genesis.txn
+!docker-compose.yml
+!start.sh
+# Archivos de entorno
+.env
+
+# Notas de desarrollo
+backend/notas.md
+"@ | Out-File -FilePath ".gitignore" -Encoding UTF8
