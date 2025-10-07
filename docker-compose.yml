@@ -84,8 +84,12 @@ services:
       - ACAPY_ADMIN_URL=http://acapy-agent:8020
       - ACAPY_PUBLIC_URL=http://acapy-agent:8021
       - FABRIC_NETWORK_PATH=/crypto-config
+      - OPENID_PRIVATE_KEY_PATH=/run/secrets/openid_private_key
+      - OPENID_PUBLIC_KEY_PATH=/run/secrets/openid_public_key
     volumes:
       - ${CRYPTO_CONFIG_PATH}:/crypto-config:ro
+      - ${OPENID_PRIVATE_KEY_HOST_PATH}:/run/secrets/openid_private_key:ro
+      - ${OPENID_PUBLIC_KEY_HOST_PATH}:/run/secrets/openid_public_key:ro
     depends_on:
       acapy-agent:
         condition: service_healthy
