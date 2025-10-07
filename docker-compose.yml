@@ -93,7 +93,7 @@ services:
 
   # Aplicación Moodle
   moodle-app:
-    image: docker.io/bitnami/moodle:4.4
+    image: docker.io/bitnami/moodle:latest
     container_name: moodle-app
     ports:
       - "8080:8080"
