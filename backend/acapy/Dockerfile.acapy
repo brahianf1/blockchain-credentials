@@ -16,7 +16,8 @@ RUN pip install --no-cache-dir \
     anoncreds \
     indy-vdr \
     ursa-bbs-signatures \
-    aries-askar
+    aries-askar \
+    indy-credx
 
 # Copiar archivo genesis
 RUN curl -o /genesis.txn http://test.bcovrin.vonx.io/genesis
