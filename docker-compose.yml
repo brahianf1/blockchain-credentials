@@ -79,7 +79,7 @@ services:
       dockerfile: Dockerfile.controller
     container_name: python-controller
     ports:
-      - "3000:3000"
+      - "3010:3000"
     environment:
       - ACAPY_ADMIN_URL=http://acapy-agent:8020
       - ACAPY_PUBLIC_URL=http://acapy-agent:8021
