@@ -19,6 +19,6 @@ RUN pip install --no-cache-dir \
     aries-askar
 
 # Copiar archivo genesis
-COPY genesis.txn /genesis.txn
+RUN curl -o /genesis.txn http://test.bcovrin.vonx.io/genesis
 
 CMD ["aca-py", "start"]
