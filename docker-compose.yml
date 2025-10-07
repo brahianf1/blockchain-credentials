@@ -7,6 +7,7 @@ volumes:
   peer0.org1.example.com:
   peer0.org2.example.com:
 
+
 networks:
   moodle_network:
     driver: bridge
@@ -14,6 +15,7 @@ networks:
     driver: bridge
   acapy_network:
     driver: bridge
+
 
 services:
   # Servicio ACA-Py Agent
@@ -68,6 +70,7 @@ services:
       retries: 3
       start_period: 40s
 
+
   # Controller Python
   python-controller:
     build:
@@ -78,7 +81,7 @@ services:
       - "3000:3000"
     environment:
       - ACAPY_ADMIN_URL=http://acapy-agent:8020
-      - ACAPY_PUBLIC_URL=http://acapy-agent:8021 # Ajustado para comunicación interna
+      - ACAPY_PUBLIC_URL=http://acapy-agent:8021
       - FABRIC_NETWORK_PATH=/crypto-config
     volumes:
       - ${CRYPTO_CONFIG_PATH}:/crypto-config:ro
@@ -91,34 +94,34 @@ services:
       - acapy_network
     restart: unless-stopped
 
+
   # Aplicación Moodle
   moodle-app:
-    image: docker.io/bitnami/moodle:latest
+    image: ellakcy/moodle:postgresql_maria_moodle
     container_name: moodle-app
     ports:
-      - "8080:8080"
-      - "8443:8443"
+      - "8080:80"
+      - "8443:443"
     environment:
-      MOODLE_DATABASE_TYPE: pgsql
-      MOODLE_DATABASE_HOST: moodle-db
-      MOODLE_DATABASE_PORT_NUMBER: 5432
-      MOODLE_DATABASE_NAME: ${MOODLE_DB_NAME}
-      MOODLE_DATABASE_USER: ${MOODLE_DB_USER}
-      MOODLE_DATABASE_PASSWORD: ${MOODLE_DB_PASSWORD}
-      MOODLE_USERNAME: ${MOODLE_ADMIN_USER}
-      MOODLE_PASSWORD: ${MOODLE_ADMIN_PASSWORD}
-      MOODLE_EMAIL: ${MOODLE_ADMIN_EMAIL}
-      MOODLE_SITE_NAME: ${MOODLE_SITE_NAME}
-      MOODLE_SKIP_BOOTSTRAP: 'no'
+      MOODLE_DB_TYPE: pgsql
+      MOODLE_DB_HOST: moodle-db
+      MOODLE_DB_PORT: 5432
+      MOODLE_DB_NAME: ${MOODLE_DB_NAME}
+      MOODLE_DB_USER: ${MOODLE_DB_USER}
+      MOODLE_DB_PASSWORD: ${MOODLE_DB_PASSWORD}
+      MOODLE_ADMIN: ${MOODLE_ADMIN_USER}
+      MOODLE_ADMIN_PASSWORD: ${MOODLE_ADMIN_PASSWORD}
+      MOODLE_ADMIN_EMAIL: ${MOODLE_ADMIN_EMAIL}
+      MOODLE_URL: ${ISSUER_URL}
     volumes:
-      - moodle_data:/bitnami/moodledata
-      # Montar el plugin de credenciales en la carpeta de Moodle
-      - ./moodle/moodle-plugin/credenciales:/opt/bitnami/moodle/blocks/credenciales
+      - moodle_data:/var/moodledata
+      - ./moodle/moodle-plugin/credenciales:/var/www/html/blocks/credenciales
     depends_on:
       - moodle-db
     networks:
       - moodle_network
     restart: unless-stopped
+
 
   # Base de datos de Moodle
   moodle-db:
@@ -136,6 +139,7 @@ services:
     restart: unless-stopped
     ports:
       - "5432:5432"
+
 
   # Servicios de Hyperledger Fabric
   orderer.example.com:
@@ -179,6 +183,7 @@ services:
     networks:
       - fabric_network
 
+
   peer0.org1.example.com:
     container_name: peer0.org1.example.com
     image: hyperledger/fabric-peer:latest
@@ -216,6 +221,7 @@ services:
     networks:
       - fabric_network
 
+
   peer0.org2.example.com:
     container_name: peer0.org2.example.com
     image: hyperledger/fabric-peer:latest
@@ -252,6 +258,7 @@ services:
       - 9445:9445
     networks:
       - fabric_network
+
 
   cli:
     container_name: cli
