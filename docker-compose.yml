@@ -26,20 +26,74 @@ services:
   # ===================================================================
   # Servicio VON Network (Ledger Indy Local)
   # ===================================================================
-  von-network:
-    image: bcgov/von-network:latest
-    container_name: von-network
-    command: ["--log-level", "INFO"]
+  von-webserver:
+    build:
+      context: ./von-network
+      dockerfile: Dockerfile
+      args:
+        - RUST_VERSION=1.79.0
+        - indy_sdk_revision=v1.16.0
+        - indy_node_version=1.13.2
+    container_name: von-webserver
+    command: bash -c 'sleep 10 && ./scripts/start_webserver.sh'
+    environment:
+      - DOCKERHOST=${DOCKERHOST:-host.docker.internal}
+      - LOG_LEVEL=INFO
+      - GENESIS_URL=http://von-webserver:8000/genesis
+      - ANONYMOUS_READ=${ANONYMOUS_READ:-true}
+      - REGISTER_NEW_DIDS=${REGISTER_NEW_DIDS:-true}
+      - LEDGER_SEED=000000000000000000000000Steward1
     ports:
-      # Exponemos el puerto del ledger para que el agente pueda conectarse.
-      - "${VON_NETWORK_PORT_EXT}:9000"
+      - "${VON_NETWORK_PORT_EXT}:8000"
     networks:
       - acapy_network
     volumes:
-      - von_data:/home/indy/ledger
+      - von-data:/home/indy/.indy_client/wallet
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
 
+  von-nodes:
+    build:
+      context: ./von-network
+      dockerfile: Dockerfile
+      args:
+        - RUST_VERSION=1.79.0
+        - indy_sdk_revision=v1.16.0
+        - indy_node_version=1.13.2
+    container_name: von-nodes
+    command: bash -c './scripts/start_nodes.sh'
+    environment:
+      - DOCKERHOST=${DOCKERHOST:-host.docker.internal}
+      - LOG_LEVEL=INFO
+    ports:
+      - "9701:9701"
+      - "9702:9702"
+      - "9703:9703"
+      - "9704:9704"
+      - "9705:9705"
+      - "9706:9706"
+      - "9707:9707"
+      - "9708:9708"
+    networks:
+      - acapy_network
+    volumes:
+      - von-data:/home/indy/ledger
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9701"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ===================================================================
   # Servicio ACA-Py Agent
+  # ===================================================================
   acapy-agent:
     build:
       context: ./backend/acapy
@@ -85,8 +139,10 @@ services:
       - --auto-accept-invites
       - --auto-ping-connection
     depends_on:
-      von-network:
-        condition: service_started
+      von-webserver:
+        condition: service_healthy
+      von-nodes:
+        condition: service_healthy
     networks:
       - acapy_network
       - dokploy-network # Conectar a la red del proxy
