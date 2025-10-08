@@ -24,7 +24,7 @@ networks:
 
 services:
   # ===================================================================
-  # Servicio VON Network (Ledger Indy Local)
+  # Servicio VON Network - Interfaz Web (con HTTPS)
   # ===================================================================
   von-webserver:
     build:
@@ -35,7 +35,7 @@ services:
         - indy_sdk_revision=v1.16.0
         - indy_node_version=1.13.2
     container_name: von-webserver
-    command: bash -c 'sleep 10 && ./scripts/start_webserver.sh'
+    command: bash -c 'sleep 10 && bash scripts/start_webserver.sh'
     environment:
       - DOCKERHOST=${DOCKERHOST:-host.docker.internal}
       - LOG_LEVEL=INFO
@@ -47,7 +47,7 @@ services:
       - "${VON_NETWORK_PORT_EXT}:8000"
     networks:
       - acapy_network
-      - dokploy-network  # Conectar a la red del proxy de Traefik
+      - dokploy-network
     volumes:
       - von_data:/home/indy/.indy_client/wallet
     restart: unless-stopped
@@ -59,12 +59,14 @@ services:
       start_period: 90s
     labels:
       - "traefik.enable=true"
-      # Router para la interfaz web de VON Network con HTTPS
       - "traefik.http.routers.von-network.rule=Host(`${VON_NETWORK_DOMAIN}`)"
       - "traefik.http.routers.von-network.entrypoints=websecure"
-      - "traefik.http.routers.von-network.tls.certresolver=myresolver"  # Dokploy gestiona SSL
+      - "traefik.http.routers.von-network.tls.certresolver=myresolver"
       - "traefik.http.services.von-network.loadbalancer.server.port=8000"
 
+  # ===================================================================
+  # Servicio VON Network - Nodos Indy
+  # ===================================================================
   von-nodes:
     build:
       context: ./von-network
@@ -74,7 +76,7 @@ services:
         - indy_sdk_revision=v1.16.0
         - indy_node_version=1.13.2
     container_name: von-nodes
-    command: bash -c './scripts/start_nodes.sh'
+    command: bash -c 'bash scripts/start_nodes.sh'
     environment:
       - DOCKERHOST=${DOCKERHOST:-host.docker.internal}
       - LOG_LEVEL=INFO
