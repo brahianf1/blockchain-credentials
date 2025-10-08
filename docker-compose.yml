@@ -227,6 +227,7 @@ services:
       service: hyperledger-fabric
     environment:
       - FABRIC_LOGGING_SPEC=INFO
+      - FABRIC_CFG_PATH=/etc/hyperledger/fabric
     volumes:
       - ${CRYPTO_CONFIG_PATH}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com:/etc/hyperledger/fabric:ro
       - peer0.org1.example.com:/var/hyperledger/production
@@ -246,6 +247,7 @@ services:
       service: hyperledger-fabric
     environment:
       - FABRIC_LOGGING_SPEC=INFO
+      - FABRIC_CFG_PATH=/etc/hyperledger/fabric
     volumes:
       - ${CRYPTO_CONFIG_PATH}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com:/etc/hyperledger/fabric:ro
       - peer0.org2.example.com:/var/hyperledger/production
