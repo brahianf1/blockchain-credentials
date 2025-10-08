@@ -6,9 +6,6 @@ volumes:
   orderer.example.com:
   peer0.org1.example.com:
   peer0.org2.example.com:
-  von_data:
-    driver: local
-
 
 networks:
   moodle_network:
@@ -20,49 +17,11 @@ networks:
   # Red para el proxy inverso de Dokploy (Traefik)
   dokploy-network:
     external: true
-
+  # Red creada por VON Network (externa)
+  von_von:
+    external: true
 
 services:
-  # ===================================================================
-  # Servicio VON Network - Usando imagen oficial pre-construida
-  # ===================================================================
-  von-network:
-    image: bcgovimages/von-image:node-1.12-6
-    container_name: von-network
-    command: bash -c "generate_indy_pool_transactions --nodes 4 --clients 0 --nodeNum 1 2 3 4 --ips 0.0.0.0,0.0.0.0,0.0.0.0,0.0.0.0 && start_indy_node Node1 0.0.0.0 9701 0.0.0.0 9702 & start_indy_node Node2 0.0.0.0 9703 0.0.0.0 9704 & start_indy_node Node3 0.0.0.0 9705 0.0.0.0 9706 & start_indy_node Node4 0.0.0.0 9707 0.0.0.0 9708 & python -m server.server"
-    environment:
-      - DOCKERHOST=0.0.0.0
-      - LOG_LEVEL=INFO
-    ports:
-      - "${VON_NETWORK_PORT_EXT}:8000"
-      - "9701:9701"
-      - "9702:9702"
-      - "9703:9703"
-      - "9704:9704"
-      - "9705:9705"
-      - "9706:9706"
-      - "9707:9707"
-      - "9708:9708"
-    networks:
-      - acapy_network
-      - dokploy-network
-    volumes:
-      - von_data:/home/indy/.indy_client
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 180s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.von-network.rule=Host(`${VON_NETWORK_DOMAIN}`)"
-      - "traefik.http.routers.von-network.entrypoints=websecure"
-      - "traefik.http.routers.von-network.tls.certresolver=myresolver"
-      - "traefik.http.services.von-network.loadbalancer.server.port=8000"
-
-
   # ===================================================================
   # Servicio ACA-Py Agent
   # ===================================================================
@@ -108,12 +67,10 @@ services:
       - --auto-accept-requests
       - --auto-accept-invites
       - --auto-ping-connection
-    depends_on:
-      von-network:
-        condition: service_healthy
     networks:
       - acapy_network
       - dokploy-network
+      - von_von  # Conectar a la red de VON Network externa
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8020/status/live"]
@@ -132,8 +89,9 @@ services:
       - "traefik.http.routers.acapy-admin.tls.certresolver=myresolver"
       - "traefik.http.services.acapy-admin.loadbalancer.server.port=8020"
 
-
+  # ===================================================================
   # Controller Python
+  # ===================================================================
   python-controller:
     build:
       context: ./backend
@@ -166,8 +124,9 @@ services:
       - "traefik.http.routers.controller.tls.certresolver=myresolver" # Dokploy gestiona esto
       - "traefik.http.services.controller.loadbalancer.server.port=3000"
 
-
+  # ===================================================================
   # Aplicación Moodle
+  # ===================================================================
   moodle-app:
     build:
       context: ./moodle
@@ -197,8 +156,9 @@ services:
       - "traefik.http.routers.moodle.tls.certresolver=myresolver" # Dokploy gestiona esto
       - "traefik.http.services.moodle.loadbalancer.server.port=80"
 
-
+  # ===================================================================
   # Base de datos de Moodle
+  # ===================================================================
   moodle-db:
     image: postgres:15-alpine
     container_name: moodle-db
@@ -217,8 +177,10 @@ services:
     ports:
       - "${MOODLE_DB_PORT_EXT}:5432"
 
-
-  # Servicios de Hyperledger Fabric (sin cambios)
+  # ===================================================================
+  # Servicios de Hyperledger Fabric
+  # ===================================================================
+  
   orderer.example.com:
     container_name: orderer.example.com
     image: hyperledger/fabric-orderer:latest
@@ -259,7 +221,6 @@ services:
       - "${ORDERER_OPERATIONS_PORT_EXT}:9443"
     networks:
       - fabric_network
-
 
   peer0.org1.example.com:
     container_name: peer0.org1.example.com
@@ -302,7 +263,6 @@ services:
     networks:
       - fabric_network
       - dokploy-network
-
 
   cli:
     container_name: cli
