@@ -136,17 +136,22 @@ async def add_security_headers(response: JSONResponse) -> JSONResponse:
 @oid4vc_router.get("/.well-known/openid-credential-issuer")
 async def credential_issuer_metadata(request: Request):
     """
-    Metadata requerido por wallets OpenID4VC como Lissi
-    Incluye configuración SSL y headers de seguridad mejorados
+    Metadata requerido por wallets OpenID4VC
+    Compatible con Draft 13, 15, 16 y versión 1.0 del estándar
     """
     metadata = {
         "credential_issuer": ISSUER_URL,
         "authorization_servers": [ISSUER_URL],
+        "authorization_server": ISSUER_URL,  # Algunas wallets esperan singular también
         "credential_endpoint": f"{ISSUER_URL}/oid4vc/credential",
-        "jwks_uri": f"{ISSUER_URL}/oid4vc/.well-known/jwks.json",
         "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
-        
-        "supported_credential_configurations": {
+        "jwks_uri": f"{ISSUER_URL}/oid4vc/.well-known/jwks.json",
+        "display": [{
+            "name": "Sistema de Credenciales UTN",
+            "locale": "es-AR"
+        }],
+        # Campo compatible con versiones nuevas
+        "credential_configurations_supported": {
             "UniversityCredential": {
                 "format": "jwt_vc_json",
                 "scope": "UniversityCredentialScope",
@@ -168,11 +173,7 @@ async def credential_issuer_metadata(request: Request):
                     "name": "Credencial Universitaria",
                     "locale": "es-ES",
                     "background_color": "#1976d2",
-                    "text_color": "#FFFFFF",
-                    "logo": {
-                        "uri": f"{ISSUER_URL}/assets/university-logo.png",
-                        "alt_text": "Universidad Logo"
-                    }
+                    "text_color": "#FFFFFF"
                 }]
             }
         }

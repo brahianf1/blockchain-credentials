@@ -691,18 +691,23 @@ async def show_qr_page(connection_id: str):
 @app.get("/.well-known/openid-credential-issuer")
 async def root_credential_issuer_metadata():
     """
-    Metadata OpenID4VC en ruta raíz (sin prefijo /oid4vc)
-    DIDRoom Wallet busca los metadatos aquí según el estándar OpenID4VC
+    Metadata OpenID4VC en ruta raíz
+    Compatible con múltiples versiones del estándar
     """
     issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
     
     metadata = {
         "credential_issuer": issuer_url,
         "authorization_servers": [issuer_url],
+        "authorization_server": issuer_url,
         "credential_endpoint": f"{issuer_url}/oid4vc/credential",
-        "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
         "token_endpoint": f"{issuer_url}/oid4vc/token",
-        "supported_credential_configurations": {
+        "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
+        "display": [{
+            "name": "Sistema de Credenciales UTN",
+            "locale": "es-AR"
+        }],
+        "credential_configurations_supported": {
             "UniversityCredential": {
                 "format": "jwt_vc_json",
                 "scope": "UniversityCredentialScope",
@@ -724,11 +729,7 @@ async def root_credential_issuer_metadata():
                     "name": "Credencial Universitaria",
                     "locale": "es-ES",
                     "background_color": "#1976d2",
-                    "text_color": "#FFFFFF",
-                    "logo": {
-                        "uri": f"{issuer_url}/assets/university-logo.png",
-                        "alt_text": "Universidad Logo"
-                    }
+                    "text_color": "#FFFFFF"
                 }]
             }
         }
