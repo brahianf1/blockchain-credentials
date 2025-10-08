@@ -6,6 +6,8 @@ volumes:
   orderer.example.com:
   peer0.org1.example.com:
   peer0.org2.example.com:
+  von_data:
+    driver: local
 
 
 networks:
@@ -21,6 +23,22 @@ networks:
 
 
 services:
+  # ===================================================================
+  # Servicio VON Network (Ledger Indy Local)
+  # ===================================================================
+  von-network:
+    image: bcgov/von-network:latest
+    container_name: von-network
+    command: ["--log-level", "INFO"]
+    ports:
+      # Exponemos el puerto del ledger para que el agente pueda conectarse.
+      - "${VON_NETWORK_PORT_EXT}:9000"
+    networks:
+      - acapy_network
+    volumes:
+      - von_data:/home/indy/ledger
+    restart: unless-stopped
+
   # Servicio ACA-Py Agent
   acapy-agent:
     build:
@@ -55,7 +73,6 @@ services:
       - http
       - --genesis-url
       - ${ACAPY_GENESIS_URL}
-      - --read-only-ledger
       - --wallet-type
       - askar
       - --wallet-name
@@ -67,6 +84,9 @@ services:
       - --auto-accept-requests
       - --auto-accept-invites
       - --auto-ping-connection
+    depends_on:
+      von-network:
+        condition: service_started
     networks:
       - acapy_network
       - dokploy-network # Conectar a la red del proxy
