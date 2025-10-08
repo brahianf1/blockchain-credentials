@@ -47,8 +47,9 @@ services:
       - "${VON_NETWORK_PORT_EXT}:8000"
     networks:
       - acapy_network
+      - dokploy-network  # Conectar a la red del proxy de Traefik
     volumes:
-      - von-data:/home/indy/.indy_client/wallet
+      - von_data:/home/indy/.indy_client/wallet
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000"]
@@ -56,6 +57,13 @@ services:
       timeout: 10s
       retries: 5
       start_period: 90s
+    labels:
+      - "traefik.enable=true"
+      # Router para la interfaz web de VON Network con HTTPS
+      - "traefik.http.routers.von-network.rule=Host(`${VON_NETWORK_DOMAIN}`)"
+      - "traefik.http.routers.von-network.entrypoints=websecure"
+      - "traefik.http.routers.von-network.tls.certresolver=myresolver"  # Dokploy gestiona SSL
+      - "traefik.http.services.von-network.loadbalancer.server.port=8000"
 
   von-nodes:
     build:
