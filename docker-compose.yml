@@ -36,17 +36,20 @@ services:
       bash -c "
       chmod -R +x /home/indy/bin /home/indy/scripts &&
       chown -R indy:indy /home/indy &&
+      export PATH=/home/indy/.pyenv/shims:/home/indy/.pyenv/bin:\$PATH &&
       export IP=0.0.0.0 &&
       export NODE_NUM='1 2 3 4' &&
-      su - indy -c 'export IP=0.0.0.0 && export NODE_NUM=\"1 2 3 4\" && bash /home/indy/scripts/start_nodes.sh &' &&
+      cd /home/indy &&
+      su indy -c 'export PATH=/home/indy/.pyenv/shims:/home/indy/.pyenv/bin:\$PATH && export IP=0.0.0.0 && export NODE_NUM=\"1 2 3 4\" && bash /home/indy/scripts/start_nodes.sh' &
       sleep 15 &&
-      su - indy -c 'bash /home/indy/scripts/start_webserver.sh'
+      su indy -c 'export PATH=/home/indy/.pyenv/shims:/home/indy/.pyenv/bin:\$PATH && bash /home/indy/scripts/start_webserver.sh'
       "
     environment:
-      - DOCKERHOST=${DOCKERHOST:-0.0.0.0}
+      - DOCKERHOST=0.0.0.0
       - LOG_LEVEL=INFO
       - IP=0.0.0.0
       - NODE_NUM=1 2 3 4
+      - PATH=/home/indy/.pyenv/shims:/home/indy/.pyenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     ports:
       - "${VON_NETWORK_PORT_EXT}:9000"
       - "9701:9701"
