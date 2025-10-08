@@ -145,6 +145,7 @@ async def credential_issuer_metadata(request: Request):
         "authorization_server": ISSUER_URL,  # Algunas wallets esperan singular también
         "credential_endpoint": f"{ISSUER_URL}/oid4vc/credential",
         "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
+        "nonce_endpoint": f"{ISSUER_URL}/oid4vc/nonce",
         "jwks_uri": f"{ISSUER_URL}/oid4vc/.well-known/jwks.json",
         "display": [{
             "name": "Sistema de Credenciales UTN",
@@ -617,6 +618,32 @@ async def walt_token_endpoint(
                 "error_description": f"Error interno del servidor: {str(e)}"
             }
         )
+
+# ============================================================================
+# NONCE ENDPOINT - Requerido por DIDRoom Wallet
+# ============================================================================
+@oid4vc_router.post("/nonce")
+@oid4vc_router.get("/nonce")
+async def nonce_endpoint(request: Request):
+    """
+    Nonce Endpoint según OpenID4VCI spec
+    Genera c_nonce para proof JWT freshness
+    """
+    import secrets
+    
+    c_nonce = secrets.token_urlsafe(32)
+    logger.info(f"🔐 Nonce generado: {c_nonce[:10]}...")
+    
+    response_data = {
+        "c_nonce": c_nonce,
+        "c_nonce_expires_in": 300
+    }
+    
+    response = JSONResponse(content=response_data)
+    response.headers["Cache-Control"] = "no-store"
+    
+    return await add_security_headers(response)
+
 
 # ENDPOINT 4: Credential endpoint - Emisión final MEJORADO
 @oid4vc_router.post("/credential")

@@ -702,6 +702,7 @@ async def root_credential_issuer_metadata():
         "authorization_server": issuer_url,
         "credential_endpoint": f"{issuer_url}/oid4vc/credential",
         "token_endpoint": f"{issuer_url}/oid4vc/token",
+        "nonce_endpoint": f"{issuer_url}/oid4vc/nonce",
         "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
         "display": [{
             "name": "Sistema de Credenciales UTN",
@@ -733,6 +734,25 @@ async def root_credential_issuer_metadata():
                 }]
             }
         }
+    }
+    
+    return JSONResponse(content=metadata)
+
+@app.get("/.well-known/oauth-authorization-server")
+async def oauth_authorization_server_metadata():
+    """
+    OAuth 2.0 Authorization Server Metadata (RFC 8414)
+    """
+    issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
+    
+    metadata = {
+        "issuer": issuer_url,
+        "token_endpoint": f"{issuer_url}/oid4vc/token",
+        "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
+        "grant_types_supported": [
+            "urn:ietf:params:oauth:grant-type:pre-authorized_code"
+        ],
+        "token_endpoint_auth_methods_supported": ["none"]
     }
     
     return JSONResponse(content=metadata)
