@@ -31,13 +31,7 @@ services:
       context: ./von-network
       dockerfile: Dockerfile
     container_name: von-network
-    user: root
-    command: >
-      bash -c "
-      chmod +x /home/indy/manage /home/indy/scripts/*.sh /home/indy/bin/* &&
-      chown -R indy:indy /home/indy &&
-      su - indy -c 'cd /home/indy && ./manage start --logs'
-      "
+    command: bash manage start --logs
     environment:
       - DOCKERHOST=${DOCKERHOST:-host.docker.internal}
       - LOG_LEVEL=INFO
