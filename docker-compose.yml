@@ -90,7 +90,7 @@ services:
     networks:
       - acapy_network
     volumes:
-      - von-data:/home/indy/ledger
+      - von_data:/home/indy/ledger
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9701"]
