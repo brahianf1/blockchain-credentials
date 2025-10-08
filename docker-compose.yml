@@ -24,55 +24,25 @@ networks:
 
 services:
   # ===================================================================
-  # Servicio VON Network - Interfaz Web (con HTTPS)
+  # Servicio VON Network - Nodos Indy + Web Server
   # ===================================================================
-  von-webserver:
+  von-network:
     build:
-      context: .
-      dockerfile: Dockerfile.von
-    container_name: von-webserver
-    command: bash -c 'sleep 10 && bash /home/indy/scripts/start_webserver.sh'
-    environment:
-      - DOCKERHOST=${DOCKERHOST:-host.docker.internal}
-      - LOG_LEVEL=INFO
-      - GENESIS_URL=http://von-webserver:8000/genesis
-      - ANONYMOUS_READ=${ANONYMOUS_READ:-true}
-      - REGISTER_NEW_DIDS=${REGISTER_NEW_DIDS:-true}
-      - LEDGER_SEED=000000000000000000000000Steward1
-    ports:
-      - "${VON_NETWORK_PORT_EXT}:8000"
-    networks:
-      - acapy_network
-      - dokploy-network
-    volumes:
-      - von_data:/home/indy/.indy_client/wallet
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.von-network.rule=Host(`${VON_NETWORK_DOMAIN}`)"
-      - "traefik.http.routers.von-network.entrypoints=websecure"
-      - "traefik.http.routers.von-network.tls.certresolver=myresolver"
-      - "traefik.http.services.von-network.loadbalancer.server.port=8000"
-
-  # ===================================================================
-  # Servicio VON Network - Nodos Indy
-  # ===================================================================
-  von-nodes:
-    build:
-      context: .
-      dockerfile: Dockerfile.von
-    container_name: von-nodes
-    command: bash -c 'bash /home/indy/scripts/start_nodes.sh'
+      context: ./von-network
+      dockerfile: Dockerfile
+    container_name: von-network
+    user: root
+    command: >
+      bash -c "
+      chmod +x /home/indy/manage /home/indy/scripts/*.sh /home/indy/bin/* &&
+      chown -R indy:indy /home/indy &&
+      su - indy -c 'cd /home/indy && ./manage start --logs'
+      "
     environment:
       - DOCKERHOST=${DOCKERHOST:-host.docker.internal}
       - LOG_LEVEL=INFO
     ports:
+      - "${VON_NETWORK_PORT_EXT}:9000"
       - "9701:9701"
       - "9702:9702"
       - "9703:9703"
@@ -83,15 +53,23 @@ services:
       - "9708:9708"
     networks:
       - acapy_network
+      - dokploy-network
     volumes:
-      - von_data:/home/indy/ledger
+      - von_data:/home/indy/.indy_client
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9701"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 120s
+      retries: 10
+      start_period: 180s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.von-network.rule=Host(`${VON_NETWORK_DOMAIN}`)"
+      - "traefik.http.routers.von-network.entrypoints=websecure"
+      - "traefik.http.routers.von-network.tls.certresolver=myresolver"
+      - "traefik.http.services.von-network.loadbalancer.server.port=9000"
+
 
   # ===================================================================
   # Servicio ACA-Py Agent
@@ -101,11 +79,9 @@ services:
       context: ./backend/acapy
       dockerfile: Dockerfile.acapy
     container_name: acapy-agent
-    # Los puertos se exponen a través de Traefik, no directamente.
     environment:
       - GENESIS_URL=${ACAPY_GENESIS_URL}
       - ACAPY_DID_SEED=${ACAPY_DID_SEED}
-      # ACAPY_ENDPOINT será la URL pública, ej: https://acapy.tudominio.com
       - ACAPY_ENDPOINT=https://${ACAPY_DOMAIN}
       - ACAPY_WALLET_NAME=${ACAPY_WALLET_NAME}
       - ACAPY_WALLET_KEY=${ACAPY_WALLET_KEY}
@@ -141,32 +117,27 @@ services:
       - --auto-accept-invites
       - --auto-ping-connection
     depends_on:
-      von-webserver:
-        condition: service_healthy
-      von-nodes:
+      von-network:
         condition: service_healthy
     networks:
       - acapy_network
-      - dokploy-network # Conectar a la red del proxy
+      - dokploy-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8020/status/live"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     labels:
       - "traefik.enable=true"
-      # Router para el endpoint público de ACA-Py (comunicación entre agentes)
       - "traefik.http.routers.acapy-public.rule=Host(`${ACAPY_DOMAIN}`)"
       - "traefik.http.routers.acapy-public.entrypoints=websecure"
-      - "traefik.http.routers.acapy-public.tls.certresolver=myresolver" # Dokploy gestiona esto
+      - "traefik.http.routers.acapy-public.tls.certresolver=myresolver"
       - "traefik.http.services.acapy-public.loadbalancer.server.port=8021"
-      # Router para la API de administración (opcional, para depuración)
-      # ¡Asegúrate de proteger este endpoint si lo expones en producción!
       - "traefik.http.routers.acapy-admin.rule=Host(`${ACAPY_ADMIN_DOMAIN}`)"
       - "traefik.http.routers.acapy-admin.entrypoints=websecure"
-      - "traefik.http.routers.acapy-admin.tls.certresolver=myresolver" # Dokploy gestiona esto
+      - "traefik.http.routers.acapy-admin.tls.certresolver=myresolver"
       - "traefik.http.services.acapy-admin.loadbalancer.server.port=8020"
 
 
