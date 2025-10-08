@@ -31,7 +31,7 @@ services:
       context: ./von-network
       dockerfile: Dockerfile
     container_name: von-network
-    command: bash manage start --logs
+    command: bash scripts/manage start --logs
     environment:
       - DOCKERHOST=${DOCKERHOST:-host.docker.internal}
       - LOG_LEVEL=INFO
