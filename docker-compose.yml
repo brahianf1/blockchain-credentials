@@ -31,11 +31,14 @@ services:
       context: ./von-network
       dockerfile: Dockerfile
     container_name: von-network
+    user: root
     command: >
       bash -c "
-      bash /home/indy/scripts/start_nodes.sh &
+      chmod -R +x /home/indy/bin /home/indy/scripts &&
+      chown -R indy:indy /home/indy &&
+      su - indy -c 'bash /home/indy/scripts/start_nodes.sh &' &&
       sleep 10 &&
-      bash /home/indy/scripts/start_webserver.sh
+      su - indy -c 'bash /home/indy/scripts/start_webserver.sh'
       "
     environment:
       - DOCKERHOST=${DOCKERHOST:-host.docker.internal}
