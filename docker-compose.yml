@@ -28,14 +28,10 @@ services:
   # ===================================================================
   von-webserver:
     build:
-      context: ./von-network
-      dockerfile: Dockerfile
-      args:
-        - RUST_VERSION=1.79.0
-        - indy_sdk_revision=v1.16.0
-        - indy_node_version=1.13.2
+      context: .
+      dockerfile: Dockerfile.von
     container_name: von-webserver
-    command: bash -c 'sleep 10 && bash scripts/start_webserver.sh'
+    command: bash -c 'sleep 10 && bash /home/indy/scripts/start_webserver.sh'
     environment:
       - DOCKERHOST=${DOCKERHOST:-host.docker.internal}
       - LOG_LEVEL=INFO
@@ -56,7 +52,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 90s
+      start_period: 120s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.von-network.rule=Host(`${VON_NETWORK_DOMAIN}`)"
@@ -69,14 +65,10 @@ services:
   # ===================================================================
   von-nodes:
     build:
-      context: ./von-network
-      dockerfile: Dockerfile
-      args:
-        - RUST_VERSION=1.79.0
-        - indy_sdk_revision=v1.16.0
-        - indy_node_version=1.13.2
+      context: .
+      dockerfile: Dockerfile.von
     container_name: von-nodes
-    command: bash -c 'bash scripts/start_nodes.sh'
+    command: bash -c 'bash /home/indy/scripts/start_nodes.sh'
     environment:
       - DOCKERHOST=${DOCKERHOST:-host.docker.internal}
       - LOG_LEVEL=INFO
@@ -99,7 +91,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 90s
+      start_period: 120s
 
   # ===================================================================
   # Servicio ACA-Py Agent
