@@ -99,6 +99,7 @@ services:
     container_name: python-controller
     # El puerto se expone a través de Traefik
     environment:
+      - ISSUER_URL=${ISSUER_URL}
       - ACAPY_ADMIN_URL=http://acapy-agent:8020
       - ACAPY_PUBLIC_URL=https://${ACAPY_DOMAIN} # El endpoint público del agente
       - FABRIC_NETWORK_PATH=/crypto-config
