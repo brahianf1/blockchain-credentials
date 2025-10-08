@@ -231,7 +231,7 @@ services:
       - ${CRYPTO_CONFIG_PATH}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com:/etc/hyperledger/fabric:ro
       - peer0.org1.example.com:/var/hyperledger/production
     working_dir: /root
-    command: tail -f /dev/null
+    command: peer node start
     ports:
       - "${ORG1_PEER0_PORT_EXT}:7051"
       - "${ORG1_PEER0_OPERATIONS_PORT_EXT}:9444"
@@ -250,7 +250,7 @@ services:
       - ${CRYPTO_CONFIG_PATH}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com:/etc/hyperledger/fabric:ro
       - peer0.org2.example.com:/var/hyperledger/production
     working_dir: /root
-    command: tail -f /dev/null
+    command: peer node start
     ports:
       - "${ORG2_PEER0_PORT_EXT}:9051"
       - "${ORG2_PEER0_OPERATIONS_PORT_EXT}:9445"
