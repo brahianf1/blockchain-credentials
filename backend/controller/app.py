@@ -685,6 +685,57 @@ async def show_qr_page(connection_id: str):
         logger.error(f"❌ Error mostrando QR: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
+# ============================================================================
+# ENDPOINT: Metadata OpenID4VC en ruta raíz (requerido por DIDRoom Wallet)
+# ============================================================================
+@app.get("/.well-known/openid-credential-issuer")
+async def root_credential_issuer_metadata():
+    """
+    Metadata OpenID4VC en ruta raíz (sin prefijo /oid4vc)
+    DIDRoom Wallet busca los metadatos aquí según el estándar OpenID4VC
+    """
+    issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
+    
+    metadata = {
+        "credential_issuer": issuer_url,
+        "authorization_servers": [issuer_url],
+        "credential_endpoint": f"{issuer_url}/oid4vc/credential",
+        "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
+        "token_endpoint": f"{issuer_url}/oid4vc/token",
+        "supported_credential_configurations": {
+            "UniversityCredential": {
+                "format": "jwt_vc_json",
+                "scope": "UniversityCredentialScope",
+                "cryptographic_binding_methods_supported": ["jwk"],
+                "credential_signing_alg_values_supported": ["ES256"],
+                "proof_types_supported": {
+                    "jwt": {
+                        "proof_signing_alg_values_supported": ["ES256"]
+                    }
+                },
+                "credential_definition": {
+                    "type": ["VerifiableCredential", "UniversityCredential"],
+                    "@context": [
+                        "https://www.w3.org/2018/credentials/v1",
+                        "https://www.w3.org/2018/credentials/examples/v1"
+                    ]
+                },
+                "display": [{
+                    "name": "Credencial Universitaria",
+                    "locale": "es-ES",
+                    "background_color": "#1976d2",
+                    "text_color": "#FFFFFF",
+                    "logo": {
+                        "uri": f"{issuer_url}/assets/university-logo.png",
+                        "alt_text": "Universidad Logo"
+                    }
+                }]
+            }
+        }
+    }
+    
+    return JSONResponse(content=metadata)
+
 if __name__ == "__main__":
     import uvicorn
     logger.info(f"🚀 Iniciando Controller en puerto {CONTROLLER_PORT}")
