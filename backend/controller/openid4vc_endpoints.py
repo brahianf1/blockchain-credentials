@@ -141,6 +141,7 @@ async def credential_issuer_metadata(request: Request):
     """
     metadata = {
         "credential_issuer": ISSUER_URL,
+        "authorization_servers": [ISSUER_URL],
         "credential_endpoint": f"{ISSUER_URL}/oid4vc/credential",
         "jwks_uri": f"{ISSUER_URL}/oid4vc/.well-known/jwks.json",
         "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
