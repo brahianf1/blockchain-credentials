@@ -226,11 +226,12 @@ services:
     labels:
       service: hyperledger-fabric
     environment:
-      - FABRIC_LOGGING_SPEC=INFO
+      - FABRIC_LOGGING_SPEC=DEBUG
       - FABRIC_CFG_PATH=/etc/hyperledger/fabric
     volumes:
-      - ${CRYPTO_CONFIG_PATH}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com:/etc/hyperledger/fabric:ro
+      - ${CRYPTO_CONFIG_PATH}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com:/etc/hyperledger/fabric
       - peer0.org1.example.com:/var/hyperledger/production
+      - /var/run/docker.sock:/host/var/run/docker.sock
     working_dir: /root
     command: peer node start
     ports:
@@ -238,7 +239,7 @@ services:
       - "${ORG1_PEER0_OPERATIONS_PORT_EXT}:9444"
     networks:
       - fabric_network
-
+      - dokploy-network
 
   peer0.org2.example.com:
     container_name: peer0.org2.example.com
@@ -246,11 +247,12 @@ services:
     labels:
       service: hyperledger-fabric
     environment:
-      - FABRIC_LOGGING_SPEC=INFO
+      - FABRIC_LOGGING_SPEC=DEBUG
       - FABRIC_CFG_PATH=/etc/hyperledger/fabric
     volumes:
-      - ${CRYPTO_CONFIG_PATH}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com:/etc/hyperledger/fabric:ro
+      - ${CRYPTO_CONFIG_PATH}/organizations/peerOrganizations/org2.example.com/peers/peer0.org2.example.com:/etc/hyperledger/fabric
       - peer0.org2.example.com:/var/hyperledger/production
+      - /var/run/docker.sock:/host/var/run/docker.sock
     working_dir: /root
     command: peer node start
     ports:
@@ -258,6 +260,7 @@ services:
       - "${ORG2_PEER0_OPERATIONS_PORT_EXT}:9445"
     networks:
       - fabric_network
+      - dokploy-network
 
 
   cli:
