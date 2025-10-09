@@ -239,6 +239,12 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
         
         # Almacenar datos pendientes con expiración y metadatos OpenID4VC
         await store_pending_openid_credential(pre_auth_code, request.dict(), expires_in=600)
+
+        pre_authorized_code_data[pre_auth_code] = {
+            "credential_data": request.dict(),
+            "expires_at": (datetime.now() + timedelta(seconds=600)).isoformat()
+        }
+        logger.info(f"📝 Datos almacenados para {pre_auth_code}, expira en 600s")
         
         # Crear Credential Offer según OpenID4VCI Draft-16 (formato estricto)
         offer = {
@@ -866,7 +872,7 @@ async def issue_openid_credential(
                     "student_name": credential_data.get("nombre", "Unknown"),
                     "student_email": credential_data.get("email", "unknown@example.com"),
                     "student_id": credential_data.get("matricula", "unknown"),
-                    "university": "UTN - Argentina"
+                    "university": "UTN"
                 }
             }
         }
