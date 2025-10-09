@@ -162,7 +162,7 @@ async def credential_issuer_metadata(request: Request):
             "UniversityDegree": {
                 "format": "jwt_vc_json",
                 "scope": "UniversityDegreeScope",
-                "cryptographic_binding_methods_supported": ["jwk"],
+                "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
                 "credential_signing_alg_values_supported": ["ES256"],
                 "proof_types_supported": {
                     "jwt": {
@@ -882,6 +882,79 @@ async def issue_openid_credential(
         credential_data = token_info.get("credential_data", {})
         logger.info(f"✅ Credential data recuperada: {credential_data}")
         # ==================== FIN VALIDACIÓN ====================
+
+        # Extraer proof JWT para obtener el DID del holder
+        proof = json_data.get('proof', {})
+        proof_jwt = proof.get('jwt')
+        holder_did = None
+        
+        if proof_jwt:
+            try:
+                # FASE 3: Validar firma del proof JWT
+                from jwcrypto import jwk as jwk_module
+                
+                # Extraer header del proof JWT
+                proof_header = jwt.get_unverified_header(proof_jwt)
+                holder_jwk_dict = proof_header.get('jwk')
+                
+                if holder_jwk_dict:
+                    # Convertir JWK a clave pública PEM
+                    holder_jwk = jwk_module.JWK(**holder_jwk_dict)
+                    public_key_pem = holder_jwk.export_to_pem()
+                    
+                    # Verificar firma del proof JWT
+                    proof_payload = jwt.decode(
+                        proof_jwt,
+                        public_key_pem,
+                        algorithms=["ES256", "ES384", "ES512"],
+                        audience=ISSUER_URL,
+                        options={"verify_aud": False}  # Algunos wallets no incluyen aud
+                    )
+                    
+                    logger.info("✅ Proof JWT verificado correctamente (firma válida)")
+                    
+                    # Extraer DID del holder desde el proof
+                    holder_did = proof_payload.get('iss')
+                    logger.info(f"✅ DID del holder extraído y verificado: {holder_did}")
+                
+                else:
+                    # Si no hay JWK en header, decodificar sin verificar (compatibilidad)
+                    logger.warning("⚠️ Proof JWT no contiene JWK en header, decodificando sin verificar")
+                    proof_payload = jwt.decode(proof_jwt, options={"verify_signature": False})
+                    holder_did = proof_payload.get('iss')
+                    logger.info(f"⚠️ DID del holder extraído sin verificar: {holder_did}")
+            
+            except jwt.InvalidSignatureError:
+                logger.error("❌ Firma del proof JWT inválida")
+                raise HTTPException(
+                    status_code=400,
+                    detail={"error": "invalid_proof", "error_description": "Proof signature verification failed"}
+                )
+            
+            except jwt.ExpiredSignatureError:
+                logger.error("❌ Proof JWT expirado")
+                raise HTTPException(
+                    status_code=400,
+                    detail={"error": "invalid_proof", "error_description": "Proof JWT expired"}
+                )
+            
+            except Exception as e:
+                logger.warning(f"⚠️ Error validando proof JWT: {e}, decodificando sin verificar")
+                # Fallback: decodificar sin verificar para compatibilidad
+                try:
+                    proof_payload = jwt.decode(proof_jwt, options={"verify_signature": False})
+                    holder_did = proof_payload.get('iss')
+                    logger.info(f"⚠️ DID del holder extraído (fallback): {holder_did}")
+                except Exception as fallback_error:
+                    logger.error(f"❌ Error en fallback de proof JWT: {fallback_error}")
+                    holder_did = None
+        
+        # Si no se pudo extraer el DID del proof, usar fallback
+        if not holder_did:
+            holder_did = f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data.get('student_id', 'unknown')}"
+            logger.warning(f"⚠️ No se recibió proof JWT válido, usando DID por defecto: {holder_did}")
+        
+        # ==================== FIN EXTRACCIÓN DID ====================
         
         # Validar configuración de credencial
         if config_id != "UniversityDegree":
@@ -910,7 +983,7 @@ async def issue_openid_credential(
                 "issuanceDate": now.isoformat() + "Z",
                 "expirationDate": (now + timedelta(days=365)).isoformat() + "Z",
                 "credentialSubject": {
-                    "id": f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data.get('student_id', 'unknown')}",
+                    "id": holder_did,  # Usar el DID extraído del proof JWT
                     "student_name": credential_data.get("student_name", "Unknown"),
                     "student_email": credential_data.get("student_email", "unknown@example.com"),
                     "student_id": credential_data.get("student_id", "unknown"),
