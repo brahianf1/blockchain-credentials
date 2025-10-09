@@ -63,6 +63,7 @@ app = FastAPI(
 if OPENID4VC_AVAILABLE:
     app.include_router(oid4vc_router)
     logger.info("✅ OpenID4VC endpoints habilitados para wallets modernas (Lissi, etc.)")
+    logger.info("✅ DID Document disponible en /.well-known/did.json")
 else:
     logger.warning("⚠️ Solo DIDComm disponible - considera instalar dependencias OpenID4VC")
 

@@ -102,7 +102,36 @@ def get_or_generate_es256_key():
 # Obtener claves ES256 válidas
 # En entornos de producción se recomienda suministrar las claves mediante las
 # variables de entorno ``OPENID_PRIVATE_KEY`` y ``OPENID_PUBLIC_KEY``.
+# Cargar claves desde variables de entorno
 PRIVATE_KEY, PUBLIC_KEY = get_or_generate_es256_key()
+
+# Convertir clave pública a formato JWK para DID Document
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+
+# Si PUBLIC_KEY es string (PEM), cargarlo como objeto
+if isinstance(PUBLIC_KEY, str):
+    from cryptography.hazmat.primitives.serialization import load_pem_public_key
+    public_key_obj = load_pem_public_key(PUBLIC_KEY.encode(), backend=default_backend())
+else:
+    public_key_obj = PUBLIC_KEY
+
+# Extraer números públicos de la clave EC
+public_numbers = public_key_obj.public_numbers()
+
+# Convertir a JWK
+PUBLIC_KEY_JWK = {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": base64.urlsafe_b64encode(
+        public_numbers.x.to_bytes(32, 'big')
+    ).decode().rstrip('='),
+    "y": base64.urlsafe_b64encode(
+        public_numbers.y.to_bytes(32, 'big')
+    ).decode().rstrip('=')
+}
+
+logger.info(f"✅ Clave pública convertida a JWK para DID Document")
 
 # Configuración para compatibilidad Android/Lissi Wallet
 TLS_PROTOCOLS_SUPPORTED = ["TLSv1.2", "TLSv1.3"]
@@ -221,6 +250,39 @@ async def jwks_endpoint():
     }
     
     response = JSONResponse(content=jwks)
+    return await add_security_headers(response)
+
+@oid4vc_router.get("/.well-known/did.json")
+async def did_document_endpoint():
+    """
+    DID Document para resolución de did:web (requerido por Paradym Wallet)
+    Según W3C DID Core y did:web Method Specification
+    https://w3c-ccg.github.io/did-method-web/
+    """
+    did_document = {
+        "@context": [
+            "https://www.w3.org/ns/did/v1",
+            "https://w3id.org/security/suites/jws-2020/v1"
+        ],
+        "id": ISSUER_DID,
+        "verificationMethod": [
+            {
+                "id": f"{ISSUER_DID}#key-1",
+                "type": "JsonWebKey2020",
+                "controller": ISSUER_DID,
+                "publicKeyJwk": PUBLIC_KEY_JWK
+            }
+        ],
+        "assertionMethod": [f"{ISSUER_DID}#key-1"],
+        "authentication": [f"{ISSUER_DID}#key-1"],
+        "capabilityInvocation": [f"{ISSUER_DID}#key-1"],
+        "capabilityDelegation": [f"{ISSUER_DID}#key-1"]
+    }
+    
+    logger.info(f"✅ DID Document servido para: {ISSUER_DID}")
+    
+    response = JSONResponse(content=did_document)
+    response.headers["Content-Type"] = "application/did+json"
     return await add_security_headers(response)
 
 # ENDPOINT 2: Crear Credential Offer compatible con Lissi - MEJORADO
