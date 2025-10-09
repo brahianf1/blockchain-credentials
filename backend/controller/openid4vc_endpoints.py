@@ -1085,6 +1085,12 @@ async def issue_openid_credential(
                     "completion_date": credential_data.get("completion_date", "N/A"),
                     "grade": credential_data.get("grade", "N/A"),
                     "university": "UTN"
+                },
+                "proof": {
+                    "type": "JsonWebSignature2020",
+                    "created": now_without_microseconds.isoformat() + "Z",
+                    "verificationMethod": f"{ISSUER_DID}#key-1",
+                    "proofPurpose": "assertionMethod"
                 }
             }
         }
