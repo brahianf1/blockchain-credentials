@@ -719,17 +719,40 @@ async def authorize_endpoint(
             pre_auth_dict = {}
             setattr(current_module, 'pre_authorized_code_data', pre_auth_dict)
         
+        # Recuperar datos originales del pre_authorized_code
+        original_credential_data = None
+        issuer_state = par_data.get('state', state_final)
+        
+        # Buscar en preauthorized_code_data usando issuer_state
+        for code_key, code_data in pre_authorized_code_data.items():
+            if issuer_state in code_key or code_key.endswith(issuer_state):
+                original_credential_data = code_data.get('credential_data', {})
+                logger.info(f"✅ Datos originales recuperados de: {code_key}")
+                break
+        
+        # Si no se encontró, intentar buscar directamente
+        if not original_credential_data and issuer_state in pre_authorized_code_data:
+            original_credential_data = pre_authorized_code_data[issuer_state].get('credential_data', {})
+        
+        # Fallback a datos por defecto si no se encontró nada
+        if not original_credential_data:
+            logger.warning(f"⚠️ No se encontraron datos originales, usando fallback")
+            original_credential_data = {
+                "student_name": "fulano",
+                "student_email": "unknown@example.com",
+                "student_id": "unknown",
+                "course_name": "N/A",
+                "completion_date": "N/A",
+                "grade": "N/A"
+            }
+        
         # Guardar datos del authorization code
         pre_auth_dict[auth_code] = {
             "client_id": client_id,
             "redirect_uri": redirect_uri_final,
-            "code_verifier": par_data.get('code_challenge'),  # Guardar para validación PKCE
+            "code_verifier": par_data.get('code_challenge'),
             "expires_at": (datetime.now() + timedelta(minutes=10)).isoformat(),
-            "credential_data": {
-                "nombre": "Usuario DIDRoom",
-                "email": "usuario@didroom.com",
-                "matricula": "DR001"
-            }
+            "credential_data": original_credential_data
         }
         
         logger.info(f"✅ Authorization code generado: {auth_code[:30]}...")
