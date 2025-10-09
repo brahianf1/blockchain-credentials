@@ -320,9 +320,9 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
                 "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
                     "pre-authorized_code": pre_auth_code
                 },
-                "authorization_code": {
-                    "issuer_state": pre_auth_code
-                }
+                #"authorization_code": {
+                #    "issuer_state": pre_auth_code
+                #}
             }
         }
         
