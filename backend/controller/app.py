@@ -225,6 +225,41 @@ async def health_check():
         }
     }
 
+@app.get("/.well-known/did.json")
+async def did_document_endpoint():
+    """
+    DID Document para resolución de did:web (requerido por Paradym Wallet)
+    Según W3C DID Core y did:web Method Specification
+    """
+    from openid4vc_endpoints import ISSUER_DID, PUBLIC_KEY_JWK
+    
+    did_document = {
+        "@context": [
+            "https://www.w3.org/ns/did/v1",
+            "https://w3id.org/security/suites/jws-2020/v1"
+        ],
+        "id": ISSUER_DID,
+        "verificationMethod": [
+            {
+                "id": f"{ISSUER_DID}#key-1",
+                "type": "JsonWebKey2020",
+                "controller": ISSUER_DID,
+                "publicKeyJwk": PUBLIC_KEY_JWK
+            }
+        ],
+        "assertionMethod": [f"{ISSUER_DID}#key-1"],
+        "authentication": [f"{ISSUER_DID}#key-1"],
+        "capabilityInvocation": [f"{ISSUER_DID}#key-1"],
+        "capabilityDelegation": [f"{ISSUER_DID}#key-1"]
+    }
+    
+    logger.info(f"✅ DID Document servido para: {ISSUER_DID}")
+    
+    return JSONResponse(
+        content=did_document,
+        headers={"Content-Type": "application/did+json"}
+    )
+
 # COMPATIBILIDAD: Endpoint para Fases 1-3 (estructura original)
 @app.post("/api/issue-credential", response_model=ConnectionInvitationResponse)
 async def issue_credential_compatible(moodle_request: MoodleCredentialRequest):
