@@ -647,6 +647,7 @@ async def par_endpoint(request: Request):
 
 # Diccionario temporal para guardar PAR requests
 par_requests_data = {}
+access_tokens_data = {}
 
 @oid4vc_router.get("/authorize")
 async def authorize_endpoint(
