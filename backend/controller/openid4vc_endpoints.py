@@ -969,14 +969,19 @@ async def issue_openid_credential(
         if config_id != "UniversityDegree":
             raise HTTPException(status_code=400, detail={"error": "unsupported_credential_type"})
         
-        # Crear W3C Verifiable Credential
+        # Crear W3C Verifiable Credential con timestamps sincronizados
         now = datetime.now()
+        now_timestamp = int(now.timestamp())
+        now_without_microseconds = datetime.fromtimestamp(now_timestamp)
+        exp_timestamp = now_timestamp + (365 * 24 * 60 * 60)
+        exp_without_microseconds = datetime.fromtimestamp(exp_timestamp)
+        
         vc_payload = {
             "iss": ISSUER_URL,
             "sub": f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data.get('student_id', 'unknown')}",
-            "iat": int(now.timestamp()),
-            "nbf": int(now.timestamp()),
-            "exp": int((now + timedelta(days=365)).timestamp()),
+            "iat": now_timestamp,
+            "nbf": now_timestamp,
+            "exp": exp_timestamp,
             "jti": f"urn:credential:{access_token[:16]}",
             "vc": {
                 "@context": [
@@ -990,8 +995,8 @@ async def issue_openid_credential(
                     "name": "Sistema de Credenciales UTN",
                     "url": ISSUER_URL
                 },
-                "issuanceDate": now.isoformat() + "Z",
-                "expirationDate": (now + timedelta(days=365)).isoformat() + "Z",
+                "issuanceDate": now_without_microseconds.isoformat() + "Z",
+                "expirationDate": exp_without_microseconds.isoformat() + "Z",
                 "credentialSubject": {
                     "id": holder_did,  # Usar el DID extraído del proof JWT
                     "student_name": credential_data.get("student_name", "Unknown"),
