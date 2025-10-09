@@ -27,6 +27,12 @@ logger = structlog.get_logger()
 # Router para endpoints OpenID4VC
 oid4vc_router = APIRouter(prefix="/oid4vc", tags=["OpenID4VC"])
 
+# Diccionarios globales para storage temporal
+pre_authorized_code_data = {}  # Storage de códigos pre-autorizados
+par_requests_data = {}  # Storage de PAR requests  
+access_tokens_data = {}  # Storage de access tokens
+
+
 # Configuración - Leída desde variables de entorno con fallback para desarrollo
 ISSUER_URL = os.getenv("ISSUER_URL", "http://localhost:3000")
 ISSUER_BASE_URL = f"{ISSUER_URL}/oid4vc"
@@ -835,7 +841,7 @@ async def issue_openid_credential(
         
         access_token = parts[1]
         logger.info(f"✅ Token extraído: {access_token[:20]}...")
-        
+
         try:
             # Para ES256, usar la clave pública para verificar el token
             token_data = jwt.decode(

@@ -24,7 +24,7 @@ from fabric_client import FabricClient
 from qr_generator import QRGenerator
 
 # Importar diccionario compartido de OpenID4VC
-from openid4vc_endpoints import pre_authorized_code_data
+from openid4vc_endpoints import pre_authorized_code_data, par_requests_data, access_tokens_data
 
 # NUEVO: Import OpenID4VC endpoints
 try:
