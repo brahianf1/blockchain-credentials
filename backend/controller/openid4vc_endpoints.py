@@ -749,6 +749,9 @@ async def authorize_endpoint(
     logger.info(f"🔓 Authorization endpoint llamado - client_id: {client_id}")
     logger.info(f"   request_uri: {request_uri}")
     logger.info(f"   redirect_uri from query: {redirect_uri}")
+
+    # Import datetime al inicio de la función para evitar UnboundLocalError
+    from datetime import datetime, timedelta
     
     try:
         if not request_uri:
@@ -811,7 +814,6 @@ async def authorize_endpoint(
             for code_key, code_data in sorted_codes:
                 expires_at_str = code_data.get('expires_at')
                 if expires_at_str:
-                    from datetime import datetime
                     expires_at = datetime.fromisoformat(expires_at_str)
                     if datetime.now() < expires_at:
                         original_credential_data = code_data.get('credential_data', {})
