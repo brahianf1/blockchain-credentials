@@ -241,6 +241,9 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
             "grants": {
                 "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
                     "pre-authorized_code": pre_auth_code
+                },
+                "authorization_code": {
+                    "issuer_state": pre_auth_code
                 }
             }
         }
@@ -699,32 +702,99 @@ async def par_endpoint(request: Request):
         )
 
 # ============================================================================
-# AUTHORIZE ENDPOINT - OAuth 2.0 Authorization Endpoint
-# Requerido por DIDRoom para conformidad EUDI (no usado en pre-authorized flow)
+# AUTHORIZE ENDPOINT - OAuth 2.0 Authorization Endpoint (REAL)
+# Usado por DIDRoom con PAR flow
 # ============================================================================
 @oid4vc_router.get("/authorize")
-async def authorize_endpoint(request: Request):
+async def authorize_endpoint(
+    request: Request,
+    client_id: Optional[str] = Query(None),
+    request_uri: Optional[str] = Query(None),
+    response_type: Optional[str] = Query(None),
+    redirect_uri: Optional[str] = Query(None),
+    state: Optional[str] = Query(None)
+):
     """
-    OAuth 2.0 Authorization Endpoint según RFC 6749
+    OAuth 2.0 Authorization Endpoint con soporte PAR
     
-    En flujo pre-authorized NO se usa este endpoint porque no hay
-    redirección del navegador ni consentimiento del usuario.
-    
-    DIDRoom valida que exista en metadatos por conformidad EUDI.
+    Flujo DIDRoom:
+    1. Wallet hace PAR (ya implementado)
+    2. Wallet llama /authorize con request_uri
+    3. Generamos authorization_code
+    4. Redirigimos a redirect_uri con code
     """
-    # En pre-authorized flow este endpoint nunca será llamado
-    # Pero debe existir para validación de metadatos
+    logger.info(f"🔓 Authorization endpoint llamado - client_id: {client_id}")
+    logger.info(f"   request_uri: {request_uri}")
+    logger.info(f"   redirect_uri: {redirect_uri}")
     
-    logger.info("⚠️ Authorization endpoint llamado (no esperado en pre-authorized flow)")
-    
-    # Respuesta básica indicando que este endpoint no es parte del flujo actual
-    return JSONResponse(
-        content={
-            "error": "unsupported_grant_type",
-            "error_description": "This issuer only supports pre-authorized code flow. Authorization endpoint is not used."
-        },
-        status_code=400
-    )
+    try:
+        # Si viene request_uri (PAR), buscar los datos guardados
+        if request_uri:
+            # Extraer el ID del request_uri
+            request_id = request_uri.split(':')[-1] if ':' in request_uri else request_uri
+            
+            logger.info(f"   Buscando datos PAR para: {request_id}")
+            
+            # Buscar en los datos de pre-authorized (reutilizamos el mismo storage)
+            # En producción deberías tener storage separado para PAR
+            matching_code = None
+            for code_key in list(pre_authorized_code_data.keys()):
+                if request_id in code_key or code_key.endswith(request_id[:10]):
+                    matching_code = code_key
+                    break
+            
+            if not matching_code:
+                # Si no encontramos en pre_authorized, generamos uno nuevo
+                # porque DIDRoom puede estar usando PAR sin pre-authorized
+                logger.info("   No se encontró pre-authorized code, generando authorization code")
+                
+                # Generar nuevo authorization code
+                import secrets
+                auth_code = f"auth_code_{secrets.token_urlsafe(32)}"
+                
+                # Guardar datos mínimos para el token endpoint
+                pre_authorized_code_data[auth_code] = {
+                    "client_id": client_id,
+                    "redirect_uri": redirect_uri,
+                    "expires_at": (datetime.now() + timedelta(minutes=10)).isoformat(),
+                    "credential_data": {
+                        "nombre": "Usuario DIDRoom",
+                        "email": "usuario@didroom.com",
+                        "matricula": "DR001"
+                    }
+                }
+                
+                logger.info(f"✅ Authorization code generado: {auth_code[:20]}...")
+            else:
+                # Usar el pre-authorized code como authorization code
+                auth_code = matching_code
+                logger.info(f"✅ Usando pre-authorized code como auth_code: {auth_code[:20]}...")
+        
+        else:
+            raise HTTPException(status_code=400, detail="request_uri is required")
+        
+        # Construir redirect URL con authorization code
+        from urllib.parse import urlencode, urlparse, parse_qs
+        
+        params = {
+            "code": auth_code,
+            "state": state if state else "xyz"
+        }
+        
+        redirect_url = f"{redirect_uri}?{urlencode(params)}"
+        
+        logger.info(f"✅ Redirigiendo a: {redirect_url[:100]}...")
+        
+        # Redirección HTTP 302
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=redirect_url, status_code=302)
+        
+    except Exception as e:
+        logger.error(f"❌ Error en authorization endpoint: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_request", "error_description": str(e)}
+        )
 
 # ENDPOINT 4: Credential endpoint - Emisión final MEJORADO
 @oid4vc_router.post("/credential")
