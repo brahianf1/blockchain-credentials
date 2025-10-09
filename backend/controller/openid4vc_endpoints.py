@@ -675,6 +675,8 @@ async def par_endpoint(request: Request):
         
         # Generar request_uri único
         request_uri = f"urn:ietf:params:oauth:request_uri:{secrets.token_urlsafe(32)}"
+
+        par_requests_data[request_uri] = dict(form_data)  # Guardar para /authorize
         
         # En flujo pre-authorized, PAR no es realmente necesario
         # pero DIDRoom lo valida por conformidad con EUDI specs
@@ -705,6 +707,10 @@ async def par_endpoint(request: Request):
 # AUTHORIZE ENDPOINT - OAuth 2.0 Authorization Endpoint (REAL)
 # Usado por DIDRoom con PAR flow
 # ============================================================================
+
+# Diccionario temporal para guardar PAR requests
+par_requests_data = {}
+
 @oid4vc_router.get("/authorize")
 async def authorize_endpoint(
     request: Request,
@@ -718,7 +724,7 @@ async def authorize_endpoint(
     OAuth 2.0 Authorization Endpoint con soporte PAR
     
     Flujo DIDRoom:
-    1. Wallet hace PAR (ya implementado)
+    1. Wallet hace PAR (ya implementado) - guarda request_uri
     2. Wallet llama /authorize con request_uri
     3. Generamos authorization_code
     4. Redirigimos a redirect_uri con code
@@ -728,53 +734,51 @@ async def authorize_endpoint(
     logger.info(f"   redirect_uri: {redirect_uri}")
     
     try:
-        # Si viene request_uri (PAR), buscar los datos guardados
-        if request_uri:
-            # Extraer el ID del request_uri
-            request_id = request_uri.split(':')[-1] if ':' in request_uri else request_uri
-            
-            logger.info(f"   Buscando datos PAR para: {request_id}")
-            
-            # Buscar en los datos de pre-authorized (reutilizamos el mismo storage)
-            # En producción deberías tener storage separado para PAR
-            matching_code = None
-            for code_key in list(pre_authorized_code_data.keys()):
-                if request_id in code_key or code_key.endswith(request_id[:10]):
-                    matching_code = code_key
-                    break
-            
-            if not matching_code:
-                # Si no encontramos en pre_authorized, generamos uno nuevo
-                # porque DIDRoom puede estar usando PAR sin pre-authorized
-                logger.info("   No se encontró pre-authorized code, generando authorization code")
-                
-                # Generar nuevo authorization code
-                import secrets
-                auth_code = f"auth_code_{secrets.token_urlsafe(32)}"
-                
-                # Guardar datos mínimos para el token endpoint
-                pre_authorized_code_data[auth_code] = {
-                    "client_id": client_id,
-                    "redirect_uri": redirect_uri,
-                    "expires_at": (datetime.now() + timedelta(minutes=10)).isoformat(),
-                    "credential_data": {
-                        "nombre": "Usuario DIDRoom",
-                        "email": "usuario@didroom.com",
-                        "matricula": "DR001"
-                    }
-                }
-                
-                logger.info(f"✅ Authorization code generado: {auth_code[:20]}...")
-            else:
-                # Usar el pre-authorized code como authorization code
-                auth_code = matching_code
-                logger.info(f"✅ Usando pre-authorized code como auth_code: {auth_code[:20]}...")
-        
-        else:
+        if not request_uri:
             raise HTTPException(status_code=400, detail="request_uri is required")
         
+        # Extraer el ID del request_uri
+        request_id = request_uri.split(':')[-1] if ':' in request_uri else request_uri
+        logger.info(f"   Buscando datos PAR para: {request_id}")
+        
+        # Buscar en el diccionario PAR
+        par_data = par_requests_data.get(request_uri)
+        
+        if not par_data:
+            logger.info("   No se encontró PAR data, generando authorization code genérico")
+        
+        # Generar nuevo authorization code
+        import secrets
+        auth_code = f"auth_code_{secrets.token_urlsafe(32)}"
+        
+        # Guardar en pre_authorized_code_data para que /token lo pueda usar
+        # Buscar el diccionario pre_authorized_code_data en scope global
+        import sys
+        current_module = sys.modules[__name__]
+        
+        if hasattr(current_module, 'pre_authorized_code_data'):
+            pre_auth_dict = getattr(current_module, 'pre_authorized_code_data')
+        else:
+            # Si no existe, crear uno temporal
+            pre_auth_dict = {}
+            setattr(current_module, 'pre_authorized_code_data', pre_auth_dict)
+        
+        # Guardar datos del authorization code
+        pre_auth_dict[auth_code] = {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "expires_at": (datetime.now() + timedelta(minutes=10)).isoformat(),
+            "credential_data": {
+                "nombre": "Usuario DIDRoom",
+                "email": "usuario@didroom.com",
+                "matricula": "DR001"
+            }
+        }
+        
+        logger.info(f"✅ Authorization code generado: {auth_code[:30]}...")
+        
         # Construir redirect URL con authorization code
-        from urllib.parse import urlencode, urlparse, parse_qs
+        from urllib.parse import urlencode
         
         params = {
             "code": auth_code,
@@ -791,6 +795,8 @@ async def authorize_endpoint(
         
     except Exception as e:
         logger.error(f"❌ Error en authorization endpoint: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=400,
             detail={"error": "invalid_request", "error_description": str(e)}
