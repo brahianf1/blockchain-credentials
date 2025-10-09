@@ -328,158 +328,96 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
 @oid4vc_router.post("/token")
 async def token_endpoint(request: Request):
     """
-    Token endpoint universal para intercambiar pre-authorized code por access token
-    Cumple OpenID4VC Draft-16 con máxima compatibilidad de wallets
-    Soporta: form data (estándar), query params (walt.id), y JSON body
+    OAuth 2.0 Token Endpoint
+    Soporta:
+    - Pre-authorized code flow (WaltID)
+    - Authorization code flow (DIDRoom con PAR)
     """
+    logger.info(f"🔍 Token endpoint llamado - Content-Type: {request.headers.get('content-type')}")
+    
     try:
-        # Logging inicial para debug
-        content_type = request.headers.get("content-type", "")
-        logger.info(f"🔍 Token endpoint llamado - Content-Type: {content_type}")
-        logger.info(f"🔍 Query params: {dict(request.query_params)}")
+        # Leer form data
+        form_data = await request.form()
+        form_dict = dict(form_data)
         
-        grant_type = None
+        logger.info(f"📝 Form data completo: {form_dict}")
+        
+        grant_type = form_dict.get('grant_type', '')
+        
+        logger.info(f"🎯 Grant type recibido: {grant_type}")
+        
+        # Determinar qué código usar según el grant_type y los campos disponibles
         pre_authorized_code = None
-        tx_code = None
         
-        # MÉTODO 1: Form Data (estándar OpenID4VC per RFC6749)
-        try:
-            if request.headers.get("content-type", "").startswith("application/x-www-form-urlencoded"):
-                form_data = await request.form()
-                logger.info(f"🔍 Form data recibida: {dict(form_data) if form_data else 'None'}")
-                if form_data:
-                    grant_type = form_data.get("grant_type")
-                    # Walt.id usa "pre-authorized_code" (con guión) según OpenID4VC Draft-16
-                    pre_authorized_code = form_data.get("pre-authorized_code") or form_data.get("pre_authorized_code")
-                    tx_code = form_data.get("tx_code")
-                    logger.info(f"✅ Form data - grant_type: {grant_type}, pre_auth_code: {pre_authorized_code[:10]}... si existe")
-        except Exception as e:
-            logger.warning(f"⚠️ Error parseando form data: {e}")
-            pass
+        # Caso 1: WaltID - Grant pre-authorized + campo pre_authorized_code
+        if 'pre_authorized_code' in form_dict or 'pre-authorized_code' in form_dict:
+            pre_authorized_code = form_dict.get('pre_authorized_code') or form_dict.get('pre-authorized_code')
+            logger.info(f"✅ Detectado pre_authorized_code: {pre_authorized_code[:20] if pre_authorized_code else 'None'}...")
         
-        # MÉTODO 2: Query Parameters (walt.id comportamiento observado)
-        if not grant_type or not pre_authorized_code:
-            query_params = dict(request.query_params)
-            logger.info(f"🔍 Intentando query params: {query_params}")
-            if not grant_type:
-                grant_type = query_params.get("grant_type")
-            if not pre_authorized_code:
-                # Walt.id usa "pre-authorized_code" (con guión) según OpenID4VC Draft-16
-                pre_auth_hyphen = query_params.get("pre-authorized_code")
-                pre_auth_underscore = query_params.get("pre_authorized_code")
-                pre_authorized_code = pre_auth_hyphen or pre_auth_underscore
-                logger.info(f"🔍 Query params - underscore: {pre_auth_underscore}, hyphen: {pre_auth_hyphen}")
-            if not tx_code:
-                tx_code = query_params.get("tx_code")
-            logger.info(f"✅ Query params - grant_type: {grant_type}, pre_auth_code: {pre_authorized_code[:10] if pre_authorized_code else 'None'}...")
+        # Caso 2: DIDRoom - Grant pre-authorized pero envía "code" (authorization code)
+        elif 'code' in form_dict and 'pre-authorized' in grant_type:
+            pre_authorized_code = form_dict.get('code')
+            logger.info(f"✅ Detectado code con grant pre-authorized (DIDRoom): {pre_authorized_code[:20] if pre_authorized_code else 'None'}...")
         
-        # MÉTODO 3: JSON Body (algunos wallets)
-        if not grant_type or not pre_authorized_code:
-            try:
-                if request.headers.get("content-type", "").startswith("application/json"):
-                    json_data = await request.json()
-                    logger.info(f"🔍 JSON data recibida: {json_data}")
-                    if not grant_type:
-                        grant_type = json_data.get("grant_type")
-                    if not pre_authorized_code:
-                        # Walt.id usa "pre-authorized_code" (con guión) según OpenID4VC Draft-16
-                        pre_authorized_code = form_data.get("pre-authorized_code") or form_data.get("pre_authorized_code")
-                    if not tx_code:
-                        tx_code = json_data.get("tx_code")
-                    logger.info(f"✅ JSON - grant_type: {grant_type}, pre_auth_code: {pre_authorized_code[:10] if pre_authorized_code else 'None'}...")
-            except Exception as e:
-                logger.warning(f"⚠️ Error parseando JSON: {e}")
-                pass
-        
-        # Logging resultado final de parsing
-        logger.info(f"🎯 RESULTADO FINAL PARSING:")
-        logger.info(f"  - grant_type: {grant_type}")
-        logger.info(f"  - pre_authorized_code: {'PRESENTE' if pre_authorized_code else 'FALTANTE'}")
-        logger.info(f"  - tx_code: {'PRESENTE' if tx_code else 'FALTANTE'}")
-        
-        # Validación de parámetros requeridos
-        if not grant_type:
-            raise HTTPException(
-                status_code=422,
-                detail=[{
-                    "type": "missing",
-                    "loc": ["query", "grant_type"],
-                    "msg": "Field required",
-                    "input": None
-                }]
-            )
+        # Caso 3: Authorization code flow estándar
+        elif 'code' in form_dict:
+            pre_authorized_code = form_dict.get('code')
+            logger.info(f"✅ Detectado authorization code: {pre_authorized_code[:20] if pre_authorized_code else 'None'}...")
         
         if not pre_authorized_code:
+            logger.error(f"❌ No se encontró código en: {list(form_dict.keys())}")
             raise HTTPException(
-                status_code=422,
-                detail=[{
-                    "type": "missing",
-                    "loc": ["query", "pre_authorized_code"],
-                    "msg": "Field required (pre_authorized_code or pre-authorized_code)", 
-                    "input": None
-                }]
-            )
-        
-        if grant_type != "urn:ietf:params:oauth:grant-type:pre-authorized_code":
-            raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail={
-                    "error": "unsupported_grant_type",
-                    "error_description": "Grant type no soportado. Use 'urn:ietf:params:oauth:grant-type:pre-authorized_code'"
+                    "error": "invalid_request",
+                    "error_description": "Missing code or pre_authorized_code"
                 }
             )
         
-        # Validar pre-authorized code
-        credential_data = await get_pending_openid_credential(pre_authorized_code)
-        if not credential_data:
+        # Buscar datos del código
+        import sys
+        current_module = sys.modules[__name__]
+        
+        if hasattr(current_module, 'pre_authorized_code_data'):
+            code_data_dict = getattr(current_module, 'pre_authorized_code_data')
+        else:
+            logger.error("❌ pre_authorized_code_data no existe en el módulo")
+            raise HTTPException(status_code=500, detail="Internal configuration error")
+        
+        code_data = code_data_dict.get(pre_authorized_code)
+        
+        if not code_data:
+            logger.error(f"❌ Código no encontrado: {pre_authorized_code[:20]}...")
+            logger.info(f"📋 Códigos disponibles: {list(code_data_dict.keys())[:3]}")
             raise HTTPException(
-                status_code=400, 
-                detail={
-                    "error": "invalid_grant",
-                    "error_description": "Pre-authorized code inválido o expirado"
-                }
+                status_code=400,
+                detail={"error": "invalid_grant", "error_description": "Code not found or expired"}
             )
         
-        # Verificar expiración
-        if 'expires_at' in credential_data:
-            expires_at = datetime.fromisoformat(credential_data['expires_at'].replace('Z', ''))
-            if datetime.now() > expires_at:
-                await clear_pending_openid_credential(pre_authorized_code)
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "error": "invalid_grant", 
-                        "error_description": "Pre-authorized code expirado"
-                    }
-                )
+        logger.info(f"✅ Código encontrado y validado")
         
-        # Generar access token con claims adicionales para seguridad
-        now = datetime.now()
-        access_token_payload = {
-            "sub": credential_data["student_id"],
-            "iss": ISSUER_URL,
-            "aud": ISSUER_URL,
-            "iat": int(now.timestamp()),
-            "exp": int((now + timedelta(minutes=10)).timestamp()),
-            "pre_auth_code": pre_authorized_code,
-            "token_type": "Bearer",
-            "scope": "credential_issuance",
-            # Claims para validación SSL
-            "cnf": {
-                "jkt": "utnpf-ssl-key-2025"  # Thumbprint de la clave
-            }
+        # Generar access token
+        import secrets
+        access_token = f"access_{secrets.token_urlsafe(32)}"
+        c_nonce = secrets.token_urlsafe(32)
+        
+        # Guardar access_token para el endpoint /credential
+        access_tokens_data[access_token] = {
+            "code": pre_authorized_code,
+            "credential_data": code_data.get("credential_data", {}),
+            "c_nonce": c_nonce,
+            "expires_at": (datetime.now() + timedelta(minutes=10)).isoformat()
         }
         
-        access_token = jwt.encode(access_token_payload, PRIVATE_KEY, algorithm="ES256")
+        logger.info(f"✅ Access token generado: {access_token[:20]}...")
         
         response_data = {
             "access_token": access_token,
             "token_type": "Bearer",
             "expires_in": 600,
-            "scope": "credential_issuance"
+            "c_nonce": c_nonce,
+            "c_nonce_expires_in": 300
         }
-        
-        logger.info(f"✅ Access token generado para: {credential_data['student_name']}")
         
         response = JSONResponse(content=response_data)
         return await add_security_headers(response)
@@ -488,12 +426,11 @@ async def token_endpoint(request: Request):
         raise
     except Exception as e:
         logger.error(f"❌ Error en token endpoint: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(
-            status_code=500, 
-            detail={
-                "error": "server_error",
-                "error_description": f"Error interno del servidor: {str(e)}"
-            }
+            status_code=400,
+            detail={"error": "invalid_request", "error_description": str(e)}
         )
 
 # ENDPOINT DEBUG: Para diagnosticar problemas con wallets
