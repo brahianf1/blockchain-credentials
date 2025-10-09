@@ -37,6 +37,10 @@ access_tokens_data = {}  # Storage de access tokens
 ISSUER_URL = os.getenv("ISSUER_URL", "http://localhost:3000")
 ISSUER_BASE_URL = f"{ISSUER_URL}/oid4vc"
 
+# DID del issuer para wallets que requieren DID (Paradym)
+# Extraer dominio de ISSUER_URL y convertir a did:web
+ISSUER_DID = f"did:web:{ISSUER_URL.replace('https://', '').replace('http://', '')}"
+
 # Configuración SSL mejorada para compatibilidad con Lissi Wallet
 SSL_SECURITY_HEADERS = {
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
@@ -985,12 +989,12 @@ async def issue_openid_credential(
         logger.info(f"   - issuanceDate (ISO): {now_without_microseconds.isoformat()}Z")
         logger.info(f"   - expirationDate (ISO): {exp_without_microseconds.isoformat()}Z")
         logger.info(f"🔍 DIDs EN EL JWT:")
-        logger.info(f"   - iss (issuer): {ISSUER_URL}")
+        logger.info(f"   - iss (issuer): {ISSUER_DID}")
         logger.info(f"   - sub (DEBE SER holder): {holder_did}")
         logger.info(f"   - vc.credentialSubject.id: {holder_did}")
         
         vc_payload = {
-            "iss": ISSUER_URL,
+            "iss": ISSUER_DID,
             "sub": holder_did,  # ✅ CORRECTO: usar el DID del holder, NO del issuer
             "iat": now_timestamp,
             "nbf": now_timestamp,
@@ -1004,7 +1008,7 @@ async def issue_openid_credential(
                 "type": ["VerifiableCredential", "UniversityDegree"],
                 "id": f"urn:credential:{access_token[:16]}",
                 "issuer": {
-                    "id": ISSUER_URL,
+                    "id": ISSUER_DID,
                     "name": "Sistema de Credenciales UTN",
                     "url": ISSUER_URL
                 },
