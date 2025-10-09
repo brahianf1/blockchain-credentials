@@ -694,6 +694,33 @@ async def par_endpoint(request: Request):
             detail={"error": "invalid_request", "error_description": str(e)}
         )
 
+# ============================================================================
+# AUTHORIZE ENDPOINT - OAuth 2.0 Authorization Endpoint
+# Requerido por DIDRoom para conformidad EUDI (no usado en pre-authorized flow)
+# ============================================================================
+@oid4vc_router.get("/authorize")
+async def authorize_endpoint(request: Request):
+    """
+    OAuth 2.0 Authorization Endpoint según RFC 6749
+    
+    En flujo pre-authorized NO se usa este endpoint porque no hay
+    redirección del navegador ni consentimiento del usuario.
+    
+    DIDRoom valida que exista en metadatos por conformidad EUDI.
+    """
+    # En pre-authorized flow este endpoint nunca será llamado
+    # Pero debe existir para validación de metadatos
+    
+    logger.info("⚠️ Authorization endpoint llamado (no esperado en pre-authorized flow)")
+    
+    # Respuesta básica indicando que este endpoint no es parte del flujo actual
+    return JSONResponse(
+        content={
+            "error": "unsupported_grant_type",
+            "error_description": "This issuer only supports pre-authorized code flow. Authorization endpoint is not used."
+        },
+        status_code=400
+    )
 
 # ENDPOINT 4: Credential endpoint - Emisión final MEJORADO
 @oid4vc_router.post("/credential")

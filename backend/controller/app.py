@@ -747,13 +747,19 @@ async def oauth_authorization_server_metadata():
     
     metadata = {
         "issuer": issuer_url,
+        "authorization_endpoint": f"{issuer_url}/oid4vc/authorize",  # ← AGREGAR
         "token_endpoint": f"{issuer_url}/oid4vc/token",
         "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
         "pushed_authorization_request_endpoint": f"{issuer_url}/oid4vc/par",
         "grant_types_supported": [
-            "urn:ietf:params:oauth:grant-type:pre-authorized_code"
+            "urn:ietf:params:oauth:grant-type:pre-authorized_code",
+            "authorization_code"  # ← AGREGAR (para declarar soporte)
         ],
-        "token_endpoint_auth_methods_supported": ["none"]
+        "token_endpoint_auth_methods_supported": ["none"],
+        "request_parameter_supported": True,
+        "request_uri_parameter_supported": True,
+        "response_types_supported": ["code"],  # ← AGREGAR
+        "response_modes_supported": ["query"]  # ← AGREGAR
     }
     
     return JSONResponse(content=metadata)
