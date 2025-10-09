@@ -721,30 +721,49 @@ async def authorize_endpoint(
         
         # Recuperar datos originales del pre_authorized_code
         original_credential_data = None
-        issuer_state = par_data.get('state', state_final)
         
-        # Buscar en preauthorized_code_data usando issuer_state
-        for code_key, code_data in pre_authorized_code_data.items():
-            if issuer_state in code_key or code_key.endswith(issuer_state):
-                original_credential_data = code_data.get('credential_data', {})
-                logger.info(f"✅ Datos originales recuperados de: {code_key}")
-                break
+        # ESTRATEGIA 1: Buscar por issuer_state si existe
+        issuer_state = par_data.get('issuer_state') or par_data.get('state')
         
-        # Si no se encontró, intentar buscar directamente
-        if not original_credential_data and issuer_state in pre_authorized_code_data:
-            original_credential_data = pre_authorized_code_data[issuer_state].get('credential_data', {})
+        if issuer_state and issuer_state != 'xyz':  # Ignorar state genérico
+            for code_key, code_data in pre_authorized_code_data.items():
+                if issuer_state in code_key or code_key.endswith(issuer_state):
+                    original_credential_data = code_data.get('credential_data', {})
+                    logger.info(f"✅ Datos recuperados por issuer_state de: {code_key}")
+                    break
         
-        # Fallback a datos por defecto si no se encontró nada
+        # ESTRATEGIA 2: Buscar el código más reciente no expirado
+        if not original_credential_data:
+            logger.info("⚠️ Buscando código más reciente no expirado...")
+            
+            sorted_codes = sorted(
+                pre_authorized_code_data.items(),
+                key=lambda x: x[0],
+                reverse=True
+            )
+            
+            for code_key, code_data in sorted_codes:
+                expires_at_str = code_data.get('expires_at')
+                if expires_at_str:
+                    from datetime import datetime
+                    expires_at = datetime.fromisoformat(expires_at_str)
+                    if datetime.now() < expires_at:
+                        original_credential_data = code_data.get('credential_data', {})
+                        logger.info(f"✅ Datos recuperados del código más reciente: {code_key}")
+                        break
+        
+        # Fallback a datos por defecto
         if not original_credential_data:
             logger.warning(f"⚠️ No se encontraron datos originales, usando fallback")
             original_credential_data = {
-                "student_name": "fulano",
+                "student_name": "Unknown",
                 "student_email": "unknown@example.com",
                 "student_id": "unknown",
                 "course_name": "N/A",
                 "completion_date": "N/A",
                 "grade": "N/A"
             }
+
         
         # Guardar datos del authorization code
         pre_auth_dict[auth_code] = {
