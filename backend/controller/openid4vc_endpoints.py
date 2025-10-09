@@ -181,10 +181,10 @@ async def credential_issuer_metadata(request: Request):
                     "locale": "es-ES",
                     "background_color": "#1976d2",
                     "text_color": "#FFFFFF",
-                    #"logo": {  # ← AGREGAR ESTAS 3 LÍNEAS
-                    #    "uri": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzE5NzZkMiIvPjwvc3ZnPg==",
-                    #    "alt_text": "Logo Universidad"
-                    #}
+                    "logo": {  # ← AGREGAR ESTAS 3 LÍNEAS
+                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
+                        "alt_text": "Logo UTN"
+                    }
                 }]
             }
         }
