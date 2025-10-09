@@ -822,7 +822,6 @@ async def issue_openid_credential(
                 }
             )
         
-        # Validar access token
         # Extraer token (acepta Bearer, bearer, BEARER)
         logger.info(f"🔑 Authorization recibido: {authorization[:50] if authorization else 'VACÍO'}")
         
@@ -841,6 +840,24 @@ async def issue_openid_credential(
         
         access_token = parts[1]
         logger.info(f"✅ Token extraído: {access_token[:20]}...")
+        
+        # Buscar access token en el diccionario
+        token_info = access_tokens_data.get(access_token)
+        
+        if not token_info:
+            logger.error(f"❌ Access token no encontrado en storage")
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "invalid_token", "error_description": "Access token inválido o expirado"}
+            )
+        
+        logger.info(f"✅ Access token validado, recuperando credential_data")
+        
+        # Recuperar datos de credencial
+        credential_data = token_info.get("credential_data", {})
+        
+        # NO USAR JWT.DECODE - usar directamente credential_data del token
+        # El access_token es nuestro token interno, no un JWT firmado
 
         try:
             # Para ES256, usar la clave pública para verificar el token
