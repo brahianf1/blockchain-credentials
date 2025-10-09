@@ -759,7 +759,8 @@ async def oauth_authorization_server_metadata():
         "request_parameter_supported": True,
         "request_uri_parameter_supported": True,
         "response_types_supported": ["code"],  # ← AGREGAR
-        "response_modes_supported": ["query"]  # ← AGREGAR
+        "response_modes_supported": ["query"],  # ← AGREGAR
+        "code_challenge_methods_supported": ["S256"],
     }
     
     return JSONResponse(content=metadata)
