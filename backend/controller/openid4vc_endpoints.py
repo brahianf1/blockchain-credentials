@@ -918,11 +918,20 @@ async def issue_openid_credential(
                     logger.info(f"✅ DID del holder extraído y verificado: {holder_did}")
                 
                 else:
-                    # Si no hay JWK en header, decodificar sin verificar (compatibilidad)
-                    logger.warning("⚠️ Proof JWT no contiene JWK en header, decodificando sin verificar")
-                    proof_payload = jwt.decode(proof_jwt, options={"verify_signature": False})
-                    holder_did = proof_payload.get('iss')
-                    logger.info(f"⚠️ DID del holder extraído sin verificar: {holder_did}")
+                    # Si no hay JWK en header, intentar extraer DID desde 'kid' o 'iss'
+                    logger.warning("⚠️ Proof JWT no contiene JWK en header")
+                    
+                    # ESTRATEGIA A: Extraer DID desde 'kid' (usado por Paradym)
+                    kid = proof_header.get('kid')
+                    if kid and kid.startswith('did:'):
+                        # Remover el fragment (#0, #1, etc.) si existe
+                        holder_did = kid.split('#')[0]
+                        logger.info(f"✅ DID del holder extraído desde kid: {holder_did}")
+                    else:
+                        # ESTRATEGIA B: Intentar desde payload
+                        proof_payload = jwt.decode(proof_jwt, options={"verify_signature": False})
+                        holder_did = proof_payload.get('iss')
+                        logger.info(f"⚠️ DID del holder extraído desde payload sin verificar: {holder_did}")
             
             except jwt.InvalidSignatureError:
                 logger.error("❌ Firma del proof JWT inválida")
@@ -966,6 +975,7 @@ async def issue_openid_credential(
             "iss": ISSUER_URL,
             "sub": f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data.get('student_id', 'unknown')}",
             "iat": int(now.timestamp()),
+            "nbf": int(now.timestamp()),
             "exp": int((now + timedelta(days=365)).timestamp()),
             "jti": f"urn:credential:{access_token[:16]}",
             "vc": {
