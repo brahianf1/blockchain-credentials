@@ -23,6 +23,9 @@ import structlog
 from fabric_client import FabricClient
 from qr_generator import QRGenerator
 
+# Importar diccionario compartido de OpenID4VC
+from openid4vc_endpoints import pre_authorized_code_data
+
 # NUEVO: Import OpenID4VC endpoints
 try:
     from openid4vc_endpoints import oid4vc_router

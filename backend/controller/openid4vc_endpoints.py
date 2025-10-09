@@ -753,7 +753,7 @@ async def authorize_endpoint(
 @oid4vc_router.post("/credential")
 async def issue_openid_credential(
     request: Request,
-    authorization: str = Header(..., description="Bearer token para autorización"),
+    authorization: str = Header(None, description="Bearer token para autorización"),
     credential_configuration_id: Optional[str] = Query(None, description="Credential configuration ID")
 ):
     """
@@ -817,7 +817,25 @@ async def issue_openid_credential(
             )
         
         # Validar access token
-        access_token = authorization.replace("Bearer ", "")
+        # Extraer token (acepta Bearer, bearer, BEARER)
+        logger.info(f"🔑 Authorization recibido: {authorization[:50] if authorization else 'VACÍO'}")
+        
+        if not authorization or " " not in authorization:
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "invalid_token", "error_description": "Authorization header requerido"}
+            )
+        
+        parts = authorization.split(" ", 1)
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "invalid_token", "error_description": "Formato debe ser 'Bearer <token>'"}
+            )
+        
+        access_token = parts[1]
+        logger.info(f"✅ Token extraído: {access_token[:20]}...")
+        
         try:
             # Para ES256, usar la clave pública para verificar el token
             token_data = jwt.decode(
