@@ -644,6 +644,56 @@ async def nonce_endpoint(request: Request):
     
     return await add_security_headers(response)
 
+# ============================================================================
+# PAR ENDPOINT - Pushed Authorization Requests (RFC 9126)
+# Requerido por DIDRoom Wallet para ecosistema EUDI
+# ============================================================================
+@oid4vc_router.post("/par")
+async def par_endpoint(request: Request):
+    """
+    Pushed Authorization Request (PAR) endpoint según RFC 9126
+    DIDRoom requiere este endpoint obligatoriamente
+    
+    En flujo pre-authorized no se usa PAR realmente, pero DIDRoom
+    valida que exista en los metadatos
+    """
+    import secrets
+    
+    try:
+        # Leer datos del request
+        form_data = await request.form()
+        
+        logger.info(f"🔐 PAR endpoint llamado")
+        logger.info(f"   Form data: {dict(form_data)}")
+        
+        # Generar request_uri único
+        request_uri = f"urn:ietf:params:oauth:request_uri:{secrets.token_urlsafe(32)}"
+        
+        # En flujo pre-authorized, PAR no es realmente necesario
+        # pero DIDRoom lo valida por conformidad con EUDI specs
+        
+        response_data = {
+            "request_uri": request_uri,
+            "expires_in": 300  # 5 minutos
+        }
+        
+        logger.info(f"✅ PAR request_uri generado: {request_uri[:50]}...")
+        
+        response = JSONResponse(
+            content=response_data,
+            status_code=201  # RFC 9126 requiere 201 Created
+        )
+        response.headers["Cache-Control"] = "no-store"
+        
+        return await add_security_headers(response)
+        
+    except Exception as e:
+        logger.error(f"❌ Error en PAR endpoint: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_request", "error_description": str(e)}
+        )
+
 
 # ENDPOINT 4: Credential endpoint - Emisión final MEJORADO
 @oid4vc_router.post("/credential")

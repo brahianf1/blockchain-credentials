@@ -749,6 +749,7 @@ async def oauth_authorization_server_metadata():
         "issuer": issuer_url,
         "token_endpoint": f"{issuer_url}/oid4vc/token",
         "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
+        "pushed_authorization_request_endpoint": f"{issuer_url}/oid4vc/par",
         "grant_types_supported": [
             "urn:ietf:params:oauth:grant-type:pre-authorized_code"
         ],
