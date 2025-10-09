@@ -972,13 +972,26 @@ async def issue_openid_credential(
         # Crear W3C Verifiable Credential con timestamps sincronizados
         now = datetime.now()
         now_timestamp = int(now.timestamp())
+        
+        # Crear datetime sin microsegundos para issuanceDate
         now_without_microseconds = datetime.fromtimestamp(now_timestamp)
-        exp_timestamp = now_timestamp + (365 * 24 * 60 * 60)
+        exp_timestamp = now_timestamp + (365 * 24 * 60 * 60)  # 1 año
         exp_without_microseconds = datetime.fromtimestamp(exp_timestamp)
+        
+        # Logs de debug para verificar sincronización
+        logger.info(f"🔍 TIMESTAMPS GENERADOS:")
+        logger.info(f"   - iat/nbf: {now_timestamp}")
+        logger.info(f"   - exp: {exp_timestamp}")
+        logger.info(f"   - issuanceDate (ISO): {now_without_microseconds.isoformat()}Z")
+        logger.info(f"   - expirationDate (ISO): {exp_without_microseconds.isoformat()}Z")
+        logger.info(f"🔍 DIDs EN EL JWT:")
+        logger.info(f"   - iss (issuer): {ISSUER_URL}")
+        logger.info(f"   - sub (DEBE SER holder): {holder_did}")
+        logger.info(f"   - vc.credentialSubject.id: {holder_did}")
         
         vc_payload = {
             "iss": ISSUER_URL,
-            "sub": f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data.get('student_id', 'unknown')}",
+            "sub": holder_did,  # ✅ CORRECTO: usar el DID del holder, NO del issuer
             "iat": now_timestamp,
             "nbf": now_timestamp,
             "exp": exp_timestamp,
