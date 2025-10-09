@@ -724,49 +724,56 @@ async def authorize_endpoint(
     OAuth 2.0 Authorization Endpoint con soporte PAR
     
     Flujo DIDRoom:
-    1. Wallet hace PAR (ya implementado) - guarda request_uri
+    1. Wallet hace PAR - guarda redirect_uri y otros parámetros
     2. Wallet llama /authorize con request_uri
-    3. Generamos authorization_code
-    4. Redirigimos a redirect_uri con code
+    3. Recuperamos redirect_uri de los datos PAR
+    4. Generamos authorization_code
+    5. Redirigimos a redirect_uri con code
     """
     logger.info(f"🔓 Authorization endpoint llamado - client_id: {client_id}")
     logger.info(f"   request_uri: {request_uri}")
-    logger.info(f"   redirect_uri: {redirect_uri}")
+    logger.info(f"   redirect_uri from query: {redirect_uri}")
     
     try:
         if not request_uri:
             raise HTTPException(status_code=400, detail="request_uri is required")
         
-        # Extraer el ID del request_uri
-        request_id = request_uri.split(':')[-1] if ':' in request_uri else request_uri
-        logger.info(f"   Buscando datos PAR para: {request_id}")
-        
-        # Buscar en el diccionario PAR
+        # Buscar datos del PAR
         par_data = par_requests_data.get(request_uri)
         
         if not par_data:
-            logger.info("   No se encontró PAR data, generando authorization code genérico")
+            logger.warning(f"   ⚠️ No se encontraron datos PAR para: {request_uri}")
+            raise HTTPException(status_code=400, detail="Invalid request_uri")
+        
+        # Recuperar redirect_uri de los datos PAR
+        redirect_uri_final = par_data.get('redirect_uri')
+        state_final = par_data.get('state', state if state else 'xyz')
+        
+        logger.info(f"   ✅ Recuperado redirect_uri de PAR: {redirect_uri_final}")
+        logger.info(f"   ✅ State: {state_final}")
+        
+        if not redirect_uri_final:
+            raise HTTPException(status_code=400, detail="redirect_uri not found in PAR data")
         
         # Generar nuevo authorization code
         import secrets
         auth_code = f"auth_code_{secrets.token_urlsafe(32)}"
         
         # Guardar en pre_authorized_code_data para que /token lo pueda usar
-        # Buscar el diccionario pre_authorized_code_data en scope global
         import sys
         current_module = sys.modules[__name__]
         
         if hasattr(current_module, 'pre_authorized_code_data'):
             pre_auth_dict = getattr(current_module, 'pre_authorized_code_data')
         else:
-            # Si no existe, crear uno temporal
             pre_auth_dict = {}
             setattr(current_module, 'pre_authorized_code_data', pre_auth_dict)
         
         # Guardar datos del authorization code
         pre_auth_dict[auth_code] = {
             "client_id": client_id,
-            "redirect_uri": redirect_uri,
+            "redirect_uri": redirect_uri_final,
+            "code_verifier": par_data.get('code_challenge'),  # Guardar para validación PKCE
             "expires_at": (datetime.now() + timedelta(minutes=10)).isoformat(),
             "credential_data": {
                 "nombre": "Usuario DIDRoom",
@@ -782,10 +789,10 @@ async def authorize_endpoint(
         
         params = {
             "code": auth_code,
-            "state": state if state else "xyz"
+            "state": state_final
         }
         
-        redirect_url = f"{redirect_uri}?{urlencode(params)}"
+        redirect_url = f"{redirect_uri_final}?{urlencode(params)}"
         
         logger.info(f"✅ Redirigiendo a: {redirect_url[:100]}...")
         
@@ -793,6 +800,8 @@ async def authorize_endpoint(
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=redirect_url, status_code=302)
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Error en authorization endpoint: {e}")
         import traceback
