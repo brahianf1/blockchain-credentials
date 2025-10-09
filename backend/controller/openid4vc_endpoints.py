@@ -866,7 +866,7 @@ async def issue_openid_credential(
                     "student_name": credential_data.get("nombre", "Unknown"),
                     "student_email": credential_data.get("email", "unknown@example.com"),
                     "student_id": credential_data.get("matricula", "unknown"),
-                    "university": "Universidad Tecnológica Nacional"
+                    "university": "UTN - Argentina"
                 }
             }
         }
