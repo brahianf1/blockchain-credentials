@@ -759,7 +759,7 @@ async def authorize_endpoint(
 @oid4vc_router.post("/credential")
 async def issue_openid_credential(
     request: Request,
-    authorization: str = Header(None, description="Bearer token para autorización"),
+    authorization: Optional[str] = Header(None, alias="Authorization"),
     credential_configuration_id: Optional[str] = Query(None, description="Credential configuration ID")
 ):
     """
@@ -767,13 +767,13 @@ async def issue_openid_credential(
     Soporta: query params, JSON body, y form data para máxima compatibilidad
     """
     try:
-        # PARSING UNIVERSAL DE PARÁMETROS (igual que en token endpoint)
+        # PARSING UNIVERSAL DE PARÁMETROS
         logger.info(f"🔍 Credential endpoint llamado - Content-Type: {request.headers.get('content-type', '')}")
         logger.info(f"🔍 Query params: {dict(request.query_params)}")
         
         config_id = credential_configuration_id
         
-        # MÉTODO 1: JSON Body (walt.id probablemente use esto)
+        # MÉTODO 1: JSON Body
         try:
             if request.headers.get("content-type", "").startswith("application/json"):
                 json_data = await request.json()
@@ -781,11 +781,9 @@ async def issue_openid_credential(
                 if not config_id and "credential_configuration_id" in json_data:
                     config_id = json_data["credential_configuration_id"]
                 elif not config_id and "format" in json_data:
-                    # Algunos wallets envían "format" en lugar de "credential_configuration_id"
-                    config_id = "UniversityCredential"  # Default si no especifican
+                    config_id = "UniversityCredential"
         except Exception as e:
             logger.warning(f"⚠️ Error parseando JSON: {e}")
-            pass
         
         # MÉTODO 2: Form Data
         try:
@@ -796,181 +794,92 @@ async def issue_openid_credential(
                     config_id = form_data.get("credential_configuration_id")
         except Exception as e:
             logger.warning(f"⚠️ Error parseando form data: {e}")
-            pass
         
-        # MÉTODO 3: Query Parameters (ya viene del parámetro opcional)
+        # MÉTODO 3: Query Parameters
         if not config_id:
             query_params = dict(request.query_params)
             config_id = query_params.get("credential_configuration_id")
         
-        # Si todavía no tenemos config_id, usar default
         if not config_id:
             config_id = "UniversityCredential"
             logger.info(f"🔧 Usando credential_configuration_id por defecto: {config_id}")
         
-        logger.info(f"🎯 RESULTADO FINAL PARSING credential endpoint:")
+        logger.info(f"🎯 RESULTADO FINAL PARSING:")
         logger.info(f"  - credential_configuration_id: {config_id}")
-        logger.info(f"  - authorization header: {'PRESENTE' if authorization else 'FALTANTE'}")
         
-        # Validar formato del header Authorization
-        if not authorization.startswith("Bearer "):
-            raise HTTPException(
-                status_code=401, 
-                detail={
-                    "error": "invalid_token",
-                    "error_description": "Authorization header debe usar formato 'Bearer <token>'"
-                }
-            )
+        # ==================== VALIDAR AUTHORIZATION HEADER ====================
+        auth_header = authorization or request.headers.get("authorization") or request.headers.get("Authorization")
         
-        # Extraer token (acepta Bearer, bearer, BEARER)
-        logger.info(f"🔑 Authorization recibido: {authorization[:50] if authorization else 'VACÍO'}")
+        logger.info(f"🔑 Authorization header:")
+        logger.info(f"   - Param: {authorization[:30] if authorization else 'None'}")
+        logger.info(f"   - Headers: {request.headers.get('Authorization', 'None')[:30]}")
+        logger.info(f"   - Final: {auth_header[:50] if auth_header else 'VACÍO'}")
         
-        if not authorization or " " not in authorization:
-            raise HTTPException(
-                status_code=401,
-                detail={"error": "invalid_token", "error_description": "Authorization header requerido"}
-            )
+        if not auth_header or " " not in auth_header:
+            raise HTTPException(status_code=401, detail={"error": "invalid_token", "error_description": "Authorization header requerido"})
         
-        parts = authorization.split(" ", 1)
+        parts = auth_header.split(" ", 1)
         if len(parts) != 2 or parts[0].lower() != "bearer":
-            raise HTTPException(
-                status_code=401,
-                detail={"error": "invalid_token", "error_description": "Formato debe ser 'Bearer <token>'"}
-            )
+            raise HTTPException(status_code=401, detail={"error": "invalid_token", "error_description": "Debe ser 'Bearer <token>'"})
         
         access_token = parts[1]
-        logger.info(f"✅ Token extraído: {access_token[:20]}...")
+        logger.info(f"✅ Token extraído: {access_token[:30]}...")
         
-        # Buscar access token en el diccionario
         token_info = access_tokens_data.get(access_token)
-        
         if not token_info:
-            logger.error(f"❌ Access token no encontrado en storage")
-            raise HTTPException(
-                status_code=401,
-                detail={"error": "invalid_token", "error_description": "Access token inválido o expirado"}
-            )
+            logger.error(f"❌ Token no encontrado en storage")
+            logger.info(f"📋 Tokens disponibles: {list(access_tokens_data.keys())[:3]}")
+            raise HTTPException(status_code=401, detail={"error": "invalid_token", "error_description": "Token inválido"})
         
-        logger.info(f"✅ Access token validado, recuperando credential_data")
-        
-        # Recuperar datos de credencial
         credential_data = token_info.get("credential_data", {})
+        logger.info(f"✅ Credential data recuperada: {credential_data}")
+        # ==================== FIN VALIDACIÓN ====================
         
-        # NO USAR JWT.DECODE - usar directamente credential_data del token
-        # El access_token es nuestro token interno, no un JWT firmado
-
-        try:
-            # Para ES256, usar la clave pública para verificar el token
-            token_data = jwt.decode(
-                access_token, 
-                PUBLIC_KEY, 
-                algorithms=["ES256"],
-                audience=ISSUER_URL,
-                issuer=ISSUER_URL
-            )
-        except jwt.ExpiredSignatureError:
-            raise HTTPException(
-                status_code=401, 
-                detail={
-                    "error": "invalid_token",
-                    "error_description": "Access token expirado"
-                }
-            )
-        except jwt.InvalidTokenError as e:
-            raise HTTPException(
-                status_code=401, 
-                detail={
-                    "error": "invalid_token",
-                    "error_description": f"Access token inválido: {str(e)}"
-                }
-            )
-        
-        # Validar configuración de credencial solicitada
+        # Validar configuración de credencial
         if config_id != "UniversityCredential":
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "unsupported_credential_type",
-                    "error_description": f"Tipo de credencial no soportado: {config_id}"
-                }
-            )
+            raise HTTPException(status_code=400, detail={"error": "unsupported_credential_type"})
         
-        # Obtener datos de credencial
-        pre_auth_code = token_data["pre_auth_code"]
-        credential_data = await get_pending_openid_credential(pre_auth_code)
-        
-        if not credential_data:
-            raise HTTPException(
-                status_code=404, 
-                detail={
-                    "error": "credential_data_not_found",
-                    "error_description": "Datos de credencial no encontrados o expirados"
-                }
-            )
-        
-        # Crear W3C Verifiable Credential en formato JWT con configuración SSL
+        # Crear W3C Verifiable Credential
         now = datetime.now()
         vc_payload = {
             "iss": ISSUER_URL,
-            "sub": f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data['student_id']}",
+            "sub": f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data.get('matricula', 'unknown')}",
             "iat": int(now.timestamp()),
             "exp": int((now + timedelta(days=365)).timestamp()),
-            "jti": f"urn:credential:{pre_auth_code}",  # Identificador único
+            "jti": f"urn:credential:{access_token[:16]}",
             "vc": {
                 "@context": [
                     "https://www.w3.org/2018/credentials/v1",
                     "https://www.w3.org/2018/credentials/examples/v1"
                 ],
                 "type": ["VerifiableCredential", "UniversityCredential"],
-                "id": f"urn:credential:{pre_auth_code}",
+                "id": f"urn:credential:{access_token[:16]}",
                 "issuer": {
                     "id": ISSUER_URL,
-                    "name": "Tu Universidad",
+                    "name": "Sistema de Credenciales UTN",
                     "url": ISSUER_URL
                 },
                 "issuanceDate": now.isoformat() + "Z",
                 "expirationDate": (now + timedelta(days=365)).isoformat() + "Z",
                 "credentialSubject": {
-                    "id": f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data['student_id']}",
-                    "student_name": credential_data["student_name"],
-                    "student_email": credential_data["student_email"],
-                    "student_id": credential_data["student_id"],
-                    "course_name": credential_data["course_name"],
-                    "completion_date": credential_data["completion_date"],
-                    "grade": credential_data["grade"],
-                    "university": "Tu Universidad",
-                    "credential_type": "OpenBadgeCredential"
-                },
-                # Metadatos de seguridad SSL
-                "credentialStatus": {
-                    "id": f"{ISSUER_URL}/oid4vc/status/{pre_auth_code}",
-                    "type": "RevocationList2020Status"
-                },
-                "evidence": [
-                    {
-                        "type": "DocumentVerification",
-                        "verifier": ISSUER_URL,
-                        "evidenceDocument": "UniversityDiploma",
-                        "subjectPresence": "Digital",
-                        "documentPresence": "Digital"
-                    }
-                ]
+                    "id": f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data.get('matricula', 'unknown')}",
+                    "student_name": credential_data.get("nombre", "Unknown"),
+                    "student_email": credential_data.get("email", "unknown@example.com"),
+                    "student_id": credential_data.get("matricula", "unknown"),
+                    "university": "Universidad Tecnológica Nacional"
+                }
             }
         }
         
-        # Firmar credencial con algoritmo ES256
+        # Firmar credencial con ES256
         vc_jwt = jwt.encode(vc_payload, PRIVATE_KEY, algorithm="ES256")
         
-        # Limpiar datos pendientes
-        await clear_pending_openid_credential(pre_auth_code)
+        logger.info(f"✅ Credencial emitida para: {credential_data.get('nombre', 'Unknown')}")
         
-        logger.info(f"✅ Credencial OpenID4VC emitida para: {credential_data['student_name']}")
-        
-        # Walt.id espera el formato directo según OpenID4VC Draft-16
         response_data = {
-            "credential": vc_jwt,  # Walt.id espera esto directamente
+            "credential": vc_jwt,
             "c_nonce": f"nonce_{int(now.timestamp())}",
-            "c_nonce_expires_in": 86400  # 24 horas
+            "c_nonce_expires_in": 86400
         }
         
         response = JSONResponse(content=response_data)
@@ -979,14 +888,11 @@ async def issue_openid_credential(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error emitiendo credencial OpenID4VC: {e}")
-        raise HTTPException(
-            status_code=500, 
-            detail={
-                "error": "server_error",
-                "error_description": f"Error interno del servidor: {str(e)}"
-            }
-        )
+        logger.error(f"❌ Error emitiendo credencial: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail={"error": "server_error", "error_description": str(e)})
+
 
 # Funciones auxiliares mejoradas con expiración y validación SSL
 async def store_pending_openid_credential(code: str, data: Dict[str, Any], expires_in: int = 600):
