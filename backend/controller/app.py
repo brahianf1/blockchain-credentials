@@ -712,9 +712,9 @@ async def root_credential_issuer_metadata():
             "locale": "es-AR"
         }],
         "credential_configurations_supported": {
-            "UniversityCredential": {
+            "UniversityDegree": {
                 "format": "jwt_vc_json",
-                "scope": "UniversityCredentialScope",
+                "scope": "UniversityDegreeScope",
                 "cryptographic_binding_methods_supported": ["jwk"],
                 "credential_signing_alg_values_supported": ["ES256"],
                 "proof_types_supported": {
@@ -723,7 +723,7 @@ async def root_credential_issuer_metadata():
                     }
                 },
                 "credential_definition": {
-                    "type": ["VerifiableCredential", "UniversityCredential"],
+                    "type": ["VerifiableCredential", "UniversityDegree"],
                     "@context": [
                         "https://www.w3.org/2018/credentials/v1",
                         "https://www.w3.org/2018/credentials/examples/v1"

@@ -159,9 +159,9 @@ async def credential_issuer_metadata(request: Request):
         }],
         # Campo compatible con versiones nuevas
         "credential_configurations_supported": {
-            "UniversityCredential": {
+            "UniversityDegree": {
                 "format": "jwt_vc_json",
-                "scope": "UniversityCredentialScope",
+                "scope": "UniversityDegreeScope",
                 "cryptographic_binding_methods_supported": ["jwk"],
                 "credential_signing_alg_values_supported": ["ES256"],
                 "proof_types_supported": {
@@ -170,7 +170,7 @@ async def credential_issuer_metadata(request: Request):
                     }
                 },
                 "credential_definition": {
-                    "type": ["VerifiableCredential", "UniversityCredential"],
+                    "type": ["VerifiableCredential", "UniversityDegree"],
                     "@context": [
                         "https://www.w3.org/2018/credentials/v1",
                         "https://www.w3.org/2018/credentials/examples/v1"
@@ -249,7 +249,7 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
         # Crear Credential Offer según OpenID4VCI Draft-16 (formato estricto)
         offer = {
             "credential_issuer": ISSUER_URL,
-            "credential_configuration_ids": ["UniversityCredential"],
+            "credential_configuration_ids": ["UniversityDegree"],
             "grants": {
                 "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
                     "pre-authorized_code": pre_auth_code
@@ -787,7 +787,7 @@ async def issue_openid_credential(
                 if not config_id and "credential_configuration_id" in json_data:
                     config_id = json_data["credential_configuration_id"]
                 elif not config_id and "format" in json_data:
-                    config_id = "UniversityCredential"
+                    config_id = "UniversityDegree"
         except Exception as e:
             logger.warning(f"⚠️ Error parseando JSON: {e}")
         
@@ -807,7 +807,7 @@ async def issue_openid_credential(
             config_id = query_params.get("credential_configuration_id")
         
         if not config_id:
-            config_id = "UniversityCredential"
+            config_id = "UniversityDegree"
             logger.info(f"🔧 Usando credential_configuration_id por defecto: {config_id}")
         
         logger.info(f"🎯 RESULTADO FINAL PARSING:")
@@ -842,14 +842,14 @@ async def issue_openid_credential(
         # ==================== FIN VALIDACIÓN ====================
         
         # Validar configuración de credencial
-        if config_id != "UniversityCredential":
+        if config_id != "UniversityDegree":
             raise HTTPException(status_code=400, detail={"error": "unsupported_credential_type"})
         
         # Crear W3C Verifiable Credential
         now = datetime.now()
         vc_payload = {
             "iss": ISSUER_URL,
-            "sub": f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data.get('matricula', 'unknown')}",
+            "sub": f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data.get('student_id', 'unknown')}",
             "iat": int(now.timestamp()),
             "exp": int((now + timedelta(days=365)).timestamp()),
             "jti": f"urn:credential:{access_token[:16]}",
@@ -858,7 +858,7 @@ async def issue_openid_credential(
                     "https://www.w3.org/2018/credentials/v1",
                     "https://www.w3.org/2018/credentials/examples/v1"
                 ],
-                "type": ["VerifiableCredential", "UniversityCredential"],
+                "type": ["VerifiableCredential", "UniversityDegree"],
                 "id": f"urn:credential:{access_token[:16]}",
                 "issuer": {
                     "id": ISSUER_URL,
@@ -868,10 +868,13 @@ async def issue_openid_credential(
                 "issuanceDate": now.isoformat() + "Z",
                 "expirationDate": (now + timedelta(days=365)).isoformat() + "Z",
                 "credentialSubject": {
-                    "id": f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data.get('matricula', 'unknown')}",
-                    "student_name": credential_data.get("nombre", "Unknown"),
-                    "student_email": credential_data.get("email", "unknown@example.com"),
-                    "student_id": credential_data.get("matricula", "unknown"),
+                    "id": f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data.get('student_id', 'unknown')}",
+                    "student_name": credential_data.get("student_name", "Unknown"),
+                    "student_email": credential_data.get("student_email", "unknown@example.com"),
+                    "student_id": credential_data.get("student_id", "unknown"),
+                    "course_name": credential_data.get("course_name", "N/A"),
+                    "completion_date": credential_data.get("completion_date", "N/A"),
+                    "grade": credential_data.get("grade", "N/A"),
                     "university": "UTN"
                 }
             }
@@ -880,7 +883,7 @@ async def issue_openid_credential(
         # Firmar credencial con ES256
         vc_jwt = jwt.encode(vc_payload, PRIVATE_KEY, algorithm="ES256")
         
-        logger.info(f"✅ Credencial emitida para: {credential_data.get('nombre', 'Unknown')}")
+        logger.info(f"✅ Credencial emitida para: {credential_data.get('student_name', 'Unknown')}")
         
         response_data = {
             "credential": vc_jwt,
