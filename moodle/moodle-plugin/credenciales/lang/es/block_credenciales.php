@@ -1,0 +1,20 @@
+<?php
+$string['pluginname'] = 'Credenciales Blockchain';
+$string['credenciales:addinstance'] = 'Añadir un nuevo bloque de credenciales';
+$string['credenciales:myaddinstance'] = 'Añadir un nuevo bloque de credenciales a mi página de Moodle';
+$string['default_view_mode'] = 'Modo de Vista por Defecto';
+$string['default_view_mode_desc'] = 'Elige cómo se muestra el certificado al estudiante.';
+$string['view_mode_modal'] = 'Ventana Modal (Popup)';
+$string['view_mode_side'] = 'Panel Lateral (Integrado)';
+$string['organization_name'] = 'Nombre de la Organización';
+$string['organization_name_desc'] = 'Nombre de la organización que emite la credencial.';
+$string['brand_color'] = 'Color de Marca';
+$string['brand_color_desc'] = 'Código Hex para el color primario de la marca (ej. #1976d2).';
+$string['complete_course_message'] = 'Completa este curso para obtener tu credencial verificable.';
+$string['view_certificate'] = 'Ver Certificado';
+$string['my_certificates'] = 'Mis Certificados';
+$string['certificate_for'] = 'Certificado por';
+$string['issued_on'] = 'Emitido el';
+$string['scan_qr'] = 'Escanea con tu Wallet';
+$string['claim_credential'] = 'Reclamar Credencial';
+$string['download_pdf'] = 'Descargar PDF';

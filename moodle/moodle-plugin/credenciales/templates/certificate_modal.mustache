@@ -1,0 +1,40 @@
+<div id="certificate-modal" class="certificate-modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content premium-certificate">
+        <button class="close-modal">&times;</button>
+        
+        <div class="certificate-border">
+            <div class="certificate-inner">
+                <div class="certificate-header">
+                    <div class="org-logo">🏛️</div>
+                    <h1 class="org-name">{{org_name}}</h1>
+                </div>
+
+                <div class="certificate-body">
+                    <p class="certifies-text">This certifies that</p>
+                    <h2 class="student-name">{{student_name}}</h2>
+                    <p class="has-completed">has successfully completed the course</p>
+                    <h3 class="course-name">{{course_name}}</h3>
+                    <p class="date-text">{{#str}}issued_on, block_credenciales{{/str}}: {{date}}</p>
+                </div>
+
+                <div class="certificate-footer">
+                    <div class="qr-section">
+                        <img src="{{qr_code}}" alt="QR Code" class="cert-qr">
+                        <p class="scan-text">{{#str}}scan_qr, block_credenciales{{/str}}</p>
+                    </div>
+                    <div class="signature-section">
+                        <div class="signature-line"></div>
+                        <p>Instructor Signature</p>
+                    </div>
+                </div>
+
+                <div class="wallet-actions">
+                    <a href="{{invitation_url}}" class="btn btn-success btn-lg pulse-effect">
+                        <i class="fa fa-wallet"></i> {{#str}}claim_credential, block_credenciales{{/str}}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

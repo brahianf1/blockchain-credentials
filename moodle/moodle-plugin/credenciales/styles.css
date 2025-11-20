@@ -1,0 +1,236 @@
+/* Block Container */
+.block-credenciales-container {
+    padding: 10px;
+}
+
+/* Premium Card Styles */
+.credential-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    padding: 15px;
+    transition: transform 0.2s;
+    border: 1px solid #e0e0e0;
+}
+
+.credential-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.credential-card.mini .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 8px;
+}
+
+.credential-card.mini .icon {
+    font-size: 1.5em;
+}
+
+.credential-card.mini h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: #333;
+}
+
+.qr-code-mini img {
+    width: 100%;
+    max-width: 150px;
+    display: block;
+    margin: 0 auto;
+    border-radius: 8px;
+}
+
+.premium-btn {
+    background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+    border: none;
+    box-shadow: 0 4px 10px rgba(25, 118, 210, 0.3);
+    transition: all 0.3s ease;
+}
+
+.premium-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 15px rgba(25, 118, 210, 0.4);
+}
+
+.meta-info {
+    margin-top: 10px;
+    text-align: center;
+    color: #666;
+}
+
+.dashboard-link {
+    margin-top: 15px;
+    text-align: center;
+}
+
+.dashboard-link a {
+    color: #1976d2;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+/* Modal Styles */
+.certificate-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.certificate-modal.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+}
+
+.modal-content.premium-certificate {
+    position: relative;
+    background: #fff;
+    width: 90%;
+    max-width: 800px;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+    transform: scale(0.9);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.certificate-modal.visible .modal-content {
+    transform: scale(1);
+}
+
+.close-modal {
+    position: absolute;
+    top: -15px;
+    right: -15px;
+    background: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    z-index: 10;
+}
+
+/* Certificate Design */
+.certificate-border {
+    border: 10px solid #1976d2; /* Brand Color */
+    padding: 5px;
+    height: 100%;
+}
+
+.certificate-inner {
+    border: 2px solid #c5a059; /* Gold */
+    padding: 40px;
+    text-align: center;
+    background: radial-gradient(circle, #fff 0%, #f8f9fa 100%);
+    position: relative;
+}
+
+.certificate-inner::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9IiNjNWEwNTkiIGZpbGwtb3BhY2l0eT0iMC4xIi8+PC9zdmc+');
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.org-name {
+    font-family: 'Times New Roman', serif;
+    color: #333;
+    font-size: 2.5rem;
+    margin-bottom: 30px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.certifies-text {
+    font-style: italic;
+    color: #666;
+    font-size: 1.2rem;
+}
+
+.student-name {
+    font-family: 'Great Vibes', cursive; /* Fallback to cursive */
+    font-size: 3.5rem;
+    color: #1976d2;
+    margin: 20px 0;
+    border-bottom: 1px solid #ddd;
+    display: inline-block;
+    padding: 0 40px;
+}
+
+.course-name {
+    font-size: 1.8rem;
+    color: #444;
+    margin: 10px 0 30px;
+}
+
+.certificate-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-top: 50px;
+}
+
+.qr-section {
+    text-align: center;
+}
+
+.cert-qr {
+    width: 120px;
+    border: 4px solid #fff;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.signature-line {
+    width: 200px;
+    border-bottom: 1px solid #333;
+    margin-bottom: 10px;
+}
+
+.wallet-actions {
+    margin-top: 30px;
+}
+
+.pulse-effect {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
+.hidden {
+    display: none;
+}

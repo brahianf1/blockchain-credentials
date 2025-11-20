@@ -1,0 +1,30 @@
+<div class="container-fluid">
+    <h2>{{#str}}my_certificates, block_credenciales{{/str}}</h2>
+    
+    {{#has_certificates}}
+        <div class="row">
+            {{#certificates}}
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">{{course_name}}</h5>
+                            <p class="text-muted">{{date}}</p>
+                            <div class="qr-wrapper mb-3">
+                                <img src="{{qr_code}}" alt="QR Code" class="img-fluid" style="max-height: 150px;">
+                            </div>
+                            <a href="{{invitation_url}}" class="btn btn-primary btn-block">
+                                <i class="fa fa-wallet"></i> {{#str}}claim_credential, block_credenciales{{/str}}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            {{/certificates}}
+        </div>
+    {{/has_certificates}}
+
+    {{^has_certificates}}
+        <div class="alert alert-info">
+            You haven't earned any certificates yet. Complete courses to see them here!
+        </div>
+    {{/has_certificates}}
+</div>

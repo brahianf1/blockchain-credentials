@@ -1,0 +1,20 @@
+<?php
+$string['pluginname'] = 'Blockchain Credentials';
+$string['credenciales:addinstance'] = 'Add a new credentials block';
+$string['credenciales:myaddinstance'] = 'Add a new credentials block to the My Moodle page';
+$string['default_view_mode'] = 'Default View Mode';
+$string['default_view_mode_desc'] = 'Choose how the certificate is displayed to the student.';
+$string['view_mode_modal'] = 'Modal Window (Popup)';
+$string['view_mode_side'] = 'Side Panel (Integrated)';
+$string['organization_name'] = 'Organization Name';
+$string['organization_name_desc'] = 'Name of the organization issuing the credential.';
+$string['brand_color'] = 'Brand Color';
+$string['brand_color_desc'] = 'Hex code for the primary brand color (e.g., #1976d2).';
+$string['complete_course_message'] = 'Complete this course to earn your verifiable credential.';
+$string['view_certificate'] = 'View Certificate';
+$string['my_certificates'] = 'My Certificates';
+$string['certificate_for'] = 'Certificate for';
+$string['issued_on'] = 'Issued on';
+$string['scan_qr'] = 'Scan with your Wallet';
+$string['claim_credential'] = 'Claim Credential';
+$string['download_pdf'] = 'Download PDF'; // Future feature
