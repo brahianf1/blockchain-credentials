@@ -22,7 +22,10 @@ RUN cd /var/www && \
     chmod -R 755 /var/www/moodledata
 
 # Configurar Apache
-RUN a2enmod rewrite
+RUN a2enmod rewrite headers
+
+# Configurar Apache para confiar en el proxy inverso (Traefik)
+RUN echo 'SetEnvIf X-Forwarded-Proto "https" HTTPS=on' >> /etc/apache2/apache2.conf
 
 # Exponer puertos
 EXPOSE 80 443
