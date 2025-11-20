@@ -222,8 +222,14 @@ echo
 # ========================================================================
 echo "🔒 (Paso 8/8) Ajustando permisos de archivos criptográficos..."
 
+# Detectar usuario y grupo actual (o usuario sudo si existe)
+ACTUAL_USER=${SUDO_USER:-$USER}
+ACTUAL_GROUP=$(id -gn "$ACTUAL_USER")
+
+echo "👤 Usuario detectado: $ACTUAL_USER:$ACTUAL_GROUP"
+
 # Cambiar propietario de toda la estructura
-chown -R ubuntu:ubuntu "${DEST_DIR}/organizations"
+chown -R "$ACTUAL_USER:$ACTUAL_GROUP" "${DEST_DIR}/organizations"
 
 # Permisos específicos para claves privadas (crítico para BCCSP)
 find "${DEST_DIR}/organizations" -type f -name "*_sk" -exec chmod 600 {} \;
