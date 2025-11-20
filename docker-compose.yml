@@ -141,6 +141,10 @@ services:
       MOODLE_DB_NAME: ${MOODLE_DB_NAME}
       MOODLE_DB_USER: ${MOODLE_DB_USER}
       MOODLE_DB_PASS: ${MOODLE_DB_PASSWORD}
+      # Fuerza HTTPS
+      MOODLECFG_wwwroot: ${MOODLECFG_WWWROOT}
+      MOODLECFG_sslproxy: ${MOODLECFG_SSLPROXY}
+
     volumes:
       - moodle_data:/var/www/moodledata
       - ./moodle/moodle-plugin/credenciales:/var/www/html/blocks/credenciales
