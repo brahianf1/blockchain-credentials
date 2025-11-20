@@ -12,7 +12,10 @@ RUN apt-get update && apt-get install -y \
     git \
     unzip \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) gd zip intl soap opcache pgsql pdo_pgsql
+    && docker-php-ext-install -j$(nproc) gd zip intl soap opcache pgsql pdo_pgsql exif
+
+# Configurar PHP para Moodle (max_input_vars)
+RUN echo "max_input_vars = 5000" >> /usr/local/etc/php/conf.d/moodle.ini
 
 # Descargar Moodle 4.4
 RUN cd /var/www && \
