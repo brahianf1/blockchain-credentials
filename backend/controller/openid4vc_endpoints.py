@@ -209,7 +209,7 @@ async def credential_issuer_metadata(request: Request):
                     "type": ["VerifiableCredential", "UniversityDegree"],
                     "@context": [
                         "https://www.w3.org/2018/credentials/v1",
-                        "https://www.w3.org/2018/credentials/examples/v1"
+                        f"{ISSUER_URL}/oid4vc/context/v1"
                     ]
                 },
                 "display": [{
@@ -1058,7 +1058,7 @@ async def issue_openid_credential(
         
         # Logs de debug para verificar sincronización
         logger.info(f"🔍 TIMESTAMPS GENERADOS:")
-        logger.info(f"   - iat/nbf: {now_timestamp}")
+        logger.info(f"   - iat: {now_timestamp}")
         logger.info(f"   - exp: {exp_timestamp}")
         logger.info(f"   - issuanceDate (ISO): {now_without_microseconds.isoformat()}Z")
         logger.info(f"   - expirationDate (ISO): {exp_without_microseconds.isoformat()}Z")
@@ -1067,17 +1067,20 @@ async def issue_openid_credential(
         logger.info(f"   - sub (DEBE SER holder): {holder_did}")
         logger.info(f"   - vc.credentialSubject.id: {holder_did}")
         
+        # URL del contexto personalizado
+        context_url = f"{ISSUER_URL}/oid4vc/context/v1"
+        
         vc_payload = {
             "iss": ISSUER_DID,
             "sub": holder_did,  # ✅ CORRECTO: usar el DID del holder, NO del issuer
             "iat": now_timestamp,
-            "nbf": now_timestamp,
+            # "nbf": now_timestamp,  # REMOVIDO: Evitar problemas de clock skew
             "exp": exp_timestamp,
             "jti": f"urn:credential:{access_token[:16]}",
             "vc": {
                 "@context": [
                     "https://www.w3.org/2018/credentials/v1",
-                    "https://www.w3.org/2018/credentials/examples/v1"
+                    context_url  # Usar contexto personalizado
                 ],
                 "type": ["VerifiableCredential", "UniversityDegree"],
                 "id": f"urn:credential:{access_token[:16]}",
@@ -1111,9 +1114,13 @@ async def issue_openid_credential(
         
         logger.info(f"✅ Credencial emitida para: {credential_data.get('student_name', 'Unknown')}")
         
+        # Generar c_nonce fresco y simple
+        import secrets
+        next_c_nonce = secrets.token_urlsafe(32)
+        
         response_data = {
             "credential": vc_jwt,
-            "c_nonce": f"nonce_{int(now.timestamp())}",
+            "c_nonce": next_c_nonce,
             "c_nonce_expires_in": 86400
         }
         
@@ -1553,4 +1560,36 @@ async def health_check():
     }
     
     response = JSONResponse(content=health_info)
+    return await add_security_headers(response)
+
+# ==================== ENDPOINT ADICIONAL: CUSTOM CONTEXT ====================
+@oid4vc_router.get("/context/v1")
+async def get_custom_context():
+    """
+    Endpoint para servir el contexto JSON-LD personalizado
+    Define UniversityDegree y sus campos para validación correcta en wallets
+    """
+    context = {
+        "@context": {
+            "@version": 1.1,
+            "@protected": True,
+            "UniversityDegree": {
+                "@id": f"{ISSUER_URL}/oid4vc/context/v1#UniversityDegree",
+                "@context": {
+                    "student_name": "schema:name",
+                    "student_id": "schema:identifier",
+                    "student_email": "schema:email",
+                    "course_name": "schema:course",
+                    "course_id": "schema:courseCode",
+                    "grade": "schema:grade",
+                    "completion_date": "schema:date",
+                    "university": "schema:alumniOf",
+                    "instructor_name": "schema:contributor"
+                }
+            },
+            "schema": "http://schema.org/"
+        }
+    }
+    
+    response = JSONResponse(content=context)
     return await add_security_headers(response)

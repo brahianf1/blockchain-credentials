@@ -400,23 +400,6 @@ async def root_credential_issuer_metadata():
                 "scope": "UniversityDegreeScope",
                 "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
                 "credential_signing_alg_values_supported": ["ES256"],
-                "proof_types_supported": {
-                    "jwt": {
-                        "proof_signing_alg_values_supported": ["ES256"]
-                    }
-                },
-                "credential_definition": {
-                    "type": ["VerifiableCredential", "UniversityDegree"],
-                    "@context": [
-                        "https://www.w3.org/2018/credentials/v1",
-                        "https://www.w3.org/2018/credentials/examples/v1"
-                    ]
-                },
-                "display": [{
-                    "name": "Credencial Universitaria",
-                    "locale": "es-ES",
-                    "background_color": "#1976d2",
-                    "text_color": "#FFFFFF",
                     "logo": {
                         "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
                         "alt_text": "Logo UTN"
