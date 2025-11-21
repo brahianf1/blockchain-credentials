@@ -30,7 +30,7 @@ from qr_endpoints import router as qr_router
 
 # NUEVO: Import OpenID4VC endpoints
 try:
-    from openid4vc_endpoints import oid4vc_router
+    from openid4vc_endpoints import oid4vc_router, generate_openid_offer
     OPENID4VC_AVAILABLE = True
 except ImportError:
     OPENID4VC_AVAILABLE = False
@@ -44,15 +44,95 @@ logger = structlog.get_logger()
 ACAPY_ADMIN_URL = os.getenv("ACAPY_ADMIN_URL", "http://acapy-agent:8020")
 ACAPY_PUBLIC_URL = os.getenv("ACAPY_PUBLIC_URL", "http://localhost:8021")
 CONTROLLER_PORT = int(os.getenv("CONTROLLER_PORT", "3000"))
+UNIVERSITY_NAME = os.getenv("UNIVERSITY_NAME", "Universidad Tecnológica Nacional")
 
-    Retorna invitación de conexión para que estudiante use su wallet
-    """
+# Modelos Pydantic
+class StudentCredentialRequest(BaseModel):
+    student_id: str
+    student_name: str
+    student_email: str
+    course_id: str
+    course_name: str
+    completion_date: str
+    grade: str
+    instructor_name: str
+
+class CredentialResponse(BaseModel):
+    connection_id: Optional[str] = None
+    invitation_url: Optional[str] = None
+    qr_code_base64: str
+    # Campos OpenID4VC
+    pre_authorized_code: Optional[str] = None
+    offer_json: Optional[Dict[str, Any]] = None
+    instructions: Optional[str] = None
+
+# Inicializar FastAPI
+app = FastAPI(title="Controller Credenciales", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Incluir router OpenID4VC si está disponible
+if OPENID4VC_AVAILABLE:
+    app.include_router(oid4vc_router)
+
+# Inicializar clientes
+try:
+    fabric_client = FabricClient()
+except:
+    fabric_client = None
+    logger.warning("⚠️ FabricClient no disponible")
+
+qr_generator = QRGenerator()
+
+# FUNCIONES AUXILIARES
+
+async def store_pending_credential(connection_id: str, credential_data: StudentCredentialRequest):
+    """Almacenar datos de credencial pendiente (En producción: BD)"""
+    # Por ahora usar archivo temporal (EN PRODUCCIÓN USAR BASE DE DATOS)
+    import tempfile
+    temp_file = f"/tmp/pending_credential_{connection_id}.json"
+    with open(temp_file, 'w') as f:
+        json.dump(credential_data.dict(), f)
+
+async def get_pending_credential(connection_id: str) -> Optional[Dict[str, Any]]:
+    """Obtener datos de credencial pendiente"""
     try:
-        logger.info(f"📨 Nueva solicitud de credencial para: {credential_request.student_name}")
-        
-        # 1. Registrar en Hyperledger Fabric
-        if fabric_client:
-            try:
+        temp_file = f"/tmp/pending_credential_{connection_id}.json"
+        with open(temp_file, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+
+async def clear_pending_credential(connection_id: str):
+    """Limpiar datos de credencial pendiente"""
+    try:
+        import os
+        temp_file = f"/tmp/pending_credential_{connection_id}.json"
+        os.remove(temp_file)
+    except:
+        pass
+
+async def get_credential_definition_id() -> Optional[str]:
+    """Obtener ID de Credential Definition"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{ACAPY_ADMIN_URL}/credential-definitions/created")
+            if response.status_code == 200:
+                cred_defs = response.json()
+                if cred_defs.get("credential_definition_ids"):
+                    return cred_defs["credential_definition_ids"][0]
+        return None
+    except:
+        return None
+
+async def issue_credential(connection_id: str, credential_data: Optional[Dict[str, Any]] = None):
+    """
     Emitir credencial una vez establecida la conexión
     Se llama automáticamente cuando la conexión esté activa
     """
@@ -121,6 +201,112 @@ CONTROLLER_PORT = int(os.getenv("CONTROLLER_PORT", "3000"))
         logger.error(f"❌ Error emitiendo credencial: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+async def issue_credential_background(connection_id: str):
+    """Emitir credencial en background"""
+    try:
+        await asyncio.sleep(2)  # Esperar un poco para que conexión se estabilice
+        await issue_credential(connection_id, None)
+    except Exception as e:
+        logger.error(f"Error en emisión background: {e}")
+
+# FUNCIONES DE SOLICITUD DE CREDENCIAL
+
+async def request_credential_didcomm(credential_request: StudentCredentialRequest) -> CredentialResponse:
+    """
+    [LEGACY] Retorna invitación de conexión DIDComm (ACA-Py)
+    """
+    try:
+        logger.info(f"📨 [LEGACY] Solicitud DIDComm para: {credential_request.student_name}")
+        
+        # 1. Registrar en Hyperledger Fabric
+        if fabric_client:
+            try:
+                if hasattr(fabric_client, 'register_student'):
+                    await fabric_client.register_student(credential_request.student_id)
+            except Exception as e:
+                logger.error(f"⚠️ Error registrando en Fabric: {e}")
+
+        # 2. Crear invitación de conexión en ACA-Py
+        async with httpx.AsyncClient() as client:
+            invitation_response = await client.post(
+                f"{ACAPY_ADMIN_URL}/connections/create-invitation",
+                json={"alias": f"student-{credential_request.student_id}"}
+            )
+            
+            if invitation_response.status_code != 200:
+                raise HTTPException(status_code=500, detail="Error creando invitación ACA-Py")
+            
+            invitation_data = invitation_response.json()
+            connection_id = invitation_data["connection_id"]
+            invitation_url = invitation_data["invitation_url"]
+            
+            # 3. Guardar datos para emisión posterior
+            await store_pending_credential(connection_id, credential_request)
+            
+            # 4. Generar QR
+            qr_code_base64 = qr_generator.generate_qr(invitation_url)
+            
+            return CredentialResponse(
+                connection_id=connection_id,
+                invitation_url=invitation_url,
+                qr_code_base64=qr_code_base64,
+                instructions="Escanea con tu wallet Identity (DIDComm)"
+            )
+
+    except Exception as e:
+        logger.error(f"❌ Error en request_credential_didcomm: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def request_credential_openid4vc(credential_request: StudentCredentialRequest) -> CredentialResponse:
+    """
+    [MODERN] Retorna oferta OpenID4VC (Lissi/Walt.id/EUDI)
+    """
+    try:
+        logger.info(f"📨 [MODERN] Solicitud OpenID4VC para: {credential_request.student_name}")
+        
+        if not OPENID4VC_AVAILABLE:
+            raise HTTPException(status_code=501, detail="OpenID4VC no disponible")
+
+        # 1. Registrar en Hyperledger Fabric (igual que legacy)
+        if fabric_client:
+            try:
+                if hasattr(fabric_client, 'register_student'):
+                    await fabric_client.register_student(credential_request.student_id)
+            except Exception as e:
+                logger.error(f"⚠️ Error registrando en Fabric: {e}")
+
+        # 2. Generar oferta OpenID4VC
+        # Convertir modelo Pydantic a dict
+        request_dict = credential_request.dict()
+        
+        # Usar la función importada de openid4vc_endpoints
+        offer_result = await generate_openid_offer(request_dict)
+        
+        return CredentialResponse(
+            qr_code_base64=offer_result["qr_code_base64"],
+            invitation_url=offer_result["qr_url"], # Mapear URL del QR a invitation_url
+            pre_authorized_code=offer_result["pre_authorized_code"],
+            offer_json=offer_result["offer"],
+            instructions=offer_result["instructions"]
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Error en request_credential_openid4vc: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/request-credential", response_model=CredentialResponse)
+async def request_credential(credential_request: StudentCredentialRequest):
+    """
+    Endpoint principal: Por defecto usa OpenID4VC (Moderno)
+    """
+    # Opción: Podríamos recibir un query param para forzar legacy si fuera necesario
+    # Por ahora, default a OpenID4VC como pidió el usuario
+    if OPENID4VC_AVAILABLE:
+        return await request_credential_openid4vc(credential_request)
+    else:
+        logger.warning("⚠️ OpenID4VC no disponible, usando fallback a DIDComm")
+        return await request_credential_didcomm(credential_request)
+
 # WEBHOOKS de ACA-Py (para automatización)
 
 @app.post("/webhooks/connections")
@@ -151,55 +337,6 @@ async def webhook_issue_credential(data: dict):
     
     return {"status": "received"}
 
-# FUNCIONES AUXILIARES
-
-async def store_pending_credential(connection_id: str, credential_data: StudentCredentialRequest):
-    """Almacenar datos de credencial pendiente (En producción: BD)"""
-    # Por ahora usar archivo temporal (EN PRODUCCIÓN USAR BASE DE DATOS)
-    import tempfile
-    temp_file = f"/tmp/pending_credential_{connection_id}.json"
-    with open(temp_file, 'w') as f:
-        json.dump(credential_data.dict(), f)
-
-async def get_pending_credential(connection_id: str) -> Optional[Dict[str, Any]]:
-    """Obtener datos de credencial pendiente"""
-    try:
-        temp_file = f"/tmp/pending_credential_{connection_id}.json"
-        with open(temp_file, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return None
-
-async def clear_pending_credential(connection_id: str):
-    """Limpiar datos de credencial pendiente"""
-    try:
-        import os
-        temp_file = f"/tmp/pending_credential_{connection_id}.json"
-        os.remove(temp_file)
-    except:
-        pass
-
-async def get_credential_definition_id() -> Optional[str]:
-    """Obtener ID de Credential Definition"""
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{ACAPY_ADMIN_URL}/credential-definitions/created")
-            if response.status_code == 200:
-                cred_defs = response.json()
-                if cred_defs.get("credential_definition_ids"):
-                    return cred_defs["credential_definition_ids"][0]
-        return None
-    except:
-        return None
-
-async def issue_credential_background(connection_id: str):
-    """Emitir credencial en background"""
-    try:
-        await asyncio.sleep(2)  # Esperar un poco para que conexión se estabilice
-        await issue_credential(connection_id, None)
-    except Exception as e:
-        logger.error(f"Error en emisión background: {e}")
-
 # ENDPOINT COMPATIBILIDAD MOODLE (mantener API anterior)
 
 @app.post("/api/credenciales")
@@ -218,7 +355,8 @@ async def legacy_credential_endpoint(data: dict):
             instructor_name=data.get("instructor", "Instructor")
         )
         
-        result = await request_credential(credential_request)
+        # USAR LEGACY EXPLICITAMENTE
+        result = await request_credential_didcomm(credential_request)
         
         # Formato compatible
         return {
@@ -234,6 +372,8 @@ async def legacy_credential_endpoint(data: dict):
         return {
             "success": False,
             "message": str(e)
+        }
+
 async def root_credential_issuer_metadata():
     """
     Metadata OpenID4VC en ruta raíz
@@ -276,7 +416,7 @@ async def root_credential_issuer_metadata():
                     "locale": "es-ES",
                     "background_color": "#1976d2",
                     "text_color": "#FFFFFF",
-                    "logo": {  # ← AGREGAR ESTAS 3 LÍNEAS
+                    "logo": {
                         "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
                         "alt_text": "Logo UTN"
                     }
@@ -296,19 +436,19 @@ async def oauth_authorization_server_metadata():
     
     metadata = {
         "issuer": issuer_url,
-        "authorization_endpoint": f"{issuer_url}/oid4vc/authorize",  # ← AGREGAR
+        "authorization_endpoint": f"{issuer_url}/oid4vc/authorize",
         "token_endpoint": f"{issuer_url}/oid4vc/token",
         "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
         "pushed_authorization_request_endpoint": f"{issuer_url}/oid4vc/par",
         "grant_types_supported": [
             "urn:ietf:params:oauth:grant-type:pre-authorized_code",
-            "authorization_code"  # ← AGREGAR (para declarar soporte)
+            "authorization_code"
         ],
         "token_endpoint_auth_methods_supported": ["none"],
         "request_parameter_supported": True,
         "request_uri_parameter_supported": True,
-        "response_types_supported": ["code"],  # ← AGREGAR
-        "response_modes_supported": ["query"],  # ← AGREGAR
+        "response_types_supported": ["code"],
+        "response_modes_supported": ["query"],
         "code_challenge_methods_supported": ["S256"],
     }
     

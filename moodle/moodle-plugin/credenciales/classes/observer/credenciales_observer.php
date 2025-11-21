@@ -23,20 +23,29 @@ class credenciales_observer {
             return;
         }
 
-        // Preparar los datos para enviar al backend
+        // Obtener calificación final (si existe)
+        $grade = "Aprobado";
+        $grade_rec = $DB->get_record('grade_grades', array('userid' => $userid, 'itemid' => $courseid)); // Simplificado
+        if ($grade_rec && isset($grade_rec->finalgrade)) {
+            $grade = number_format($grade_rec->finalgrade, 1);
+        }
+
+        // Preparar los datos para enviar al backend (Formato Moderno Snake Case)
         $data = array(
-            'userId' => $user->id,
-            'userEmail' => $user->email,
-            'userName' => fullname($user),
-            'courseId' => $course->id,
-            'courseName' => $course->fullname,
-            'completionDate' => date('c', $event->timecreated)
+            'student_id' => (string)$user->id,
+            'student_name' => fullname($user),
+            'student_email' => $user->email,
+            'course_id' => (string)$course->id,
+            'course_name' => $course->fullname,
+            'completion_date' => date('c', $event->timecreated),
+            'grade' => $grade,
+            'instructor_name' => "Instructor del Curso" // Por defecto
         );
 
-        logger::info("Preparando envío de credencial", $data);
+        logger::info("Preparando envío de credencial (Modern API)", $data);
 
-        // URL del endpoint de nuestro backend
-        $url = 'http://python-controller:3000/api/issue-credential';
+        // URL del endpoint moderno (OpenID4VC)
+        $url = 'http://python-controller:3000/request-credential';
 
         // Configurar la petición cURL
         $ch = curl_init($url);
@@ -78,9 +87,18 @@ class credenciales_observer {
                 $record = new \stdClass();
                 $record->userid = $userid;
                 $record->courseid = $courseid;
+                // Mapeo de campos de respuesta (compatible con ambos formatos)
                 $record->connection_id = isset($responseData['connection_id']) ? $responseData['connection_id'] : '';
                 $record->invitation_url = isset($responseData['invitation_url']) ? $responseData['invitation_url'] : '';
                 $record->qr_code_base64 = isset($responseData['qr_code_base64']) ? $responseData['qr_code_base64'] : (isset($responseData['qr_code']) ? $responseData['qr_code'] : '');
+                
+                // Guardar pre_authorized_code si existe (OpenID4VC)
+                if (isset($responseData['pre_authorized_code'])) {
+                    // Podríamos guardarlo en un campo extra si la BD lo soporta, 
+                    // por ahora lo logueamos o usamos connection_id si es string
+                    logger::info("Recibido pre_authorized_code: " . $responseData['pre_authorized_code']);
+                }
+
                 $record->status = 'issued';
                 $record->timemodified = time();
                 
