@@ -374,6 +374,7 @@ async def legacy_credential_endpoint(data: dict):
             "message": str(e)
         }
 
+@app.get("/.well-known/openid-credential-issuer")
 async def root_credential_issuer_metadata():
     """
     Metadata OpenID4VC en ruta raíz
