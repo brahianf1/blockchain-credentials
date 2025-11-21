@@ -151,9 +151,11 @@ class CredentialOfferRequest(BaseModel):
     student_id: str = Field(..., min_length=1, max_length=100, description="Student identification")
     student_name: str = Field(..., min_length=1, max_length=200, description="Student full name")
     student_email: str = Field(..., pattern=r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', description="Student email address")
+    course_id: str = Field(..., description="Course ID")
     course_name: str = Field(..., min_length=1, max_length=300, description="Course name")
     completion_date: str = Field(..., description="Course completion date")
     grade: str = Field(..., min_length=1, max_length=10, description="Final grade")
+    instructor_name: str = Field(..., description="Instructor name")
 
 # Función para añadir headers de seguridad SSL
 async def add_security_headers(response: JSONResponse) -> JSONResponse:
@@ -285,6 +287,106 @@ async def did_document_endpoint():
     response.headers["Content-Type"] = "application/did+json"
     return await add_security_headers(response)
 
+# Lógica extraída para reutilización
+async def generate_openid_offer(request_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Genera una oferta OpenID4VC y retorna los datos completos"""
+    
+    student_id = request_data.get("student_id")
+    student_email = request_data.get("student_email")
+    student_name = request_data.get("student_name")
+    course_name = request_data.get("course_name")
+    
+    # Generar pre-authorized code único con timestamp para evitar replay attacks
+    timestamp = int(datetime.now().timestamp())
+    pre_auth_code = f"pre_auth_{student_id}_{timestamp}_{hash(student_email) % 10000}"
+    
+    # Almacenar datos pendientes con expiración y metadatos OpenID4VC
+    await store_pending_openid_credential(pre_auth_code, request_data, expires_in=600)
+
+    pre_authorized_code_data[pre_auth_code] = {
+        "credential_data": request_data,
+        "expires_at": (datetime.now() + timedelta(seconds=600)).isoformat()
+    }
+    logger.info(f"📝 Datos almacenados para {pre_auth_code}, expira en 600s")
+    
+    # Crear Credential Offer según OpenID4VCI Draft-16 (formato estricto)
+    offer = {
+        "credential_issuer": ISSUER_URL,
+        "credential_configuration_ids": ["UniversityDegree"],
+        "grants": {
+            "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
+                "pre-authorized_code": pre_auth_code
+            }
+        }
+    }
+    
+    # Codificar offer para QR según RFC estándar
+    offer_json = json.dumps(offer, separators=(',', ':'))  # Compact JSON
+    
+    # Usar URL encoding estándar según OpenID4VC spec
+    from urllib.parse import quote
+    offer_encoded = quote(offer_json, safe='')
+    
+    # Usar esquema URI estándar según spec OpenID4VC Draft-16
+    qr_url = f"openid-credential-offer://?credential_offer={offer_encoded}"
+    
+    # Validar longitud del QR (máximo para QR codes estándar)
+    if len(qr_url) > 1800:  # Límite más conservador para compatibilidad
+        logger.warning(f"⚠️ QR URL muy largo: {len(qr_url)} chars, puede fallar en algunos wallets")
+    
+    # Generar QR con configuración optimizada
+    try:
+        from qr_generator import QRGenerator
+        qr_gen = QRGenerator()
+        qr_code_full = qr_gen.generate_qr(qr_url)
+        
+        # Usar directamente el resultado completo (ya incluye data:image/png;base64,)
+        qr_code_base64 = qr_code_full if qr_code_full else ""
+            
+        logger.info(f"✅ QR generado exitosamente, formato: {qr_code_base64[:50] if qr_code_base64 else 'Vacío'}...")
+        
+    except Exception as qr_error:
+        logger.error(f"❌ Error generando QR: {qr_error}")
+        # Fallback sin QR pero con URL
+        qr_code_base64 = ""
+    
+    # Almacenar para la página web de display
+    global qr_storage
+    if 'qr_storage' not in globals():
+        qr_storage = {}
+    
+    qr_storage[pre_auth_code] = {
+        "qr_code_base64": qr_code_base64,
+        "qr_url": qr_url,
+        "student_name": student_name,
+        "course_name": course_name,
+        "timestamp": datetime.now().isoformat(),
+        "expires_at": (datetime.now() + timedelta(minutes=10)).isoformat(),
+        "type": "openid4vc_compliant",
+        "format_version": "OpenID4VC Draft-16"
+    }
+    
+    logger.info(f"✅ Credential Offer OpenID4VC creado: {pre_auth_code}")
+    
+    return {
+        "qr_url": qr_url,
+        "qr_code_base64": qr_code_base64,
+        "pre_authorized_code": pre_auth_code,
+        "offer": offer,
+        "web_qr_url": f"{ISSUER_URL}/oid4vc/qr/{pre_auth_code}",
+        "instructions": "Escanea con wallet compatible OpenID4VC (walt.id, Lissi, etc.)",
+        "compatibility": {
+            "walt_id": True,
+            "lissi_wallet": True,
+            "openid4vc_standard": True
+        },
+        "debug_info": {
+            "qr_length": len(qr_url),
+            "offer_format": "OpenID4VC Draft-16 compliant",
+            "scheme": "openid-credential-offer://"
+        }
+    }
+
 # ENDPOINT 2: Crear Credential Offer compatible con Lissi - MEJORADO
 @oid4vc_router.post("/credential-offer")
 async def create_openid_credential_offer(request: CredentialOfferRequest):
@@ -298,100 +400,8 @@ async def create_openid_credential_offer(request: CredentialOfferRequest):
         # Validaciones adicionales para seguridad
         if len(request.student_id) < 3:
             raise HTTPException(status_code=400, detail="Student ID debe tener al menos 3 caracteres")
-        
-        # Generar pre-authorized code único con timestamp para evitar replay attacks
-        timestamp = int(datetime.now().timestamp())
-        pre_auth_code = f"pre_auth_{request.student_id}_{timestamp}_{hash(request.student_email) % 10000}"
-        
-        # Almacenar datos pendientes con expiración y metadatos OpenID4VC
-        await store_pending_openid_credential(pre_auth_code, request.dict(), expires_in=600)
-
-        pre_authorized_code_data[pre_auth_code] = {
-            "credential_data": request.dict(),
-            "expires_at": (datetime.now() + timedelta(seconds=600)).isoformat()
-        }
-        logger.info(f"📝 Datos almacenados para {pre_auth_code}, expira en 600s")
-        
-        # Crear Credential Offer según OpenID4VCI Draft-16 (formato estricto)
-        offer = {
-            "credential_issuer": ISSUER_URL,
-            "credential_configuration_ids": ["UniversityDegree"],
-            "grants": {
-                "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
-                    "pre-authorized_code": pre_auth_code
-                },
-                #"authorization_code": {
-                #    "issuer_state": pre_auth_code
-                #}
-            }
-        }
-        
-        # Codificar offer para QR según RFC estándar
-        offer_json = json.dumps(offer, separators=(',', ':'))  # Compact JSON
-        
-        # Usar URL encoding estándar según OpenID4VC spec
-        from urllib.parse import quote
-        offer_encoded = quote(offer_json, safe='')
-        
-        # Usar esquema URI estándar según spec OpenID4VC Draft-16
-        qr_url = f"openid-credential-offer://?credential_offer={offer_encoded}"
-        
-        # Validar longitud del QR (máximo para QR codes estándar)
-        if len(qr_url) > 1800:  # Límite más conservador para compatibilidad
-            logger.warning(f"⚠️ QR URL muy largo: {len(qr_url)} chars, puede fallar en algunos wallets")
-        
-        # Generar QR con configuración optimizada
-        try:
-            from qr_generator import QRGenerator
-            qr_gen = QRGenerator()
-            qr_code_full = qr_gen.generate_qr(qr_url)
             
-            # Usar directamente el resultado completo (ya incluye data:image/png;base64,)
-            qr_code_base64 = qr_code_full if qr_code_full else ""
-                
-            logger.info(f"✅ QR generado exitosamente, formato: {qr_code_base64[:50] if qr_code_base64 else 'Vacío'}...")
-            
-        except Exception as qr_error:
-            logger.error(f"❌ Error generando QR: {qr_error}")
-            # Fallback sin QR pero con URL
-            qr_code_base64 = ""
-        
-        # Almacenar para la página web de display
-        global qr_storage
-        if 'qr_storage' not in globals():
-            qr_storage = {}
-        
-        qr_storage[pre_auth_code] = {
-            "qr_code_base64": qr_code_base64,
-            "qr_url": qr_url,
-            "student_name": request.student_name,
-            "course_name": request.course_name,
-            "timestamp": datetime.now().isoformat(),
-            "expires_at": (datetime.now() + timedelta(minutes=10)).isoformat(),
-            "type": "openid4vc_compliant",
-            "format_version": "OpenID4VC Draft-16"
-        }
-        
-        logger.info(f"✅ Credential Offer OpenID4VC creado: {pre_auth_code}")
-        
-        response_data = {
-            "qr_url": qr_url,
-            "qr_code_base64": qr_code_base64,
-            "pre_authorized_code": pre_auth_code,
-            "offer": offer,
-            "web_qr_url": f"{ISSUER_URL}/oid4vc/qr/{pre_auth_code}",
-            "instructions": "Escanea con wallet compatible OpenID4VC (walt.id, Lissi, etc.)",
-            "compatibility": {
-                "walt_id": True,
-                "lissi_wallet": True,
-                "openid4vc_standard": True
-            },
-            "debug_info": {
-                "qr_length": len(qr_url),
-                "offer_format": "OpenID4VC Draft-16 compliant",
-                "scheme": "openid-credential-offer://"
-            }
-        }
+        response_data = await generate_openid_offer(request.dict())
         
         response = JSONResponse(content=response_data)
         return await add_security_headers(response)

@@ -301,61 +301,6 @@ async def request_credential(credential_request: StudentCredentialRequest):
         # 1. Registrar en Hyperledger Fabric
         if fabric_client:
             try:
-                fabric_result = await fabric_client.register_credential(credential_request.dict())
-                logger.info(f"✅ Registrado en Fabric: {fabric_result}")
-            except Exception as e:
-                logger.warning(f"⚠️ Error registrando en Fabric (continuando): {e}")
-        
-        # 2. Crear conexión en ACA-Py usando out-of-band
-        async with httpx.AsyncClient() as client:
-            invitation_response = await client.post(
-                f"{ACAPY_ADMIN_URL}/out-of-band/create-invitation",
-                json={
-                    "alias": f"Estudiante-{credential_request.student_name}",
-                    "auto_accept": True,
-                    "handshake_protocols": ["https://didcomm.org/didexchange/1.0"],
-                    "use_public_did": False
-                }
-            )
-            
-            if invitation_response.status_code != 200:
-                raise HTTPException(status_code=500, detail="Error creando invitación de conexión")
-            
-            invitation_data = invitation_response.json()
-            connection_id = invitation_data["oob_id"]  # out-of-band usa oob_id en lugar de connection_id
-            invitation_url = invitation_data["invitation_url"]
-            
-            logger.info(f"🔗 Invitación out-of-band creada: {connection_id}")
-            
-            # 3. Generar QR Code
-            qr_code_base64 = qr_generator.generate_qr(invitation_url)
-            
-            # 4. Almacenar QR temporalmente para visualización web
-            qr_storage[connection_id] = {
-                "qr_code_base64": qr_code_base64,
-                "invitation_url": invitation_url,
-                "student_name": credential_request.student_name,
-                "course_name": credential_request.course_name,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-            
-            # 5. Almacenar datos para posterior emisión de credencial
-            # (En producción, usar base de datos)
-            await store_pending_credential(connection_id, credential_request)
-            
-            return ConnectionInvitationResponse(
-                invitation_url=invitation_url,
-                qr_code_base64=qr_code_base64,
-                connection_id=connection_id
-            )
-            
-    except Exception as e:
-        logger.error(f"❌ Error procesando solicitud: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/credential/issue/{connection_id}")
-async def issue_credential(connection_id: str, background_tasks: BackgroundTasks):
-    """
     Emitir credencial una vez establecida la conexión
     Se llama automáticamente cuando la conexión esté activa
     """
