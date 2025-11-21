@@ -31,4 +31,11 @@ if ($ADMIN->fulltree) {
         '#1976d2',
         PARAM_TEXT
     ));
+
+    // Link to Logs
+    $settings->add(new admin_setting_heading(
+        'block_credenciales/logs_heading',
+        get_string('logs_heading', 'block_credenciales'),
+        '<a href="' . $CFG->wwwroot . '/blocks/credenciales/logs.php" class="btn btn-secondary">' . get_string('view_logs', 'block_credenciales') . '</a>'
+    ));
 }

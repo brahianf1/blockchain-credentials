@@ -18,3 +18,5 @@ $string['issued_on'] = 'Issued on';
 $string['scan_qr'] = 'Scan with your Wallet';
 $string['claim_credential'] = 'Claim Credential';
 $string['download_pdf'] = 'Download PDF'; // Future feature
+$string['logs_heading'] = 'System Logs';
+$string['view_logs'] = 'View Debug Logs';

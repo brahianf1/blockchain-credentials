@@ -18,3 +18,5 @@ $string['issued_on'] = 'Emitido el';
 $string['scan_qr'] = 'Escanea con tu Wallet';
 $string['claim_credential'] = 'Reclamar Credencial';
 $string['download_pdf'] = 'Descargar PDF';
+$string['logs_heading'] = 'Registros del Sistema';
+$string['view_logs'] = 'Ver Logs de Depuración';
