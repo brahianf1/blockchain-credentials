@@ -34,6 +34,7 @@ try:
     OPENID4VC_AVAILABLE = True
 except ImportError:
     OPENID4VC_AVAILABLE = False
+    logger = structlog.get_logger()
     logger.warning("⚠️ OpenID4VC endpoints no disponibles - instalar dependencias")
 
 # Configuración de logging estructurado
@@ -84,7 +85,7 @@ if OPENID4VC_AVAILABLE:
 # Inicializar clientes
 try:
     fabric_client = FabricClient()
-except:
+except Exception:
     fabric_client = None
     logger.warning("⚠️ FabricClient no disponible")
 
@@ -94,7 +95,6 @@ qr_generator = QRGenerator()
 
 async def store_pending_credential(connection_id: str, credential_data: StudentCredentialRequest):
     """Almacenar datos de credencial pendiente (En producción: BD)"""
-    # Por ahora usar archivo temporal (EN PRODUCCIÓN USAR BASE DE DATOS)
     import tempfile
     temp_file = f"/tmp/pending_credential_{connection_id}.json"
     with open(temp_file, 'w') as f:
@@ -112,10 +112,9 @@ async def get_pending_credential(connection_id: str) -> Optional[Dict[str, Any]]
 async def clear_pending_credential(connection_id: str):
     """Limpiar datos de credencial pendiente"""
     try:
-        import os
         temp_file = f"/tmp/pending_credential_{connection_id}.json"
         os.remove(temp_file)
-    except:
+    except Exception:
         pass
 
 async def get_credential_definition_id() -> Optional[str]:
@@ -128,7 +127,7 @@ async def get_credential_definition_id() -> Optional[str]:
                 if cred_defs.get("credential_definition_ids"):
                     return cred_defs["credential_definition_ids"][0]
         return None
-    except:
+    except Exception:
         return None
 
 async def issue_credential(connection_id: str, credential_data: Optional[Dict[str, Any]] = None):
@@ -138,17 +137,17 @@ async def issue_credential(connection_id: str, credential_data: Optional[Dict[st
     """
     try:
         logger.info(f"🎓 Emitiendo credencial para conexión: {connection_id}")
-        
+
         # Obtener datos de credencial pendiente
         credential_data = await get_pending_credential(connection_id)
         if not credential_data:
             raise HTTPException(status_code=404, detail="No hay credencial pendiente para esta conexión")
-        
+
         # Obtener Credential Definition ID (en producción, almacenar en BD)
         cred_def_id = await get_credential_definition_id()
         if not cred_def_id:
             raise HTTPException(status_code=500, detail="Credential Definition no encontrado")
-        
+
         # Preparar atributos de la credencial
         credential_attributes = [
             {"name": "student_id", "value": credential_data["student_id"]},
@@ -162,7 +161,7 @@ async def issue_credential(connection_id: str, credential_data: Optional[Dict[st
             {"name": "issue_date", "value": datetime.utcnow().isoformat()},
             {"name": "university_name", "value": UNIVERSITY_NAME}
         ]
-        
+
         # Emitir credencial vía ACA-Py
         async with httpx.AsyncClient() as client:
             offer_body = {
@@ -176,27 +175,27 @@ async def issue_credential(connection_id: str, credential_data: Optional[Dict[st
                 "auto_remove": False,
                 "comment": f"Credencial de finalización: {credential_data['course_name']}"
             }
-            
+
             offer_response = await client.post(
                 f"{ACAPY_ADMIN_URL}/issue-credential-2.0/send-offer",
                 json=offer_body
             )
-            
+
             if offer_response.status_code != 200:
                 raise HTTPException(status_code=500, detail="Error emitiendo credencial")
-            
+
             offer_data = offer_response.json()
             logger.info(f"✅ Credencial emitida: {offer_data['cred_ex_id']}")
-            
+
             # Limpiar datos pendientes
             await clear_pending_credential(connection_id)
-            
+
             return {
                 "status": "credential_issued",
                 "credential_exchange_id": offer_data["cred_ex_id"],
                 "message": "Credencial emitida exitosamente"
             }
-            
+
     except Exception as e:
         logger.error(f"❌ Error emitiendo credencial: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -217,7 +216,7 @@ async def request_credential_didcomm(credential_request: StudentCredentialReques
     """
     try:
         logger.info(f"📨 [LEGACY] Solicitud DIDComm para: {credential_request.student_name}")
-        
+
         # 1. Registrar en Hyperledger Fabric
         if fabric_client:
             try:
@@ -232,20 +231,20 @@ async def request_credential_didcomm(credential_request: StudentCredentialReques
                 f"{ACAPY_ADMIN_URL}/connections/create-invitation",
                 json={"alias": f"student-{credential_request.student_id}"}
             )
-            
+
             if invitation_response.status_code != 200:
                 raise HTTPException(status_code=500, detail="Error creando invitación ACA-Py")
-            
+
             invitation_data = invitation_response.json()
             connection_id = invitation_data["connection_id"]
             invitation_url = invitation_data["invitation_url"]
-            
+
             # 3. Guardar datos para emisión posterior
             await store_pending_credential(connection_id, credential_request)
-            
+
             # 4. Generar QR
             qr_code_base64 = qr_generator.generate_qr(invitation_url)
-            
+
             return CredentialResponse(
                 connection_id=connection_id,
                 invitation_url=invitation_url,
@@ -263,7 +262,7 @@ async def request_credential_openid4vc(credential_request: StudentCredentialRequ
     """
     try:
         logger.info(f"📨 [MODERN] Solicitud OpenID4VC para: {credential_request.student_name}")
-        
+
         if not OPENID4VC_AVAILABLE:
             raise HTTPException(status_code=501, detail="OpenID4VC no disponible")
 
@@ -278,10 +277,10 @@ async def request_credential_openid4vc(credential_request: StudentCredentialRequ
         # 2. Generar oferta OpenID4VC
         # Convertir modelo Pydantic a dict
         request_dict = credential_request.dict()
-        
+
         # Usar la función importada de openid4vc_endpoints
         offer_result = await generate_openid_offer(request_dict)
-        
+
         return CredentialResponse(
             qr_code_base64=offer_result["qr_code_base64"],
             invitation_url=offer_result["qr_url"], # Mapear URL del QR a invitation_url
@@ -313,7 +312,7 @@ async def request_credential(credential_request: StudentCredentialRequest):
 async def webhook_connections(data: dict):
     """Webhook para eventos de conexión"""
     logger.info(f"🔔 Webhook conexión: {data.get('state', 'unknown')}")
-    
+
     if data.get("state") == "active":
         connection_id = data.get("connection_id")
         if connection_id:
@@ -321,7 +320,7 @@ async def webhook_connections(data: dict):
             logger.info(f"✅ Conexión activa, emitiendo credencial: {connection_id}")
             # En background para no bloquear webhook
             asyncio.create_task(issue_credential_background(connection_id))
-    
+
     return {"status": "received"}
 
 @app.post("/webhooks/issue_credential")
@@ -329,12 +328,12 @@ async def webhook_issue_credential(data: dict):
     """Webhook para eventos de emisión de credencial"""
     state = data.get("state", "unknown")
     cred_ex_id = data.get("credential_exchange_id", "unknown")
-    
+
     logger.info(f"🎓 Webhook credencial [{cred_ex_id}]: {state}")
-    
+
     if state == "credential_acked":
         logger.info(f"✅ Credencial confirmada por el estudiante: {cred_ex_id}")
-    
+
     return {"status": "received"}
 
 # ENDPOINT COMPATIBILIDAD MOODLE (mantener API anterior)
@@ -354,10 +353,10 @@ async def legacy_credential_endpoint(data: dict):
             grade=data.get("calificacion", "Aprobado"),
             instructor_name=data.get("instructor", "Instructor")
         )
-        
+
         # USAR LEGACY EXPLICITAMENTE
         result = await request_credential_didcomm(credential_request)
-        
+
         # Formato compatible
         return {
             "success": True,
@@ -366,7 +365,7 @@ async def legacy_credential_endpoint(data: dict):
             "invitation_url": result.invitation_url,
             "connection_id": result.connection_id
         }
-        
+
     except Exception as e:
         logger.error(f"Error en endpoint legacy: {e}")
         return {
@@ -381,7 +380,7 @@ async def root_credential_issuer_metadata():
     Compatible con múltiples versiones del estándar
     """
     issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
-    
+
     metadata = {
         "credential_issuer": issuer_url,
         "authorization_servers": [issuer_url],
@@ -400,15 +399,14 @@ async def root_credential_issuer_metadata():
                 "scope": "UniversityDegreeScope",
                 "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
                 "credential_signing_alg_values_supported": ["ES256"],
-                    "logo": {
-                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                        "alt_text": "Logo UTN"
-                    }
-                }]
+                "logo": {
+                    "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
+                    "alt_text": "Logo UTN"
+                }
             }
         }
     }
-    
+
     return JSONResponse(content=metadata)
 
 @app.get("/.well-known/oauth-authorization-server")
@@ -417,7 +415,7 @@ async def oauth_authorization_server_metadata():
     OAuth 2.0 Authorization Server Metadata (RFC 8414)
     """
     issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
-    
+
     metadata = {
         "issuer": issuer_url,
         "authorization_endpoint": f"{issuer_url}/oid4vc/authorize",
@@ -435,7 +433,7 @@ async def oauth_authorization_server_metadata():
         "response_modes_supported": ["query"],
         "code_challenge_methods_supported": ["S256"],
     }
-    
+
     return JSONResponse(content=metadata)
 
 if __name__ == "__main__":
