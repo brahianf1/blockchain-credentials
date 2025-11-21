@@ -1108,7 +1108,12 @@ async def issue_openid_credential(
         }
         
         # Firmar credencial con ES256
-        vc_jwt = jwt.encode(vc_payload, PRIVATE_KEY, algorithm="ES256")
+        vc_jwt = jwt.encode(
+            vc_payload, 
+            PRIVATE_KEY, 
+            algorithm="ES256",
+            headers={"kid": f"{ISSUER_DID}#key-1"}
+        )
         
         logger.info(f"✅ Credencial emitida para: {credential_data.get('student_name', 'Unknown')}")
         
