@@ -1,37 +1,6 @@
 <?php
 namespace block_credenciales\observer;
 
-defined('MOODLE_INTERNAL') || die();
-
-class credenciales_observer {
-    public static function course_completed(\core\event\course_completed $event) {
-        global $DB;
-
-        // Obtener datos del evento
-        $userid = $event->relateduserid;
-        $courseid = $event->courseid;
-
-        $user = $DB->get_record('user', array('id' => $userid));
-        $course = $DB->get_record('course', array('id' => $courseid));
-
-        // Preparar los datos para enviar al backend
-        $data = array(
-            'userId' => $user->id,
-            'userEmail' => $user->email,
-            'userName' => fullname($user),
-            'courseId' => $course->id,
-            'courseName' => $course->fullname,
-            'completionDate' => date('c', $event->timecreated)
-        );
-
-        // URL del endpoint de nuestro backend
-        $url = 'http://python-controller:3000/api/issue-credential';
-
-        // Configurar la petición cURL
-        $ch = curl_init($url);
-<?php
-namespace block_credenciales\observer;
-
 use block_credenciales\logger;
 
 defined('MOODLE_INTERNAL') || die();
