@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
 import httpx
 import structlog
+from storage import qr_storage
 
 logger = structlog.get_logger()
 
@@ -351,9 +352,8 @@ async def generate_openid_offer(request_data: Dict[str, Any]) -> Dict[str, Any]:
         qr_code_base64 = ""
     
     # Almacenar para la página web de display
-    global qr_storage
-    if 'qr_storage' not in globals():
-        qr_storage = {}
+    # Almacenar para la página web de display
+    # qr_storage importado de storage.py
     
     qr_storage[pre_auth_code] = {
         "qr_code_base64": qr_code_base64,
