@@ -147,7 +147,6 @@ services:
 
     volumes:
       - moodle_data:/var/www/moodledata
-      - ./moodle/moodle-plugin/credenciales:/var/www/html/blocks/credenciales
     depends_on:
       - moodle-db
     networks:
