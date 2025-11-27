@@ -174,6 +174,34 @@ async def add_security_headers(response: JSONResponse) -> JSONResponse:
     
     return response
 
+    return response
+
+# ENDPOINT 0: OAuth Authorization Server Metadata (Requerido por DIDRoom/RFC 8414)
+@oid4vc_router.get("/.well-known/oauth-authorization-server")
+async def oauth_authorization_server_metadata():
+    """
+    OAuth 2.0 Authorization Server Metadata
+    RFC 8414 compliant - Requerido para descubrimiento automático de configuración
+    """
+    metadata = {
+        "issuer": ISSUER_URL,
+        "authorization_endpoint": f"{ISSUER_URL}/oid4vc/authorize",
+        "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
+        "pushed_authorization_request_endpoint": f"{ISSUER_URL}/oid4vc/par",
+        "response_types_supported": ["code"],
+        "grant_types_supported": [
+            "authorization_code",
+            "urn:ietf:params:oauth:grant-type:pre-authorized_code"
+        ],
+        "code_challenge_methods_supported": ["S256"],
+        "token_endpoint_auth_methods_supported": ["none"],
+        "request_parameter_supported": True,
+        "request_uri_parameter_supported": True
+    }
+    
+    response = JSONResponse(content=metadata)
+    return await add_security_headers(response)
+
 # ENDPOINT 1: Metadata del Issuer (requerido por OpenID4VC) - MEJORADO
 @oid4vc_router.get("/.well-known/openid-credential-issuer")
 async def credential_issuer_metadata(request: Request):
@@ -185,6 +213,8 @@ async def credential_issuer_metadata(request: Request):
         "credential_issuer": ISSUER_URL,
         "authorization_servers": [ISSUER_URL],
         "authorization_server": ISSUER_URL,  # Algunas wallets esperan singular también
+        "require_pushed_authorization_requests": False,  # Negociación de capacidades
+        "pre-authorized_grant_anonymous_access_supported": True,  # Soporte explícito
         "credential_endpoint": f"{ISSUER_URL}/oid4vc/credential",
         "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
         "nonce_endpoint": f"{ISSUER_URL}/oid4vc/nonce",
@@ -305,23 +335,6 @@ async def generate_openid_offer(request_data: Dict[str, Any]) -> Dict[str, Any]:
     await store_pending_openid_credential(pre_auth_code, request_data, expires_in=600)
 
     pre_authorized_code_data[pre_auth_code] = {
-        "credential_data": request_data,
-        "expires_at": (datetime.now() + timedelta(seconds=600)).isoformat()
-    }
-    logger.info(f"📝 Datos almacenados para {pre_auth_code}, expira en 600s")
-    
-    # Crear Credential Offer según OpenID4VCI Draft-16 (formato estricto)
-    offer = {
-        "credential_issuer": ISSUER_URL,
-        "credential_configuration_ids": ["UniversityDegree"],
-        "grants": {
-            "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
-                "pre-authorized_code": pre_auth_code
-            }
-        }
-    }
-    
-    # Codificar offer para QR según RFC estándar
     offer_json = json.dumps(offer, separators=(',', ':'))  # Compact JSON
     
     # Usar URL encoding estándar según OpenID4VC spec
@@ -968,7 +981,7 @@ async def issue_openid_credential(
         
         if proof_jwt:
             try:
-                # FASE 3: Validar firma del proof JWT
+                # FASE 3: Validar firma del proof JWT (ESTRICTO)
                 from jwcrypto import jwk as jwk_module
                 
                 # Extraer header del proof JWT
@@ -980,13 +993,15 @@ async def issue_openid_credential(
                     holder_jwk = jwk_module.JWK(**holder_jwk_dict)
                     public_key_pem = holder_jwk.export_to_pem()
                     
-                    # Verificar firma del proof JWT
+                    # Verificar firma del proof JWT con validación estricta
+                    # Clock Skew: leeway de 10 segundos (RFC 7519)
                     proof_payload = jwt.decode(
                         proof_jwt,
                         public_key_pem,
                         algorithms=["ES256", "ES384", "ES512"],
                         audience=ISSUER_URL,
-                        options={"verify_aud": False}  # Algunos wallets no incluyen aud
+                        leeway=10,  # Tolerancia de 10 segundos para clock skew
+                        options={"verify_aud": True, "verify_signature": True}
                     )
                     
                     logger.info("✅ Proof JWT verificado correctamente (firma válida)")
@@ -996,21 +1011,31 @@ async def issue_openid_credential(
                     logger.info(f"✅ DID del holder extraído y verificado: {holder_did}")
                 
                 else:
-                    # Si no hay JWK en header, intentar extraer DID desde 'kid' o 'iss'
+                    # Si no hay JWK en header, intentar extraer DID desde 'kid' (Paradym/DIDRoom)
+                    # Pero AÚN ASÍ requerimos validación de firma si tuviéramos la clave pública
+                    # Para este caso específico, si el wallet no envía JWK, asumimos que es un DID method
+                    # que deberíamos resolver. Por ahora, aceptamos si podemos validar de otra forma
+                    # o rechazamos si la política es estricta.
+                    
                     logger.warning("⚠️ Proof JWT no contiene JWK en header")
                     
-                    # ESTRATEGIA A: Extraer DID desde 'kid' (usado por Paradym)
+                    # ESTRATEGIA A: Extraer DID desde 'kid'
                     kid = proof_header.get('kid')
                     if kid and kid.startswith('did:'):
-                        # Remover el fragment (#0, #1, etc.) si existe
                         holder_did = kid.split('#')[0]
                         logger.info(f"✅ DID del holder extraído desde kid: {holder_did}")
+                        
+                        # TODO: Aquí deberíamos resolver el DID para obtener la clave pública y verificar la firma
+                        # Por ahora, para mantener compatibilidad sin resolver DIDs externos complejos:
+                        # Si es did:key o did:jwk podríamos resolverlo localmente.
                     else:
-                        # ESTRATEGIA B: Intentar desde payload
-                        proof_payload = jwt.decode(proof_jwt, options={"verify_signature": False})
-                        holder_did = proof_payload.get('iss')
-                        logger.info(f"⚠️ DID del holder extraído desde payload sin verificar: {holder_did}")
-            
+                        # Sin JWK y sin KID válido, no podemos verificar la firma criptográficamente
+                        # RECHAZAR según política estricta
+                        raise HTTPException(
+                            status_code=400,
+                            detail={"error": "invalid_proof", "error_description": "Proof JWT must contain 'jwk' header or valid 'kid'"}
+                        )
+
             except jwt.InvalidSignatureError:
                 logger.error("❌ Firma del proof JWT inválida")
                 raise HTTPException(
@@ -1026,20 +1051,19 @@ async def issue_openid_credential(
                 )
             
             except Exception as e:
-                logger.warning(f"⚠️ Error validando proof JWT: {e}, decodificando sin verificar")
-                # Fallback: decodificar sin verificar para compatibilidad
-                try:
-                    proof_payload = jwt.decode(proof_jwt, options={"verify_signature": False})
-                    holder_did = proof_payload.get('iss')
-                    logger.info(f"⚠️ DID del holder extraído (fallback): {holder_did}")
-                except Exception as fallback_error:
-                    logger.error(f"❌ Error en fallback de proof JWT: {fallback_error}")
-                    holder_did = None
+                logger.error(f"❌ Error validando proof JWT: {e}")
+                raise HTTPException(
+                    status_code=400,
+                    detail={"error": "invalid_proof", "error_description": f"Proof validation failed: {str(e)}"}
+                )
         
-        # Si no se pudo extraer el DID del proof, usar fallback
+        # Si no se pudo extraer el DID del proof, RECHAZAR (No más fallbacks inseguros)
         if not holder_did:
-            holder_did = f"did:web:{ISSUER_URL.replace('https://', '')}#{credential_data.get('student_id', 'unknown')}"
-            logger.warning(f"⚠️ No se recibió proof JWT válido, usando DID por defecto: {holder_did}")
+            logger.error("❌ No se pudo determinar el DID del holder desde el proof")
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "invalid_request", "error_description": "Could not determine Holder DID from proof"}
+            )
         
         # ==================== FIN EXTRACCIÓN DID ====================
         
@@ -1072,9 +1096,9 @@ async def issue_openid_credential(
         
         vc_payload = {
             "iss": ISSUER_DID,
-            "sub": holder_did,  # ✅ CORRECTO: usar el DID del holder, NO del issuer
-            "iat": now_timestamp,
-            # "nbf": now_timestamp,  # REMOVIDO: Evitar problemas de clock skew
+            "sub": holder_did,  # ✅ CORRECTO: usar el DID del holder
+            "iat": now_timestamp - 5, # Clock Skew: emitir con 5s de antigüedad para evitar rechazo inmediato
+            # "nbf": now_timestamp - 5,  # Opcional, misma lógica
             "exp": exp_timestamp,
             "jti": f"urn:credential:{access_token[:16]}",
             "vc": {
