@@ -334,27 +334,21 @@ async def generate_openid_offer(request_data: Dict[str, Any]) -> Dict[str, Any]:
     # Almacenar datos pendientes con expiración y metadatos OpenID4VC
     await store_pending_openid_credential(pre_auth_code, request_data, expires_in=600)
 
-    # Generar issuer_state único para seguridad (RFC 6749)
-    import secrets
-    issuer_state = secrets.token_urlsafe(32)
-    
     pre_authorized_code_data[pre_auth_code] = {
         "credential_data": request_data,
-        "issuer_state": issuer_state,
         "expires_at": (datetime.now() + timedelta(seconds=600)).isoformat()
     }
     logger.info(f"📝 Datos almacenados para {pre_auth_code}, expira en 600s")
     
     # Crear Credential Offer según OpenID4VC Draft-16 (formato estricto)
+    # Solo pre-authorized_code grant para emisión no-interactiva desde Moodle
     offer = {
         "credential_issuer": ISSUER_URL,
         "credential_configuration_ids": ["UniversityDegree"],
         "grants": {
             "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
                 "pre-authorized_code": pre_auth_code
-            },
-            "authorization_code": {
-                "issuer_state": issuer_state
+                # Note: tx_code puede agregarse aquí para PIN adicional si se requiere
             }
         }
     }
