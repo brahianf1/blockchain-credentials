@@ -281,12 +281,20 @@ async def request_credential_openid4vc(credential_request: StudentCredentialRequ
         # Usar función importada (modular o legacy)
         offer_result = await generate_openid_offer(request_dict)
 
+        # Generar instrucciones legibles
+        compatibility = offer_result.get("compatibility", {})
+        flows = compatibility.get("flows_supported", [])
+        if flows:
+            instructions_text = f"Escanea con wallet compatible OpenID4VC. Soporta: {', '.join(flows)}"
+        else:
+            instructions_text = "Escanea con wallet compatible OpenID4VC (WaltID, DIDRoom, Lissi, etc.)"
+        
         return CredentialResponse(
             qr_code_base64=offer_result["qr_code_base64"],
             invitation_url=offer_result["qr_url"],
             pre_authorized_code=offer_result.get("pre_authorized_code"),
             offer_json=offer_result.get("offer"),
-            instructions=offer_result.get("instructions", offer_result.get("compatibility", {}).get("flows_supported", "OpenID4VC"))
+            instructions=instructions_text
         )
 
     except Exception as e:
