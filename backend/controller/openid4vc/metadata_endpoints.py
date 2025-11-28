@@ -29,14 +29,18 @@ async def oauth_authorization_server_metadata():
     """
     OAuth 2.0 Authorization Server Metadata
     RFC 8414 compliant - Requerido para descubrimiento automático de configuración
+    
+    NOTA: PAR endpoint removido intencionalmente para forzar flujo directo
+    a /authorize, permitiendo que issuer_state llegue correctamente desde DIDRoom
     """
-    logger.info("📋 Serving OAuth Authorization Server Metadata")
+    logger.info("📋 Serving OAuth Authorization Server Metadata (PAR disabled)")
     
     metadata = {
         "issuer": ISSUER_URL,
         "authorization_endpoint": f"{ISSUER_URL}/oid4vc/authorize",
         "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
-        "pushed_authorization_request_endpoint": f"{ISSUER_URL}/oid4vc/par",
+        # PAR DESHABILITADO: DIDRoom debe usar flujo directo
+        # "pushed_authorization_request_endpoint": f"{ISSUER_URL}/oid4vc/par",
         "response_types_supported": ["code"],
         "grant_types_supported": [
             "authorization_code",
@@ -45,7 +49,7 @@ async def oauth_authorization_server_metadata():
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none"],
         "request_parameter_supported": True,
-        "request_uri_parameter_supported": True
+        "request_uri_parameter_supported": False  # Deshabilitado con PAR
     }
     
     response = JSONResponse(content=metadata)

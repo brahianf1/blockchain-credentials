@@ -210,66 +210,134 @@ async def par_endpoint(request: Request):
 
 @core_router.get("/authorize")
 async def authorize_endpoint(
-    request_uri: str = Query(...),
+    request: Request,
     client_id: Optional[str] = Query(None),
-    state: Optional[str] = Query(None)
+    response_type: Optional[str] = Query(None),
+    redirect_uri: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    code_challenge: Optional[str] = Query(None),
+    code_challenge_method: Optional[str] = Query(None),
+    issuer_state: Optional[str] = Query(None),
+    authorization_details: Optional[str] = Query(None),
+    scope: Optional[str] = Query(None),
+    request_uri: Optional[str] = Query(None)
 ):
     """
-    OAuth 2.0 Authorization Endpoint con PAR support
-    Genera authorization code y redirige al wallet
+    OAuth 2.0 Authorization Endpoint con soporte completo para DIDRoom
+    
+    Acepta AMBOS flujos:
+    - Directo con issuer_state (DIDRoom después de deshabilitar PAR)
+    - Con request_uri (wallets que usen PAR si lo habilitamos)
     """
-    logger.info("🔓 Authorization endpoint llamado", request_uri=request_uri[:50])
+    logger.info("=" * 80)
+    logger.info("🔓 AUTHORIZE ENDPOINT LLAMADO")
+    logger.info("=" * 80)
+    
+    # LOG COMPLETO de todos los parámetros recibidos
+    logger.info(f"📥 client_id: {client_id}")
+    logger.info(f"📥 response_type: {response_type}")
+    logger.info(f"📥 redirect_uri: {redirect_uri}")
+    logger.info(f"📥 state (wallet): {state}")
+    logger.info(f"📥 code_challenge: {code_challenge[:20] if code_challenge else 'None'}...")
+    logger.info(f"📥 code_challenge_method: {code_challenge_method}")
+    logger.info(f"📥 issuer_state (session_id): {issuer_state}")
+    logger.info(f"📥 authorization_details: {authorization_details}")
+    logger.info(f"📥 scope: {scope}")
+    logger.info(f"📥 request_uri: {request_uri}")
+    
+    # Log de query params completos
+    query_params = dict(request.query_params)
+    logger.info(f"📋 Query params completos: {list(query_params.keys())}")
     
     try:
-        # Recuperar session_id desde request_uri
-        session = session_manager.get_session_by_request_uri(request_uri)
+        # Estrategia 1: Buscar por issuer_state directo (flujo sin PAR - DIDRoom)
+        session = None
+        session_id = None
         
-        if not session:
-            logger.error(f"❌ No session found for request_uri")
-            raise HTTPException(status_code=400, detail="Invalid request_uri")
+        if issuer_state:
+            logger.info(f"✅ [FLUJO DIRECTO] issuer_state recibido: {issuer_state[:30]}...")
+            session = session_manager.get_session(issuer_state)
+            if session:
+                session_id = issuer_state
+                logger.info(f"✅ Sesión encontrada por issuer_state")
+            else:
+                logger.error(f"❌ Sesión NO encontrada para issuer_state: {issuer_state[:30]}...")
+                raise HTTPException(status_code=400, detail="Invalid issuer_state - session not found or expired")
         
-        session_id = session["session_id"]
+        # Estrategia 2: Buscar por request_uri (flujo con PAR - fallback)
+        elif request_uri:
+            logger.info(f"🔍 [FLUJO PAR] request_uri recibido: {request_uri[:50]}...")
+            session = session_manager.get_session_by_request_uri(request_uri)
+            if session:
+                session_id = session["session_id"]
+                logger.info(f"✅ Sesión encontrada por request_uri")
+            else:
+                logger.error(f"❌ Sesión NO encontrada para request_uri: {request_uri[:50]}...")
+                raise HTTPException(status_code=400, detail="Invalid request_uri")
         
-        # Recuperar datos PAR
-        auth_flow = session["flows"].get("authorization")
-        if not auth_flow or not auth_flow.get("par_data"):
-            logger.error("❌ No PAR data found in session")
-            raise HTTPException(status_code=400, detail="PAR data not found")
+        else:
+            logger.error("❌ No issuer_state NI request_uri recibidos")
+            logger.error(f"   Parámetros disponibles: {list(query_params.keys())}")
+            raise HTTPException(
+                status_code=400,
+                detail="Missing issuer_state or request_uri - cannot identify session"
+            )
         
-        par_data = auth_flow["par_data"]
-        redirect_uri = par_data.get("redirect_uri")
-        final_state = par_data.get("state", state or "")
-        
+        # Validaciones
         if not redirect_uri:
-            raise HTTPException(status_code=400, detail="redirect_uri not found in PAR data")
+            logger.error("❌ redirect_uri faltante")
+            raise HTTPException(status_code=400, detail="redirect_uri required")
+        
+        if not code_challenge:
+            logger.warning("⚠️ code_challenge NO recibido - PKCE podría fallar en /token")
+        
+        # Vincular code_challenge al session si existe
+        if code_challenge and session_id:
+            logger.info(f"🔐 Vinculando PKCE challenge a sesión")
+            # Actualizar sesión con datos de autorización
+            par_data = {
+                "code_challenge": code_challenge,
+                "code_challenge_method": code_challenge_method or "S256",
+                "redirect_uri": redirect_uri,
+                "client_id": client_id,
+                "state": state,
+                "authorization_details": authorization_details,
+                "scope": scope
+            }
+            session_manager.link_authorization_request(session_id, par_data)
         
         # Generar authorization code
         auth_code = f"auth_code_{secrets.token_urlsafe(32)}"
-        
-        # Vincular código a sesión
         session_manager.link_authorization_code(session_id, auth_code)
         
-        logger.info(f"✅ Authorization code generado: {auth_code[:20]}... para session: {session_id[:20]}...")
+        logger.info(f"✅ Authorization code generado: {auth_code[:20]}...")
+        logger.info(f"🔗 Vinculado a session: {session_id[:20]}...")
         
-        # Construir redirect URL
+        # Construir URL de redirect
         from urllib.parse import urlencode
         params = {
             "code": auth_code,
-            "state": final_state
+            "state": state or ""
         }
         redirect_url = f"{redirect_uri}?{urlencode(params)}"
         
-        logger.info(f"✅ Redirigiendo a: {redirect_url[:100]}...")
+        logger.info(f"↩️ Redirigiendo a: {redirect_url[:100]}...")
+        logger.info("=" * 80)
         
         return RedirectResponse(url=redirect_url, status_code=302)
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error in authorize endpoint: {e}")
+        logger.error("=" * 80)
+        logger.error(f"❌ ERROR CRÍTICO en authorize endpoint: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=400, detail={"error": "invalid_request", "error_description": str(e)})
+        logger.error("=" * 80)
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_request", "error_description": str(e)}
+        )
 
 # ============================================================================
 # TOKEN ENDPOINT
