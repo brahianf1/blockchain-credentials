@@ -426,14 +426,15 @@ async def root_oauth_metadata():
         "authorization_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/authorize",
         "token_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/token",
         "jwks_uri": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/.well-known/jwks.json",
-        # PAR DESHABILITADO - NO incluir pushed_authorization_request_endpoint
+        # PAR endpoint presente para validación de wallets (DIDRoom)
+        "pushed_authorization_request_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/par",
         "grant_types_supported": [
             "urn:ietf:params:oauth:grant-type:pre-authorized_code",
             "authorization_code"
         ],
         "token_endpoint_auth_methods_supported": ["none"],
         "request_parameter_supported": True,
-        "request_uri_parameter_supported": False,  # FALSE para deshabilitar PAR
+        "request_uri_parameter_supported": True,  # Habilitado para consistencia con PAR
         "response_types_supported": ["code"],
         "response_modes_supported": ["query"],
         "code_challenge_methods_supported": ["S256"]
