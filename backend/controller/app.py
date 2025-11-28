@@ -433,7 +433,7 @@ async def root_oauth_metadata():
         ],
         "token_endpoint_auth_methods_supported": ["none"],
         "request_parameter_supported": True,
-        "request_uri_parameter_supported": True,  # Habilitado para consistencia con PAR
+        "request_uri_parameter_supported": False,  # Deshabilitado para evitar que DIDRoom use PAR
         "response_types_supported": ["code"],
         "response_modes_supported": ["query"],
         "code_challenge_methods_supported": ["S256"]

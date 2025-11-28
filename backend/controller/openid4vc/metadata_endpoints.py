@@ -49,7 +49,7 @@ async def oauth_authorization_server_metadata():
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none"],
         "request_parameter_supported": True,
-        "request_uri_parameter_supported": True  # Habilitado para consistencia con PAR
+        "request_uri_parameter_supported": False  # Deshabilitado para evitar que DIDRoom use PAR
     }
     
     response = JSONResponse(content=metadata)
