@@ -78,6 +78,7 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
     
     # Generar QR
     offer_json = json.dumps(offer, separators=(',', ':'))
+    logger.info(f"📤 OFFER JSON GENERADO: {offer_json}")  # DEBUG: Ver qué estamos enviando exactamente
     offer_encoded = quote(offer_json, safe='')
     qr_url = f"openid-credential-offer://?credential_offer={offer_encoded}"
     
@@ -152,6 +153,7 @@ async def par_endpoint(request: Request):
         
         logger.info("🔐 PAR endpoint llamado", client_id=form_dict.get("client_id", "Unknown")[:50])
         logger.info(f"   form_data keys: {list(form_dict.keys())}")
+        logger.info(f"   FULL FORM DATA: {form_dict}")  # DEBUG: Ver todo lo que llega
         
         # DEBUG: Log completo de authorization_details y state
         auth_details = form_dict.get("authorization_details")
