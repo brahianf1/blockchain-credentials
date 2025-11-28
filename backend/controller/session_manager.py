@@ -328,6 +328,37 @@ class SessionManager:
             logger.info(f"🗑️ Cleaned up {len(expired_sessions)} expired sessions")
         
         return len(expired_sessions)
+    
+    def get_most_recent_session(self) -> Optional[Dict[str, Any]]:
+        """
+        Recupera la sesión más reciente que aún esté activa
+        
+        Útil como fallback cuando DIDRoom no envía issuer_state en PAR
+        
+        Returns:
+            La sesión más reciente o None si no hay sesiones activas
+        """
+        now = datetime.now()
+        active_sessions = []
+        
+        for session_id, session in self._sessions.items():
+            expires_at = datetime.fromisoformat(session["expires_at"])
+            if now <= expires_at:
+                created_at = datetime.fromisoformat(session["created_at"])
+                active_sessions.append((created_at, session))
+        
+        if not active_sessions:
+            logger.warning("⚠️ No active sessions found")
+            return None
+        
+        # Ordenar por fecha de creación (más reciente primero)
+        active_sessions.sort(key=lambda x: x[0], reverse=True)
+        most_recent = active_sessions[0][1]
+        
+        logger.info(f"🔍 Found most recent session: {most_recent['session_id'][:20]}...",
+                   student=most_recent['credential_data'].get('student_name', 'Unknown'))
+        
+        return most_recent
 
 
 # Singleton global instance

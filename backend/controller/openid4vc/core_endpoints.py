@@ -167,17 +167,27 @@ async def par_endpoint(request: Request):
         issuer_state = extract_issuer_state_from_par(form_dict)
         
         if not issuer_state:
-            logger.error("❌ No issuer_state found in PAR request")
-            logger.error(f"   Available fields: {form_dict.keys()}")
-            logger.error(f"   State value: {state}")
-            logger.error(f"   Authorization details: {auth_details}")
-            raise HTTPException(status_code=400, detail="Missing issuer_state")
-        
-        # Validar que la sesión existe
-        session = session_manager.get_session(issuer_state)
-        if not session:
-            logger.error(f"❌ Session not found: {issuer_state[:20]}...")
-            raise HTTPException(status_code=400, detail="Invalid issuer_state - session not found")
+            logger.warning("⚠️ No issuer_state found in PAR request - using fallback")
+            logger.warning(f"   Available fields: {form_dict.keys()}")
+            logger.warning(f"   State value: {state}")
+            logger.warning(f"   Authorization details: {auth_details}")
+            
+            # FALLBACK: DIDRoom ignora issuer_state del offer, usar sesión más reciente
+            logger.info("🔄 Attempting fallback: looking for most recent active session")
+            session = session_manager.get_most_recent_session()
+            
+            if not session:
+                logger.error("❌ No active sessions found for fallback")
+                raise HTTPException(status_code=400, detail="Missing issuer_state and no active sessions available")
+            
+            issuer_state = session["session_id"]
+            logger.info(f"✅ Using fallback session: {issuer_state[:20]}... for student: {session['credential_data'].get('student_name')}")
+        else:
+            # Validar que la sesión existe
+            session = session_manager.get_session(issuer_state)
+            if not session:
+                logger.error(f"❌ Session not found: {issuer_state[:20]}...")
+                raise HTTPException(status_code=400, detail="Invalid issuer_state - session not found")
         
         # Vincular datos PAR a la sesión
         session_manager.link_authorization_request(issuer_state, form_dict)
