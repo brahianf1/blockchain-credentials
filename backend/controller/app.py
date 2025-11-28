@@ -444,6 +444,34 @@ async def healthcheck():
         "timestamp": datetime.utcnow().isoformat()
     }
 
+@app.get("/debug/last-offer")
+async def debug_last_offer():
+    """DEBUG: Muestra el último offer generado con su URL completo"""
+    # Obtener el último QR del storage
+    if not qr_storage:
+        return {"error": "No offers generated yet"}
+    
+    # Ordenar por timestamp y obtener el más reciente
+    sorted_offers = sorted(
+        qr_storage.items(),
+        key=lambda x: x[1].get("timestamp", ""),
+        reverse=True
+    )
+    
+    if not sorted_offers:
+        return {"error": "No offers found"}
+    
+    latest_code, latest_offer = sorted_offers[0]
+    
+    return {
+        "intent_url": latest_offer.get("qr_url"),
+        "student_name": latest_offer.get("student_name"),
+        "course_name": latest_offer.get("course_name"),
+        "timestamp": latest_offer.get("timestamp"),
+        "session_id": latest_offer.get("session_id"),
+        "instructions": "Copia el 'intent_url' y pégalo en DIDRoom web"
+    }
+
 if __name__ == "__main__":
     import uvicorn
     logger.info(f"🚀 Iniciando Controller v2.0 en puerto {CONTROLLER_PORT}")
