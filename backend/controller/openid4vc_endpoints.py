@@ -353,6 +353,13 @@ async def generate_openid_offer(request_data: Dict[str, Any]) -> Dict[str, Any]:
         }
     }
     
+    # Log detallado del offer para diagnóstico
+    logger.info("📋 Credential Offer generado:")
+    logger.info(f"   - Issuer: {offer['credential_issuer']}")
+    logger.info(f"   - Credential Types: {offer['credential_configuration_ids']}")
+    logger.info(f"   - Grants ofrecidos: {list(offer['grants'].keys())}")
+    logger.info(f"   - Pre-auth code: {pre_auth_code[:20]}...")
+    
     # Codificar offer para QR según RFC estándar
     offer_json = json.dumps(offer, separators=(',', ':'))  # Compact JSON
     
@@ -465,6 +472,14 @@ async def token_endpoint(request: Request):
         grant_type = form_dict.get('grant_type', '')
         
         logger.info(f"🎯 Grant type recibido: {grant_type}")
+        
+        # Log para diagnóstico de flujo de wallet
+        if grant_type == 'urn:ietf:params:oauth:grant-type:pre-authorized_code':
+            logger.info("   ℹ️  Wallet está usando flujo PRE-AUTHORIZED (directo, sin interacción)")
+        elif grant_type == 'authorization_code':
+            logger.info("   ℹ️  Wallet está usando flujo AUTHORIZATION CODE (con PAR/authorize)")
+        else:
+            logger.warning(f"   ⚠️  Grant type desconocido: {grant_type}")
         
         # Determinar qué código usar según el grant_type y los campos disponibles
         pre_authorized_code = None
@@ -936,6 +951,11 @@ async def issue_openid_credential(
             if request.headers.get("content-type", "").startswith("application/json"):
                 json_data = await request.json()
                 logger.info(f"🔍 JSON data recibida: {json_data}")
+                
+                # Log del formato solicitado
+                requested_format = json_data.get('format', 'N/A')
+                logger.info(f"📄 Formato de credencial solicitado: {requested_format}")
+                
                 if not config_id and "credential_configuration_id" in json_data:
                     config_id = json_data["credential_configuration_id"]
                 elif not config_id and "format" in json_data:
@@ -1026,11 +1046,17 @@ async def issue_openid_credential(
                     logger.info("✅ Proof JWT verificado correctamente (firma válida)")
                     
                     # NUEVA IMPLEMENTACIÓN: Usar extracción multi-estrategia
+                    logger.info("🔑 Extrayendo DID del holder desde proof JWT...")
                     holder_did = extract_holder_did_from_proof(
                         proof_jwt=proof_jwt,
                         proof_header=proof_header,
                         proof_payload=proof_payload
                     )
+                    
+                    if holder_did:
+                        logger.info(f"✅ DID del holder determinado exitosamente: {holder_did[:60]}...")
+                    else:
+                        logger.error("❌ No se pudo extraer DID del holder con ninguna estrategia")
                 
                 else:
                     # Si no hay JWK en header, intentar validar de otra forma
