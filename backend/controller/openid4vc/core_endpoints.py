@@ -58,16 +58,15 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
     pre_auth_code = f"pre_auth_{student_id}_{timestamp}_{hash(student_email) % 10000}"
     session_manager.link_pre_auth_code(session_id, pre_auth_code)
     
-    # Crear offer con DUAL grants
+    # Crear offer con SINGLE GRANT (Pre-Authorized Code Only)
+    # Forzamos este flujo para evitar problemas con DIDRoom y PAR,
+    # y porque el usuario ya está autenticado.
     offer = {
         "credential_issuer": ISSUER_URL,
         "credential_configuration_ids": ["UniversityDegree"],
         "grants": {
             "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
                 "pre-authorized_code": pre_auth_code
-            },
-            "authorization_code": {
-                "issuer_state": session_id
             }
         }
     }

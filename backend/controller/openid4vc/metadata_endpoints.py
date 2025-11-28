@@ -39,8 +39,9 @@ async def oauth_authorization_server_metadata():
         "issuer": ISSUER_URL,
         "authorization_endpoint": f"{ISSUER_URL}/oid4vc/authorize",
         "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
-        # PAR DESHABILITADO: DIDRoom debe usar flujo directo
-        # "pushed_authorization_request_endpoint": f"{ISSUER_URL}/oid4vc/par",
+        # PAR endpoint presente para validación de wallets (DIDRoom),
+        # aunque no se use en el flujo Pre-Authorized.
+        "pushed_authorization_request_endpoint": f"{ISSUER_URL}/oid4vc/par",
         "response_types_supported": ["code"],
         "grant_types_supported": [
             "authorization_code",
@@ -49,7 +50,7 @@ async def oauth_authorization_server_metadata():
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none"],
         "request_parameter_supported": True,
-        "request_uri_parameter_supported": False  # Deshabilitado con PAR
+        "request_uri_parameter_supported": True  # Habilitado para consistencia con PAR
     }
     
     response = JSONResponse(content=metadata)
@@ -262,17 +263,17 @@ async def debug_metadata_config():
         "issuer": ISSUER_URL,
         "authorization_endpoint": f"{ISSUER_URL}/oid4vc/authorize",
         "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
-        # PAR DESHABILITADO
-        # "pushed_authorization_request_endpoint": f"{ISSUER_URL}/oid4vc/par",
-        "request_uri_parameter_supported": False
+        # PAR HABILITADO (Metadata only)
+        "pushed_authorization_request_endpoint": f"{ISSUER_URL}/oid4vc/par",
+        "request_uri_parameter_supported": True
     }
     
     return {
-        "status": "PAR_DISABLED_v2",
-        "version": "2.0.1-didroom-fix",
-        "deployed_at": "2025-11-28T03:40:00",
-        "par_endpoint_enabled": False,
-        "request_uri_supported": False,
+        "status": "PAR_METADATA_ENABLED_PRE_AUTH_FORCED",
+        "version": "2.1.0-didroom-fix",
+        "deployed_at": "2025-11-28T06:25:00",
+        "par_endpoint_enabled": True,
+        "request_uri_supported": True,
         "oauth_metadata_sample": oauth_metadata_sample,
-        "explanation": "PAR endpoint removido del metadata para forzar flujo directo a /authorize con issuer_state"
+        "explanation": "PAR endpoint visible en metadata para validación. Credential Offer fuerza Pre-Auth flow."
     }
