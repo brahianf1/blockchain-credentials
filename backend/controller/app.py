@@ -441,7 +441,7 @@ if __name__ == "__main__":
     logger.info(f"🚀 Iniciando Controller v2.0 en puerto {CONTROLLER_PORT}")
     logger.info(f"📋 OpenID4VC mode: {OPENID4VC_MODE}")
     uvicorn.run(
-        "app_v2:app",
+        "app:app",
         host="0.0.0.0",
         port=CONTROLLER_PORT,
         reload=False,
