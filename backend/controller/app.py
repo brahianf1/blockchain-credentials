@@ -22,24 +22,21 @@ import structlog
 
 from fabric_client import FabricClient
 from qr_generator import QRGenerator
-
-# Importar diccionario compartido de OpenID4VC
-from openid4vc_endpoints import pre_authorized_code_data, par_requests_data, access_tokens_data
 from storage import qr_storage
 from qr_endpoints import router as qr_router
 
-# NUEVO: Import OpenID4VC endpoints
-try:
-    from openid4vc_endpoints import oid4vc_router, generate_openid_offer
-    OPENID4VC_AVAILABLE = True
-except ImportError:
-    OPENID4VC_AVAILABLE = False
-    logger = structlog.get_logger()
-    logger.warning("⚠️ OpenID4VC endpoints no disponibles - instalar dependencias")
+# OpenID4VC Modular Router - No fallback, clean implementation
+from openid4vc.router import oid4vc_router
+from openid4vc.core_endpoints import generate_credential_offer as generate_openid_offer
+
+OPENID4VC_AVAILABLE = True
+OPENID4VC_MODE = "modular"
 
 # Configuración de logging estructurado
 logging.basicConfig(level=logging.INFO)
 logger = structlog.get_logger()
+
+logger.info("✅ OpenID4VC modular router initialized")
 
 # Configuración del Controller
 ACAPY_ADMIN_URL = os.getenv("ACAPY_ADMIN_URL", "http://acapy-agent:8020")
@@ -68,7 +65,7 @@ class CredentialResponse(BaseModel):
     instructions: Optional[str] = None
 
 # Inicializar FastAPI
-app = FastAPI(title="Controller Credenciales", version="1.0.0")
+app = FastAPI(title="Controller Credenciales", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -81,6 +78,10 @@ app.add_middleware(
 # Incluir router OpenID4VC si está disponible
 if OPENID4VC_AVAILABLE:
     app.include_router(oid4vc_router)
+    logger.info(f"✅ OpenID4VC router included (mode: {OPENID4VC_MODE})")
+
+# Incluir router QR
+app.include_router(qr_router)
 
 # Inicializar clientes
 try:
@@ -258,7 +259,7 @@ async def request_credential_didcomm(credential_request: StudentCredentialReques
 
 async def request_credential_openid4vc(credential_request: StudentCredentialRequest) -> CredentialResponse:
     """
-    [MODERN] Retorna oferta OpenID4VC (Lissi/Walt.id/EUDI)
+    [MODERN] Retorna oferta OpenID4VC (Lissi/Walt.id/EUDI/DIDRoom)
     """
     try:
         logger.info(f"📨 [MODERN] Solicitud OpenID4VC para: {credential_request.student_name}")
@@ -275,18 +276,17 @@ async def request_credential_openid4vc(credential_request: StudentCredentialRequ
                 logger.error(f"⚠️ Error registrando en Fabric: {e}")
 
         # 2. Generar oferta OpenID4VC
-        # Convertir modelo Pydantic a dict
         request_dict = credential_request.dict()
-
-        # Usar la función importada de openid4vc_endpoints
+        
+        # Usar función importada (modular o legacy)
         offer_result = await generate_openid_offer(request_dict)
 
         return CredentialResponse(
             qr_code_base64=offer_result["qr_code_base64"],
-            invitation_url=offer_result["qr_url"], # Mapear URL del QR a invitation_url
-            pre_authorized_code=offer_result["pre_authorized_code"],
-            offer_json=offer_result["offer"],
-            instructions=offer_result["instructions"]
+            invitation_url=offer_result["qr_url"],
+            pre_authorized_code=offer_result.get("pre_authorized_code"),
+            offer_json=offer_result.get("offer"),
+            instructions=offer_result.get("instructions", offer_result.get("compatibility", {}).get("flows_supported", "OpenID4VC"))
         )
 
     except Exception as e:
@@ -298,8 +298,6 @@ async def request_credential(credential_request: StudentCredentialRequest):
     """
     Endpoint principal: Por defecto usa OpenID4VC (Moderno)
     """
-    # Opción: Podríamos recibir un query param para forzar legacy si fuera necesario
-    # Por ahora, default a OpenID4VC como pidió el usuario
     if OPENID4VC_AVAILABLE:
         return await request_credential_openid4vc(credential_request)
     else:
@@ -316,9 +314,7 @@ async def webhook_connections(data: dict):
     if data.get("state") == "active":
         connection_id = data.get("connection_id")
         if connection_id:
-            # Emitir credencial automáticamente cuando conexión esté activa
             logger.info(f"✅ Conexión activa, emitiendo credencial: {connection_id}")
-            # En background para no bloquear webhook
             asyncio.create_task(issue_credential_background(connection_id))
 
     return {"status": "received"}
@@ -342,7 +338,6 @@ async def webhook_issue_credential(data: dict):
 async def legacy_credential_endpoint(data: dict):
     """Endpoint de compatibilidad con Moodle (API anterior)"""
     try:
-        # Convertir formato anterior al nuevo
         credential_request = StudentCredentialRequest(
             student_id=str(data.get("usuarioId", "unknown")),
             student_name=data.get("usuarioNombre", "Usuario"),
@@ -357,7 +352,6 @@ async def legacy_credential_endpoint(data: dict):
         # USAR LEGACY EXPLICITAMENTE
         result = await request_credential_didcomm(credential_request)
 
-        # Formato compatible
         return {
             "success": True,
             "message": "Credencial procesada exitosamente",
@@ -373,12 +367,11 @@ async def legacy_credential_endpoint(data: dict):
             "message": str(e)
         }
 
+# METADATA ENDPOINTS (fallback si no hay OpenID4VC)
+
 @app.get("/.well-known/openid-credential-issuer")
 async def root_credential_issuer_metadata():
-    """
-    Metadata OpenID4VC en ruta raíz
-    Compatible con múltiples versiones del estándar
-    """
+    """Metadata OpenID4VC en ruta raíz"""
     issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
 
     metadata = {
@@ -411,9 +404,7 @@ async def root_credential_issuer_metadata():
 
 @app.get("/.well-known/oauth-authorization-server")
 async def oauth_authorization_server_metadata():
-    """
-    OAuth 2.0 Authorization Server Metadata (RFC 8414)
-    """
+    """OAuth 2.0 Authorization Server Metadata (RFC 8414)"""
     issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
 
     metadata = {
@@ -436,13 +427,23 @@ async def oauth_authorization_server_metadata():
 
     return JSONResponse(content=metadata)
 
+@app.get("/health")
+async def healthcheck():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "openid4vc": OPENID4VC_MODE,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
 if __name__ == "__main__":
     import uvicorn
-    logger.info(f"🚀 Iniciando Controller en puerto {CONTROLLER_PORT}")
+    logger.info(f"🚀 Iniciando Controller v2.0 en puerto {CONTROLLER_PORT}")
+    logger.info(f"📋 OpenID4VC mode: {OPENID4VC_MODE}")
     uvicorn.run(
-        "app:app",
+        "app_v2:app",
         host="0.0.0.0",
         port=CONTROLLER_PORT,
-        reload=False,  # En producción
+        reload=False,
         log_level="info"
     )
