@@ -410,32 +410,8 @@ async def root_credential_issuer_metadata():
 
     return JSONResponse(content=metadata)
 
-@app.get("/.well-known/oauth-authorization-server")
-async def oauth_authorization_server_metadata():
-    """OAuth 2.0 Authorization Server Metadata (RFC 8414)"""
-    issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
-
-    metadata = {
-        "issuer": issuer_url,
-        "authorization_endpoint": f"{issuer_url}/oid4vc/authorize",
-        "token_endpoint": f"{issuer_url}/oid4vc/token",
-        "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
-        "pushed_authorization_request_endpoint": f"{issuer_url}/oid4vc/par",
-        "grant_types_supported": [
-            "urn:ietf:params:oauth:grant-type:pre-authorized_code",
-            "authorization_code"
-        ],
-        "token_endpoint_auth_methods_supported": ["none"],
-        "request_parameter_supported": True,
-        "request_uri_parameter_supported": True,
-        "response_types_supported": ["code"],
-        "response_modes_supported": ["query"],
-        "code_challenge_methods_supported": ["S256"],
-    }
-
-    return JSONResponse(content=metadata)
-
 # METADATA ENDPOINTS (también en raíz para compatibilidad)
+
 
 @app.get("/.well-known/oauth-authorization-server")
 async def root_oauth_metadata():
