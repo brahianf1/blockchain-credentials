@@ -244,3 +244,35 @@ async def nonce_endpoint():
     response.headers["Cache-Control"] = "no-store"
     
     return await add_security_headers(response)
+
+# ============================================================================
+# DEBUG ENDPOINT - Verificar la configuración actual
+# ============================================================================
+
+@metadata_router.get("/debug/metadata-config")
+async def debug_metadata_config():
+    """
+    DEBUG: Muestra qué configuración de metadata está activa
+    Útil para verificar que los cambios se desplegaron correctamente
+    """
+    logger.info("🔍 Debug metadata config requested")
+    
+    # Simular el metadata que se está sirviendo
+    oauth_metadata_sample = {
+        "issuer": ISSUER_URL,
+        "authorization_endpoint": f"{ISSUER_URL}/oid4vc/authorize",
+        "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
+        # PAR DESHABILITADO
+        # "pushed_authorization_request_endpoint": f"{ISSUER_URL}/oid4vc/par",
+        "request_uri_parameter_supported": False
+    }
+    
+    return {
+        "status": "PAR_DISABLED_v2",
+        "version": "2.0.1-didroom-fix",
+        "deployed_at": "2025-11-28T03:40:00",
+        "par_endpoint_enabled": False,
+        "request_uri_supported": False,
+        "oauth_metadata_sample": oauth_metadata_sample,
+        "explanation": "PAR endpoint removido del metadata para forzar flujo directo a /authorize con issuer_state"
+    }
