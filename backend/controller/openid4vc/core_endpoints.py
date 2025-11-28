@@ -151,11 +151,22 @@ async def par_endpoint(request: Request):
         logger.info("🔐 PAR endpoint llamado", client_id=form_dict.get("client_id", "Unknown")[:50])
         logger.info(f"   form_data keys: {list(form_dict.keys())}")
         
+        # DEBUG: Log completo de authorization_details y state
+        auth_details = form_dict.get("authorization_details")
+        state = form_dict.get("state")
+        
+        logger.info(f"🔍 DEBUG PAR - state field: {state}")
+        logger.info(f"🔍 DEBUG PAR - authorization_details type: {type(auth_details)}")
+        logger.info(f"🔍 DEBUG PAR - authorization_details content: {auth_details}")
+        
         # Extraer issuer_state (session_id)
         issuer_state = extract_issuer_state_from_par(form_dict)
         
         if not issuer_state:
             logger.error("❌ No issuer_state found in PAR request")
+            logger.error(f"   Available fields: {form_dict.keys()}")
+            logger.error(f"   State value: {state}")
+            logger.error(f"   Authorization details: {auth_details}")
             raise HTTPException(status_code=400, detail="Missing issuer_state")
         
         # Validar que la sesión existe
