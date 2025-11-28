@@ -435,6 +435,71 @@ async def oauth_authorization_server_metadata():
 
     return JSONResponse(content=metadata)
 
+# METADATA ENDPOINTS (también en raíz para compatibilidad)
+
+@app.get("/.well-known/oauth-authorization-server")
+async def root_oauth_metadata():
+    """
+    OAuth 2.0 Authorization Server Metadata en RAÍZ
+    PAR DESHABILITADO para forzar flujo directo con DIDRoom
+    """
+    logger.info("📋 [ROOT] OAuth metadata requested - PAR DISABLED")
+    
+    metadata = {
+        "issuer": os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site"),
+        "authorization_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/authorize",
+        "token_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/token",
+        "jwks_uri": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/.well-known/jwks.json",
+        # PAR DESHABILITADO - NO incluir pushed_authorization_request_endpoint
+        "grant_types_supported": [
+            "urn:ietf:params:oauth:grant-type:pre-authorized_code",
+            "authorization_code"
+        ],
+        "token_endpoint_auth_methods_supported": ["none"],
+        "request_parameter_supported": True,
+        "request_uri_parameter_supported": False,  # FALSE para deshabilitar PAR
+        "response_types_supported": ["code"],
+        "response_modes_supported": ["query"],
+        "code_challenge_methods_supported": ["S256"]
+    }
+    
+    return JSONResponse(content=metadata)
+
+@app.get("/.well-known/openid-credential-issuer")
+async def root_credential_issuer_metadata():
+    """Metadata OpenID4VC en raíz (fallback si DIDRoom no usa /oid4vc prefix)"""
+    logger.info("📋 [ROOT] Credential issuer metadata requested")
+    
+    issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
+
+    metadata = {
+        "credential_issuer": issuer_url,
+        "authorization_servers": [issuer_url],
+        "authorization_server": issuer_url,
+        "credential_endpoint": f"{issuer_url}/oid4vc/credential",
+        "token_endpoint": f"{issuer_url}/oid4vc/token",
+        "nonce_endpoint": f"{issuer_url}/oid4vc/nonce",
+        "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
+        "display": [{
+            "name": "Sistema de Credenciales UTN",
+            "locale": "es-AR"
+        }],
+        "credential_configurations_supported": {
+            "UniversityDegree": {
+                "format": "jwt_vc_json",
+                "scope": "UniversityDegreeScope",
+                "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
+                "credential_signing_alg_values_supported": ["ES256"],
+                "logo": {
+                    "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
+                    "alt_text": "Logo UTN"
+                }
+            }
+        }
+    }
+
+    return JSONResponse(content=metadata)
+
 @app.get("/health")
 async def healthcheck():
     """Health check endpoint"""
