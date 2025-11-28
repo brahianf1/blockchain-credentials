@@ -67,6 +67,9 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
         "grants": {
             "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
                 "pre-authorized_code": pre_auth_code
+            },
+            "authorization_code": {
+                "issuer_state": session_id
             }
         }
     }

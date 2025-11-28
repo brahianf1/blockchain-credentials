@@ -44,12 +44,13 @@ async def oauth_authorization_server_metadata():
         "pushed_authorization_request_endpoint": f"{ISSUER_URL}/oid4vc/par",
         "response_types_supported": ["code"],
         "grant_types_supported": [
+            "authorization_code",
             "urn:ietf:params:oauth:grant-type:pre-authorized_code"
         ],
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none"],
         "request_parameter_supported": True,
-        "request_uri_parameter_supported": False  # Deshabilitado para evitar que DIDRoom use PAR
+        "request_uri_parameter_supported": True  # Habilitado para soporte completo PAR
     }
     
     response = JSONResponse(content=metadata)
