@@ -429,8 +429,7 @@ async def root_oauth_metadata():
         # PAR endpoint presente para validación de wallets (DIDRoom)
         "pushed_authorization_request_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/par",
         "grant_types_supported": [
-            "urn:ietf:params:oauth:grant-type:pre-authorized_code",
-            "authorization_code"
+            "urn:ietf:params:oauth:grant-type:pre-authorized_code"
         ],
         "token_endpoint_auth_methods_supported": ["none"],
         "request_parameter_supported": True,

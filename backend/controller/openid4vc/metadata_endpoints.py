@@ -44,7 +44,6 @@ async def oauth_authorization_server_metadata():
         "pushed_authorization_request_endpoint": f"{ISSUER_URL}/oid4vc/par",
         "response_types_supported": ["code"],
         "grant_types_supported": [
-            "authorization_code",
             "urn:ietf:params:oauth:grant-type:pre-authorized_code"
         ],
         "code_challenge_methods_supported": ["S256"],
