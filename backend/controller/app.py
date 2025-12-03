@@ -75,6 +75,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Middleware para logging exhaustivo de todas las peticiones
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log ALL HTTP requests for debugging DIDRoom flow"""
+    from fastapi import Request as FastAPIRequest
+    
+    # Capturar información de la petición
+    method = request.method
+    url = str(request.url)
+    path = request.url.path
+    query_params = dict(request.query_params)
+    
+    # Log especial para endpoints de OpenID4VC
+    if "/oid4vc/" in path or "/.well-known/" in path:
+        logger.info("=" * 80)
+        logger.info(f"📨 HTTP REQUEST: {method} {path}")
+        logger.info(f"   Full URL: {url}")
+        if query_params:
+            logger.info(f"   Query params: {query_params}")
+        logger.info("=" * 80)
+    
+    # Procesar la petición
+    response = await call_next(request)
+    
+    # Log de respuesta para endpoints críticos
+    if path == "/oid4vc/authorize" or path == "/oid4vc/par":
+        logger.info(f"✅ RESPONSE: {method} {path} → Status {response.status_code}")
+        logger.info("=" * 80)
+    
+    return response
+
+
 # Incluir router OpenID4VC si está disponible
 if OPENID4VC_AVAILABLE:
     app.include_router(oid4vc_router)
