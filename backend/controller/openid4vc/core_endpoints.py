@@ -551,6 +551,17 @@ async def token_endpoint(request: Request):
         
         session = None
         
+        # 🔀 CORRECCIÓN ESPECIAL PARA DIDROOM
+        # DIDRoom a veces envía grant_type=pre-authorized_code pero con un "code" (authorization_code)
+        # Detectamos esto y corregimos el grant_type
+        has_code = "code" in form_dict and form_dict["code"].startswith("auth_code_")
+        has_pre_auth = "pre-authorized_code" in form_dict or "pre_authorized_code" in form_dict
+        
+        if grant_type == "urn:ietf:params:oauth:grant-type:pre-authorized_code" and has_code and not has_pre_auth:
+            logger.warning("⚠️ DIDRoom quirk detected: grant_type says 'pre-authorized_code' but sending 'code'")
+            logger.warning("   Auto-correcting to authorization_code flow")
+            grant_type = "authorization_code"
+        
         # === FLUJO 1: Pre-Authorized Code (WaltID) ===
         if grant_type == "urn:ietf:params:oauth:grant-type:pre-authorized_code":
             logger.info("   ℹ️  Flujo PRE-AUTHORIZED")
