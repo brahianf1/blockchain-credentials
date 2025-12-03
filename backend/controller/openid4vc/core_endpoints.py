@@ -58,21 +58,23 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
     pre_auth_code = f"pre_auth_{student_id}_{timestamp}_{hash(student_email) % 10000}"
     session_manager.link_pre_auth_code(session_id, pre_auth_code)
     
-    # Crear offer con SINGLE GRANT (Pre-Authorized Code Only)
-    # Forzamos este flujo para evitar problemas con DIDRoom y PAR,
-    # y porque el usuario ya está autenticado.
+    # Crear offer con PRE-AUTHORIZED CODE ONLY
+    # Ofrecemos solo este flujo porque el usuario ya está autenticado desde Moodle
+    # Si la wallet necesita authorization_code, puede ignorar este offer y usar el flujo PAR
     offer = {
         "credential_issuer": ISSUER_URL,
         "credential_configuration_ids": ["UniversityDegree"],
         "grants": {
             "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
                 "pre-authorized_code": pre_auth_code
-            },
-            "authorization_code": {
-                "issuer_state": session_id
             }
+            # NO incluimos authorization_code aquí para evitar confusión
+            # El session_id está disponible internamente para wallets que usen PAR
         }
     }
+    
+    # Guardar session_id en metadata para PAR flow (no en el offer)
+    # Esto permite que wallets como DIDRoom usen PAR sin confundirse
     
     logger.info(f"✅ Offer creado - Pre-auth: {pre_auth_code[:20]}... Session: {session_id[:20]}...")
     
