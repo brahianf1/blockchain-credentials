@@ -449,20 +449,26 @@ async def root_credential_issuer_metadata():
 async def root_oauth_metadata():
     """
     OAuth 2.0 Authorization Server Metadata en RAÍZ
-    SOLO soportamos pre-authorized_code porque el usuario ya está autenticado desde Moodle
+    Soporta AMBOS flujos: pre-authorized_code (WaltID) y authorization_code (DIDRoom)
     """
-    logger.info("📋 [ROOT] OAuth metadata requested - ONLY pre-authorized_code flow")
+    logger.info("📋 [ROOT] OAuth metadata requested - Dual flow support")
     
     metadata = {
         "issuer": os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site"),
+        "authorization_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/authorize",
         "token_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/token",
         "jwks_uri": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/.well-known/jwks.json",
-        # NO incluimos PAR ni authorization_endpoint porque no soportamos flujo interactivo
+        "pushed_authorization_request_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/par",
         "grant_types_supported": [
-            "urn:ietf:params:oauth:grant-type:pre-authorized_code"
-            # NO incluimos "authorization_code" 
+            "urn:ietf:params:oauth:grant-type:pre-authorized_code",
+            "authorization_code"
         ],
-        "token_endpoint_auth_methods_supported": ["none"]
+        "token_endpoint_auth_methods_supported": ["none"],
+        "request_parameter_supported": True,
+        "request_uri_parameter_supported": True,
+        "response_types_supported": ["code"],
+        "response_modes_supported": ["query"],
+        "code_challenge_methods_supported": ["S256"]
     }
     
     return JSONResponse(content=metadata)

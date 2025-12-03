@@ -182,42 +182,48 @@ async def test_credential_endpoint():
 async def par_endpoint(request: Request):
     """
     Pushed Authorization Request (PAR) endpoint - RFC 9126
-    
-    IMPORTANTE: Este endpoint retorna error porque nuestro caso de uso
-    NO soporta el flujo de authorization_code interactivo.
-    
-    El usuario ya viene autenticado desde Moodle, por lo que no tiene
-    sentido pedir autenticación nuevamente.
-    
-    Las wallets deben usar el grant "urn:ietf:params:oauth:grant-type:pre-authorized_code"
-    que está incluido en el credential offer.
+    Usado por DIDRoom y otras wallets para iniciar flujo de autorización
     """
     try:
         form_data = await request.form()
         form_dict = dict(form_data)
         
-        logger.warning("=" * 80)
-        logger.warning("⚠️ PAR endpoint llamado - RECHAZANDO")
-        logger.warning(f"   Client ID: {form_dict.get('client_id', 'Unknown')[:50]}...")
-        logger.warning("   Razón: Este issuer NO soporta flujo authorization_code interactivo")
-        logger.warning("   Solución: Usar grant 'pre-authorized_code' del credential offer")
-        logger.warning("=" * 80)
+        logger.info("=" * 80)
+        logger.info("🔐 PAR endpoint llamado")
+        logger.info(f"   Client ID: {form_dict.get('client_id', 'Unknown')[:50]}...")
+        logger.info("=" * 80)
         
-        # Retornar error OAuth estándar indicando que PAR no está soportado
-        error_response = {
-            "error": "unsupported_grant_type",
-            "error_description": (
-                "This credential issuer does not support the authorization_code flow with PAR. "
-                "The user is already authenticated. "
-                "Please use the 'urn:ietf:params:oauth:grant-type:pre-authorized_code' grant "
-                "included in the credential offer."
-            )
+        # Buscar la sesión más reciente (fallback porque DIDRoom no envía issuer_state)
+        session = session_manager.get_most_recent_session()
+        
+        if not session:
+            logger.error("❌ No active sessions found")
+            raise HTTPException(status_code=400, detail="No active credential offer session found")
+        
+        session_id = session["session_id"]
+        logger.info(f"✅ Using session: {session_id[:20]}... for student: {session['credential_data'].get('student_name')}")
+        
+        # Vincular datos PAR a la sesión
+        session_manager.link_authorization_request(session_id, form_dict)
+        
+        # Generar request_uri
+        request_uri = f"urn:ietf:params:oauth:request_uri:{secrets.token_urlsafe(32)}"
+        session_manager.link_request_uri(request_uri, session_id)
+        
+        logger.info(f"✅ PAR request_uri generado: {request_uri[:50]}...")
+        logger.info("=" * 80)
+        
+        response_data = {
+            "request_uri": request_uri,
+            "expires_in": 300
         }
         
-        response = JSONResponse(content=error_response, status_code=400)
+        response = JSONResponse(content=response_data, status_code=201)
         response.headers["Cache-Control"] = "no-store"
         return await add_security_headers(response)
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Error in PAR endpoint: {e}")
         import traceback
@@ -355,9 +361,9 @@ async def authorize_endpoint(
             }
             session_manager.link_authorization_request(session_id, auth_data)
         
-        # 🎯 AUTO-APROBACIÓN: Como el usuario ya está autenticado desde Moodle,
-        # aprobamos automáticamente y generamos el authorization code
-        logger.info("🎯 AUTO-APROBANDO solicitud (usuario pre-autenticado desde Moodle)")
+        #  🎯 GENERAR Authorization Code pero MOSTRAR HTML CON BOTÓN
+        # DIDRoom abre este endpoint en un webview y necesita ver HTML
+        logger.info("🎯 Generando authorization code y mostrando página de consentimiento")
         
         auth_code = f"auth_code_{secrets.token_urlsafe(32)}"
         session_manager.link_authorization_code(session_id, auth_code)
@@ -374,10 +380,142 @@ async def authorize_endpoint(
         }
         redirect_url = f"{redirect_uri}?{urlencode(params)}"
         
-        logger.info(f"↩️ Redirigiendo a wallet: {redirect_url[:100]}...")
+        logger.info(f"↩️ URL de redirect preparado: {redirect_url[:100]}...")
+        logger.info("📄 Devolviendo HTML con botón de consentimiento")
         logger.info("=" * 80)
         
-        return RedirectResponse(url=redirect_url, status_code=302)
+        # Devolver HTML con botón de consentimiento
+        # DIDRoom necesita ver esto en su webview
+        student_name = session['credential_data'].get('student_name', 'Usuario')
+        course_name = session['credential_data'].get('course_name', 'Curso')
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Autorizar Credencial</title>
+            <style>
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                }}
+                .container {{
+                    background: white;
+                    border-radius: 16px;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                    max-width: 480px;
+                    width: 100%;
+                    padding: 40px 30px;
+                    text-align: center;
+                }}
+                .icon {{
+                    font-size: 64px;
+                    margin-bottom: 20px;
+                }}
+                h1 {{
+                    color: #333;
+                    font-size: 24px;
+                    margin-bottom: 16px;
+                }}
+                .credential-info {{
+                    background: #f8f9fa;
+                    border-radius: 12px;
+                    padding: 20px;
+                    margin: 20px 0 30px 0;
+                    border-left: 4px solid #667eea;
+                }}
+                .label {{
+                    color: #666;
+                    font-size: 12px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    margin-bottom: 4px;
+                }}
+                .value {{
+                    color: #333;
+                    font-size: 16px;
+                    font-weight: 600;
+                    margin-bottom: 12px;
+                }}
+                .value:last-child {{
+                    margin-bottom: 0;
+                }}
+                .btn {{
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border: none;
+                    padding: 16px 40px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    width: 100%;
+                    transition: transform 0.2s, box-shadow 0.2s;
+                    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                }}
+                .btn:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+                }}
+                .btn:active {{
+                    transform: translateY(0);
+                }}
+                .info-text {{
+                    color: #666;
+                    font-size: 14px;
+                    margin-top: 20px;
+                    line-height: 1.5;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="icon">🎓</div>
+                <h1>Recibir Credencial Universitaria</h1>
+                
+                <div class="credential-info">
+                    <div>
+                        <div class="label">Estudiante</div>
+                        <div class="value">{student_name}</div>
+                    </div>
+                    <div>
+                        <div class="label">Curso</div>
+                        <div class="value">{course_name}</div>
+                    </div>
+                </div>
+                
+                <button class="btn" onclick="authorize()">
+                    ✓ Aceptar y Recibir Credencial
+                </button>
+                
+                <p class="info-text">
+                    Al aceptar, recibirás una credencial verificable en tu wallet digital.
+                </p>
+            </div>
+            
+            <script>
+                function authorize() {{
+                    // Redirigir a la wallet con el authorization code
+                    window.location.href = "{redirect_url}";
+                }}
+            </script>
+        </body>
+        </html>
+        """
+        
+        return HTMLResponse(content=html_content)
         
     except HTTPException:
         raise
