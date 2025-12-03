@@ -1,15 +1,54 @@
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 import structlog
 from storage import qr_storage
+from datetime import datetime
 
 logger = structlog.get_logger()
 router = APIRouter()
 
+@router.get("/test-credential")
+async def test_credential_endpoint():
+    """
+    Endpoint de prueba: Genera una credencial de test y redirige a la página del QR
+    Útil para testing rápido del flujo OpenID4VCI con diferentes wallets
+    """
+    try:
+        # Importar la función para generar ofertas
+        from openid4vc.core_endpoints import generate_credential_offer
+        
+        # Datos de prueba
+        test_data = {
+            "student_id": f"test_{int(datetime.now().timestamp())}",
+            "student_name": "Estudiante de Prueba",
+            "student_email": "prueba@utn.edu.ar",
+            "course_id": "TEST001",
+            "course_name": "Curso de Prueba OpenID4VCI",
+            "completion_date": datetime.now().isoformat(),
+            "grade": "10",
+            "instructor_name": "Prof. Test"
+        }
+        
+        logger.info("🧪 Generando credencial de PRUEBA")
+        
+        # Generar oferta
+        offer_result = await generate_credential_offer(test_data)
+        
+        pre_auth_code = offer_result.get("pre_authorized_code")
+        
+        # Redirigir a la página del QR
+        return RedirectResponse(url=f"/oid4vc/qr/{pre_auth_code}", status_code=303)
+        
+    except Exception as e:
+        logger.error(f"❌ Error generando credencial de prueba: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/qr/{connection_id}", response_class=HTMLResponse)
 async def show_qr_page(connection_id: str):
     """
-    Mostrar página HTML con QR Code escaneables para conexión DIDComm
+    Mostrar página HTML con QR Code escaneable para wallets OpenID4VC
     """
     try:
         # Buscar QR en storage temporal
@@ -127,9 +166,31 @@ async def show_qr_page(connection_id: str):
                     padding: 10px;
                     margin: 10px 0;
                     font-family: monospace;
-                    font-size: 0.8em;
+                    font-size: 0.75em;
                     word-break: break-all;
                     color: #555;
+                    cursor: pointer;
+                    max-height: 100px;
+                    overflow-y: auto;
+                }}
+                .url-link:hover {{
+                    background: #e0e0e0;
+                }}
+                .copy-btn {{
+                    background: #2196f3;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    margin-top: 10px;
+                    font-size: 0.9em;
+                }}
+                .copy-btn:hover {{
+                    background: #1976d2;
+                }}
+                .copy-btn:active {{
+                    background: #0d47a1;
                 }}
             </style>
         </head>
@@ -155,27 +216,43 @@ async def show_qr_page(connection_id: str):
                         <li>Abre tu wallet de credenciales en tu móvil</li>
                         <li>Busca la opción "Escanear QR" o "Recibir Credencial"</li>
                         <li>Escanea el código QR de arriba</li>
-                        <li>Acepta la conexión DIDComm</li>
-                        <li>Tu credencial será transferida automáticamente</li>
+                        <li>O copia el enlace debajo y pégalo en la wallet web</li>
                     </ol>
                     
                     <div class="wallet-list">
+                        <span class="wallet">WaltID</span>
+                        <span class="wallet">DIDRoom</span>
                         <span class="wallet">Lissi</span>
-                        <span class="wallet">Trinsic</span>
-                        <span class="wallet">Esatus</span>
+                        <span class="wallet">EUDI</span>
                     </div>
                 </div>
                 
-                <div class="url-link">
-                    <strong>URL de Invitación:</strong><br>
-                    {qr_data['invitation_url'][:50]}...
+                <div class="url-link" id="offerUrl" onclick="copyToClipboard()">
+                    {qr_data.get('qr_url', 'N/A')}
                 </div>
+                <button class="copy-btn" onclick="copyToClipboard()">📋 Copiar URL</button>
                 
                 <div class="timestamp">
                     ⏰ Generado: {qr_data['timestamp']}<br>
                     🔑 ID: {connection_id}
                 </div>
             </div>
+            
+            <script>
+                function copyToClipboard() {{
+                    const urlText = document.getElementById('offerUrl').innerText;
+                    navigator.clipboard.writeText(urlText).then(() => {{
+                        const btn = document.querySelector('.copy-btn');
+                        const originalText = btn.innerText;
+                        btn.innerText = '✅ Copiado!';
+                        setTimeout(() => {{
+                            btn.innerText = originalText;
+                        }}, 2000);
+                    }}).catch(err => {{
+                        console.error('Error copiando:', err);
+                    }});
+                }}
+            </script>
         </body>
         </html>
         """

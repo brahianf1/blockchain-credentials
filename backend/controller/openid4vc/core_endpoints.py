@@ -237,14 +237,18 @@ async def authorize_endpoint(
     request_uri: Optional[str] = Query(None)
 ):
     """
-    OAuth 2.0 Authorization Endpoint con soporte completo para DIDRoom
+    OAuth 2.0 Authorization Endpoint con AUTO-APROBACIÓN para usuarios pre-autenticados
+    
+    En nuestro caso de uso, el usuario YA VIENE AUTENTICADO desde Moodle,
+    por lo que no necesitamos una pantalla de consentimiento.
+    Este endpoint aprueba automáticamente la solicitud y redirige a la wallet.
     
     Acepta AMBOS flujos:
-    - Directo con issuer_state (DIDRoom después de deshabilitar PAR)
-    - Con request_uri (wallets que usen PAR si lo habilitamos)
+    - Directo con issuer_state (flujo directo sin PAR)
+    - Con request_uri (flujo PAR - DIDRoom, WaltID, etc.)
     """
     logger.info("=" * 80)
-    logger.info("🔓 AUTHORIZE ENDPOINT LLAMADO")
+    logger.info("🔓 AUTHORIZE ENDPOINT LLAMADO [AUTO-APPROVAL MODE]")
     logger.info("=" * 80)
     
     # LOG COMPLETO de todos los parámetros recibidos
@@ -264,9 +268,10 @@ async def authorize_endpoint(
     logger.info(f"📋 Query params completos: {list(query_params.keys())}")
     
     try:
-        # Estrategia 1: Buscar por issuer_state directo (flujo sin PAR - DIDRoom)
+        # Estrategia 1: Buscar por issuer_state directo (flujo sin PAR)
         session = None
         session_id = None
+        par_data_from_session = None
         
         if issuer_state:
             logger.info(f"✅ [FLUJO DIRECTO] issuer_state recibido: {issuer_state[:30]}...")
@@ -278,13 +283,22 @@ async def authorize_endpoint(
                 logger.error(f"❌ Sesión NO encontrada para issuer_state: {issuer_state[:30]}...")
                 raise HTTPException(status_code=400, detail="Invalid issuer_state - session not found or expired")
         
-        # Estrategia 2: Buscar por request_uri (flujo con PAR - fallback)
+        # Estrategia 2: Buscar por request_uri (flujo con PAR - DIDRoom)
         elif request_uri:
             logger.info(f"🔍 [FLUJO PAR] request_uri recibido: {request_uri[:50]}...")
             session = session_manager.get_session_by_request_uri(request_uri)
             if session:
                 session_id = session["session_id"]
                 logger.info(f"✅ Sesión encontrada por request_uri")
+                
+                # Obtener datos PAR que fueron guardados previamente
+                auth_flow = session.get("flows", {}).get("authorization")
+                if auth_flow and auth_flow.get("par_data"):
+                    par_data_from_session = auth_flow["par_data"]
+                    logger.info(f"📋 PAR data recuperado de la sesión")
+                    logger.info(f"   - redirect_uri: {par_data_from_session.get('redirect_uri')}")
+                    logger.info(f"   - client_id: {par_data_from_session.get('client_id', '')[:50]}...")
+                    logger.info(f"   - code_challenge presente: {bool(par_data_from_session.get('code_challenge'))}")
             else:
                 logger.error(f"❌ Sesión NO encontrada para request_uri: {request_uri[:50]}...")
                 raise HTTPException(status_code=400, detail="Invalid request_uri")
@@ -297,19 +311,29 @@ async def authorize_endpoint(
                 detail="Missing issuer_state or request_uri - cannot identify session"
             )
         
+        # Si tenemos PAR data de la sesión, usarlo como fuente de verdad
+        # (DIDRoom envía estos datos en PAR, no en /authorize)
+        if par_data_from_session:
+            logger.info("🔄 Usando datos del PAR request almacenados en la sesión")
+            redirect_uri = redirect_uri or par_data_from_session.get("redirect_uri")
+            code_challenge = code_challenge or par_data_from_session.get("code_challenge")
+            code_challenge_method = code_challenge_method or par_data_from_session.get("code_challenge_method")
+            client_id = client_id or par_data_from_session.get("client_id")
+            state = state or par_data_from_session.get("state")
+        
         # Validaciones
         if not redirect_uri:
             logger.error("❌ redirect_uri faltante")
             raise HTTPException(status_code=400, detail="redirect_uri required")
         
         if not code_challenge:
-            logger.warning("⚠️ code_challenge NO recibido - PKCE podría fallar en /token")
+            logger.warning("⚠️ code_challenge NO disponible - PKCE podría fallar en /token")
         
-        # Vincular code_challenge al session si existe
+        # Vincular o actualizar code_challenge en la sesión si existe
         if code_challenge and session_id:
             logger.info(f"🔐 Vinculando PKCE challenge a sesión")
             # Actualizar sesión con datos de autorización
-            par_data = {
+            auth_data = {
                 "code_challenge": code_challenge,
                 "code_challenge_method": code_challenge_method or "S256",
                 "redirect_uri": redirect_uri,
@@ -318,14 +342,18 @@ async def authorize_endpoint(
                 "authorization_details": authorization_details,
                 "scope": scope
             }
-            session_manager.link_authorization_request(session_id, par_data)
+            session_manager.link_authorization_request(session_id, auth_data)
         
-        # Generar authorization code
+        # 🎯 AUTO-APROBACIÓN: Como el usuario ya está autenticado desde Moodle,
+        # aprobamos automáticamente y generamos el authorization code
+        logger.info("🎯 AUTO-APROBANDO solicitud (usuario pre-autenticado desde Moodle)")
+        
         auth_code = f"auth_code_{secrets.token_urlsafe(32)}"
         session_manager.link_authorization_code(session_id, auth_code)
         
         logger.info(f"✅ Authorization code generado: {auth_code[:20]}...")
         logger.info(f"🔗 Vinculado a session: {session_id[:20]}...")
+        logger.info(f"👤 Usuario: {session['credential_data'].get('student_name', 'Unknown')}")
         
         # Construir URL de redirect
         from urllib.parse import urlencode
@@ -335,7 +363,7 @@ async def authorize_endpoint(
         }
         redirect_url = f"{redirect_uri}?{urlencode(params)}"
         
-        logger.info(f"↩️ Redirigiendo a: {redirect_url[:100]}...")
+        logger.info(f"↩️ Redirigiendo a wallet: {redirect_url[:100]}...")
         logger.info("=" * 80)
         
         return RedirectResponse(url=redirect_url, status_code=302)
