@@ -432,6 +432,12 @@ async def root_credential_issuer_metadata():
                 "scope": "UniversityDegreeScope",
                 "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
                 "credential_signing_alg_values_supported": ["ES256"],
+                "display": [{
+                    "name": "Certificado Universitario",
+                    "locale": "es-AR",
+                    "background_color": "#1976d2",
+                    "text_color": "#FFFFFF"
+                }],
                 "logo": {
                     "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
                     "alt_text": "Logo UTN"
