@@ -182,78 +182,52 @@ async def test_credential_endpoint():
 async def par_endpoint(request: Request):
     """
     Pushed Authorization Request (PAR) endpoint - RFC 9126
-    Usado por DIDRoom para iniciar flujo de autorización
+    
+    IMPORTANTE: Este endpoint retorna error porque nuestro caso de uso
+    NO soporta el flujo de authorization_code interactivo.
+    
+    El usuario ya viene autenticado desde Moodle, por lo que no tiene
+    sentido pedir autenticación nuevamente.
+    
+    Las wallets deben usar el grant "urn:ietf:params:oauth:grant-type:pre-authorized_code"
+    que está incluido en el credential offer.
     """
     try:
         form_data = await request.form()
         form_dict = dict(form_data)
         
-        logger.info("🔐 PAR endpoint llamado", client_id=form_dict.get("client_id", "Unknown")[:50])
-        logger.info(f"   form_data keys: {list(form_dict.keys())}")
-        logger.info(f"   FULL FORM DATA: {form_dict}")  # DEBUG: Ver todo lo que llega
+        logger.warning("=" * 80)
+        logger.warning("⚠️ PAR endpoint llamado - RECHAZANDO")
+        logger.warning(f"   Client ID: {form_dict.get('client_id', 'Unknown')[:50]}...")
+        logger.warning("   Razón: Este issuer NO soporta flujo authorization_code interactivo")
+        logger.warning("   Solución: Usar grant 'pre-authorized_code' del credential offer")
+        logger.warning("=" * 80)
         
-        # DEBUG: Log completo de authorization_details y state
-        auth_details = form_dict.get("authorization_details")
-        state = form_dict.get("state")
-        
-        logger.info(f"🔍 DEBUG PAR - state field: {state}")
-        logger.info(f"🔍 DEBUG PAR - authorization_details type: {type(auth_details)}")
-        logger.info(f"🔍 DEBUG PAR - authorization_details content: {auth_details}")
-        
-        # Extraer issuer_state (session_id)
-        issuer_state = extract_issuer_state_from_par(form_dict)
-        
-        if not issuer_state:
-            logger.warning("⚠️ No issuer_state found in PAR request - using fallback")
-            logger.warning(f"   Available fields: {form_dict.keys()}")
-            logger.warning(f"   State value: {state}")
-            logger.warning(f"   Authorization details: {auth_details}")
-            
-            # FALLBACK: DIDRoom ignora issuer_state del offer, usar sesión más reciente
-            logger.info("🔄 Attempting fallback: looking for most recent active session")
-            session = session_manager.get_most_recent_session()
-            
-            if not session:
-                logger.error("❌ No active sessions found for fallback")
-                raise HTTPException(status_code=400, detail="Missing issuer_state and no active sessions available")
-            
-            issuer_state = session["session_id"]
-            logger.info(f"✅ Using fallback session: {issuer_state[:20]}... for student: {session['credential_data'].get('student_name')}")
-        else:
-            # Validar que la sesión existe
-            session = session_manager.get_session(issuer_state)
-            if not session:
-                logger.error(f"❌ Session not found: {issuer_state[:20]}...")
-                raise HTTPException(status_code=400, detail="Invalid issuer_state - session not found")
-        
-        # Vincular datos PAR a la sesión
-        session_manager.link_authorization_request(issuer_state, form_dict)
-        
-        # Generar request_uri
-        request_uri = f"urn:ietf:params:oauth:request_uri:{secrets.token_urlsafe(32)}"
-        
-        # Mapear request_uri -> session_id
-        request_uri_to_session[request_uri] = issuer_state
-        session_manager.link_request_uri(request_uri, issuer_state)
-        
-        logger.info(f"✅ PAR request_uri generado: {request_uri[:50]}...")
-        
-        response_data = {
-            "request_uri": request_uri,
-            "expires_in": 300
+        # Retornar error OAuth estándar indicando que PAR no está soportado
+        error_response = {
+            "error": "unsupported_grant_type",
+            "error_description": (
+                "This credential issuer does not support the authorization_code flow with PAR. "
+                "The user is already authenticated. "
+                "Please use the 'urn:ietf:params:oauth:grant-type:pre-authorized_code' grant "
+                "included in the credential offer."
+            )
         }
         
-        response = JSONResponse(content=response_data, status_code=201)
+        response = JSONResponse(content=error_response, status_code=400)
         response.headers["Cache-Control"] = "no-store"
         return await add_security_headers(response)
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"❌ Error in PAR endpoint: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=400, detail={"error": "invalid_request", "error_description": str(e)})
+        
+        error_response = {
+            "error": "server_error",
+            "error_description": str(e)
+        }
+        return JSONResponse(content=error_response, status_code=500)
 
 # ============================================================================
 # AUTHORIZE ENDPOINT
