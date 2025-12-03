@@ -436,12 +436,12 @@ async def root_credential_issuer_metadata():
                     "name": "Certificado Universitario",
                     "locale": "es-AR",
                     "background_color": "#1976d2",
-                    "text_color": "#FFFFFF"
-                }],
-                "logo": {
-                    "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                    "alt_text": "Logo UTN"
-                }
+                    "text_color": "#FFFFFF",
+                    "logo": {
+                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
+                        "alt_text": "Logo UTN"
+                    }
+                }]
             }
         }
     }
