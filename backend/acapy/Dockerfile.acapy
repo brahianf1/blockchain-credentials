@@ -15,7 +15,6 @@ RUN pip install --no-cache-dir \
     aries-cloudagent \
     anoncreds \
     indy-vdr \
-    ursa-bbs-signatures \
     aries-askar \
     indy-credx
 
