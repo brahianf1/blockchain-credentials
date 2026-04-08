@@ -1,8 +1,8 @@
-#!/bin/bash
+ï»¿#!/bin/bash
 ################################################################################
-# Script de Instalación Automática de VON Network v6.0 DEFINITIVO
+# Script de InstalaciÃ³n AutomÃ¡tica de VON Network v6.0 DEFINITIVO
 # Incluye: Puerto interno correcto, registro de DIDs habilitado, 
-# seed configurada y registro automático del DID de ACA-Py
+# seed configurada y registro automÃ¡tico del DID de ACA-Py
 ################################################################################
 
 set -e
@@ -59,18 +59,18 @@ command_exists() {
 
 check_docker() {
     if ! command_exists docker; then
-        print_error "Docker no está instalado."
+        print_error "Docker no estÃ¡ instalado."
         exit 1
     fi
     if ! docker ps >/dev/null 2>&1; then
         print_error "No tienes permisos para ejecutar Docker."
         exit 1
     fi
-    print_message "Docker está instalado y funcionando correctamente."
+    print_message "Docker estÃ¡ instalado y funcionando correctamente."
 }
 
 cleanup_von_network() {
-    print_warning "Limpiando instalación previa de VON Network..."
+    print_warning "Limpiando instalaciÃ³n previa de VON Network..."
     
     # Detener y eliminar contenedores
     for container in $(docker ps -a --format '{{.Names}}' | grep "von-"); do
@@ -78,7 +78,7 @@ cleanup_von_network() {
         docker rm "$container" 2>/dev/null || true
     done
     
-    # AGREGADO: Eliminar volúmenes DEL LEDGER (datos persistentes)
+    # AGREGADO: Eliminar volÃºmenes DEL LEDGER (datos persistentes)
     print_message "Eliminando datos persistentes del ledger..."
     for volume in $(docker volume ls -q | grep "von_"); do
         docker volume rm "$volume" 2>/dev/null || true
@@ -96,17 +96,17 @@ cleanup_von_network() {
 }
 
 ################################################################################
-print_step "PASO 0: Limpieza Automática Completa"
+print_step "PASO 0: Limpieza AutomÃ¡tica Completa"
 ################################################################################
 
 if docker ps -a --format '{{.Names}}' | grep -q "von-" || [[ -d "/opt/von-network" ]]; then
-    print_warning "Detectada instalación previa de VON Network."
+    print_warning "Detectada instalaciÃ³n previa de VON Network."
     cleanup_von_network
     sleep 3
 fi
 
 ################################################################################
-print_step "PASO 1: Verificación de Requisitos"
+print_step "PASO 1: VerificaciÃ³n de Requisitos"
 ################################################################################
 
 if [[ $EUID -ne 0 ]]; then
@@ -122,19 +122,19 @@ if ! command_exists unzip; then
     apt-get install -y unzip curl net-tools jq
 fi
 
-print_message "Detectando IP pública del servidor..."
+print_message "Detectando IP pÃºblica del servidor..."
 PUBLIC_IP=$(get_public_ip)
 
 if [[ -z "$PUBLIC_IP" ]]; then
-    print_error "No se pudo detectar la IP pública."
-    read -p "Ingresa la IP pública manualmente: " PUBLIC_IP
+    print_error "No se pudo detectar la IP pÃºblica."
+    read -p "Ingresa la IP pÃºblica manualmente: " PUBLIC_IP
     if [[ -z "$PUBLIC_IP" ]]; then
-        print_error "IP pública requerida. Abortando."
+        print_error "IP pÃºblica requerida. Abortando."
         exit 1
     fi
 fi
 
-print_message "IP pública detectada: $PUBLIC_IP"
+print_message "IP pÃºblica detectada: $PUBLIC_IP"
 
 ################################################################################
 print_step "PASO 2: Descarga de VON Network"
@@ -155,18 +155,18 @@ chmod a+w ./server/
 chmod +x ./manage
 
 ################################################################################
-print_step "PASO 3: Construcción de Imágenes Docker"
+print_step "PASO 3: ConstrucciÃ³n de ImÃ¡genes Docker"
 ################################################################################
 
-print_message "Construyendo imágenes de VON Network (esto puede tardar 10-15 minutos)..."
+print_message "Construyendo imÃ¡genes de VON Network (esto puede tardar 10-15 minutos)..."
 ./manage build
 
 if [[ $? -ne 0 ]]; then
-    print_error "Error al construir las imágenes de VON Network."
+    print_error "Error al construir las imÃ¡genes de VON Network."
     exit 1
 fi
 
-print_message "Imágenes construidas exitosamente."
+print_message "ImÃ¡genes construidas exitosamente."
 
 ################################################################################
 print_step "PASO 4: Inicio de VON Network"
@@ -175,11 +175,11 @@ print_step "PASO 4: Inicio de VON Network"
 print_message "Iniciando VON Network en $PUBLIC_IP..."
 ./manage start "$PUBLIC_IP" WEB_SERVER_HOST_PORT=9000 "LEDGER_INSTANCE_NAME=UTN PF Ledger"
 
-print_message "Esperando inicialización de contenedores (30 segundos)..."
+print_message "Esperando inicializaciÃ³n de contenedores (30 segundos)..."
 sleep 30
 
 ################################################################################
-print_step "PASO 5: Análisis y Verificación del Contenedor"
+print_step "PASO 5: AnÃ¡lisis y VerificaciÃ³n del Contenedor"
 ################################################################################
 
 WEBSERVER_CONTAINER=$(docker ps --format '{{.Names}}' | grep "webserver" | head -n 1)
@@ -220,10 +220,10 @@ fi
 print_message "? Puerto interno detectado: $WEBSERVER_PORT"
 
 ################################################################################
-print_step "PASO 6: Verificación del Ledger"
+print_step "PASO 6: VerificaciÃ³n del Ledger"
 ################################################################################
 
-print_message "Verificando sincronización del ledger..."
+print_message "Verificando sincronizaciÃ³n del ledger..."
 RETRIES=15
 LEDGER_OK=false
 
@@ -232,12 +232,12 @@ for i in $(seq 1 $RETRIES); do
         LEDGER_OK=true
         break
     fi
-    print_message "Intento $i/$RETRIES: Esperando sincronización..."
+    print_message "Intento $i/$RETRIES: Esperando sincronizaciÃ³n..."
     sleep 5
 done
 
 if [[ "$LEDGER_OK" == "false" ]]; then
-    print_error "El ledger no se sincronizó."
+    print_error "El ledger no se sincronizÃ³."
     docker logs "$WEBSERVER_CONTAINER" --tail 30
     exit 1
 fi
@@ -245,22 +245,22 @@ fi
 print_message "? Ledger sincronizado correctamente."
 
 ################################################################################
-print_step "PASO 7: Verificación de Red de Dokploy"
+print_step "PASO 7: VerificaciÃ³n de Red de Dokploy"
 ################################################################################
 
 if ! docker network ls | grep -q "dokploy-network"; then
     print_error "La red 'dokploy-network' no existe."
-    print_message "Asegúrate de que Dokploy esté instalado correctamente."
+    print_message "AsegÃºrate de que Dokploy estÃ© instalado correctamente."
     exit 1
 fi
 
 print_message "? Red dokploy-network encontrada."
 
 ################################################################################
-print_step "PASO 8: Recreación del Webserver con Configuración Completa"
+print_step "PASO 8: RecreaciÃ³n del Webserver con ConfiguraciÃ³n Completa"
 ################################################################################
 
-print_message "Preparando recreación del contenedor con todas las configuraciones..."
+print_message "Preparando recreaciÃ³n del contenedor con todas las configuraciones..."
 
 VON_IMAGE=$(docker inspect "$WEBSERVER_CONTAINER" --format='{{.Config.Image}}')
 VON_NETWORK=$(docker network ls --format '{{.Name}}' | grep "von_von" | head -n 1)
@@ -270,7 +270,7 @@ if [[ -z "$VON_NETWORK" ]]; then
     exit 1
 fi
 
-# Obtener los volúmenes montados
+# Obtener los volÃºmenes montados
 VOLUME_MOUNTS=""
 for vol in $(docker inspect "$WEBSERVER_CONTAINER" --format='{{range .Mounts}}{{.Name}}:{{.Destination}} {{end}}'); do
     vol_name=$(echo $vol | cut -d: -f1)
@@ -280,13 +280,13 @@ for vol in $(docker inspect "$WEBSERVER_CONTAINER" --format='{{range .Mounts}}{{
     fi
 done
 
-print_message "Volúmenes detectados: $VOLUME_MOUNTS"
+print_message "VolÃºmenes detectados: $VOLUME_MOUNTS"
 
 # Detener y eliminar contenedor original
 docker stop "$WEBSERVER_CONTAINER"
 docker rm "$WEBSERVER_CONTAINER"
 
-# Recrear con configuración completa
+# Recrear con configuraciÃ³n completa
 print_message "Recreando contenedor con:"
 print_message "  - Traefik habilitado"
 print_message "  - Registro de DIDs habilitado (REGISTER_NEW_DIDS=True)"
@@ -322,10 +322,10 @@ docker network connect dokploy-network von-webserver
 print_message "? Contenedor recreado exitosamente."
 
 ################################################################################
-print_step "PASO 9: Verificación de Configuración"
+print_step "PASO 9: VerificaciÃ³n de ConfiguraciÃ³n"
 ################################################################################
 
-print_message "Verificando que el registro de DIDs esté habilitado..."
+print_message "Verificando que el registro de DIDs estÃ© habilitado..."
 sleep 10
 
 RETRIES=10
@@ -340,12 +340,12 @@ for i in $(seq 1 $RETRIES); do
         break
     fi
     
-    print_message "Intento $i/$RETRIES: Esperando configuración..."
+    print_message "Intento $i/$RETRIES: Esperando configuraciÃ³n..."
     sleep 5
 done
 
 if [[ "$CONFIG_OK" == "false" ]]; then
-    print_error "El registro de DIDs no está habilitado correctamente."
+    print_error "El registro de DIDs no estÃ¡ habilitado correctamente."
     curl -s http://localhost:9000/status | jq
     exit 1
 fi
@@ -355,18 +355,18 @@ print_step "PASO 10: Solicitud de DID Seed de ACA-Py"
 ################################################################################
 
 print_highlight "\n+----------------------------------------------------------------+"
-print_highlight "¦  IMPORTANTE: Configuración del DID de ACA-Py                   ¦"
+print_highlight "Â¦  IMPORTANTE: ConfiguraciÃ³n del DID de ACA-Py                   Â¦"
 print_highlight "+----------------------------------------------------------------+\n"
 
-echo -e "${YELLOW}Para completar la instalación, necesitas configurar la seed del DID"
-echo -e "que usará ACA-Py. Esta seed debe ser EXACTAMENTE 32 caracteres.${NC}\n"
+echo -e "${YELLOW}Para completar la instalaciÃ³n, necesitas configurar la seed del DID"
+echo -e "que usarÃ¡ ACA-Py. Esta seed debe ser EXACTAMENTE 32 caracteres.${NC}\n"
 
 echo -e "${CYAN}Opciones:${NC}"
-echo -e "  1. Generar una seed aleatoria automáticamente (recomendado)"
+echo -e "  1. Generar una seed aleatoria automÃ¡ticamente (recomendado)"
 echo -e "  2. Ingresar una seed manualmente"
-echo -e "  3. Saltar este paso (puedes hacerlo después)\n"
+echo -e "  3. Saltar este paso (puedes hacerlo despuÃ©s)\n"
 
-read -p "Selecciona una opción (1/2/3): " SEED_OPTION
+read -p "Selecciona una opciÃ³n (1/2/3): " SEED_OPTION
 
 ACAPY_DID_SEED=""
 
@@ -387,11 +387,11 @@ case "$SEED_OPTION" in
         done
         ;;
     3)
-        print_warning "Saltando configuración del DID. Deberás hacerlo manualmente después."
+        print_warning "Saltando configuraciÃ³n del DID. DeberÃ¡s hacerlo manualmente despuÃ©s."
         ACAPY_DID_SEED=""
         ;;
     *)
-        print_error "Opción inválida. Generando seed automáticamente..."
+        print_error "OpciÃ³n invÃ¡lida. Generando seed automÃ¡ticamente..."
         ACAPY_DID_SEED=$(openssl rand -hex 16)
         print_message "Seed generada: $ACAPY_DID_SEED"
         ;;
@@ -420,7 +420,7 @@ if [[ -n "$ACAPY_DID_SEED" ]]; then
         echo -e "  ${GREEN}DID:${NC} $REGISTERED_DID"
         echo -e "  ${GREEN}Verkey:${NC} $REGISTERED_VERKEY"
         
-        # Guardar información del DID
+        # Guardar informaciÃ³n del DID
         cat > /opt/von-network-acapy-did.json <<EOF
 {
   "did": "$REGISTERED_DID",
@@ -430,16 +430,16 @@ if [[ -n "$ACAPY_DID_SEED" ]]; then
   "registered_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 }
 EOF
-        print_message "? Información del DID guardada en /opt/von-network-acapy-did.json"
+        print_message "? InformaciÃ³n del DID guardada en /opt/von-network-acapy-did.json"
     else
         print_error "Error al registrar el DID. Respuesta:"
         echo "$REGISTER_RESPONSE"
-        print_warning "Deberás registrar el DID manualmente después."
+        print_warning "DeberÃ¡s registrar el DID manualmente despuÃ©s."
     fi
 fi
 
 ################################################################################
-print_step "PASO 12: Verificación Final Completa"
+print_step "PASO 12: VerificaciÃ³n Final Completa"
 ################################################################################
 
 print_message "Verificando respuesta del webserver..."
@@ -473,69 +473,69 @@ curl -s http://localhost:9000/genesis > /opt/von-network-genesis.json
 print_message "? Genesis guardado en /opt/von-network-genesis.json"
 
 ################################################################################
-print_step "RESUMEN DE INSTALACIÓN"
+print_step "RESUMEN DE INSTALACIÃ“N"
 ################################################################################
 
 echo -e "\n${GREEN}+----------------------------------------------------------------+${NC}"
-echo -e "${GREEN}¦          VON Network Instalado Correctamente                   ¦${NC}"
+echo -e "${GREEN}Â¦          VON Network Instalado Correctamente                   Â¦${NC}"
 echo -e "${GREEN}+----------------------------------------------------------------+${NC}\n"
 
-echo -e "${BLUE}Configuración del Sistema:${NC}"
-echo -e "  • Ubicación: ${GREEN}/opt/von-network${NC}"
-echo -e "  • IP Pública: ${GREEN}$PUBLIC_IP${NC}"
-echo -e "  • Puerto Interno: ${GREEN}$WEBSERVER_PORT${NC}"
-echo -e "  • Puerto Externo: ${GREEN}9000${NC}"
-echo -e "  • Imagen: ${GREEN}$VON_IMAGE${NC}"
-echo -e "  • Registro de DIDs: ${GREEN}Habilitado${NC}"
+echo -e "${BLUE}ConfiguraciÃ³n del Sistema:${NC}"
+echo -e "  â€¢ UbicaciÃ³n: ${GREEN}/opt/von-network${NC}"
+echo -e "  â€¢ IP PÃºblica: ${GREEN}$PUBLIC_IP${NC}"
+echo -e "  â€¢ Puerto Interno: ${GREEN}$WEBSERVER_PORT${NC}"
+echo -e "  â€¢ Puerto Externo: ${GREEN}9000${NC}"
+echo -e "  â€¢ Imagen: ${GREEN}$VON_IMAGE${NC}"
+echo -e "  â€¢ Registro de DIDs: ${GREEN}Habilitado${NC}"
 
 echo -e "\n${BLUE}URLs de Acceso a VON Network:${NC}"
-echo -e "  • Local: ${GREEN}http://localhost:9000${NC}"
-echo -e "  • Pública: ${GREEN}http://$PUBLIC_IP:9000${NC}"
-echo -e "  • HTTPS (Traefik): ${GREEN}https://ledger.utnpf.site${NC}"
+echo -e "  â€¢ Local: ${GREEN}http://localhost:9000${NC}"
+echo -e "  â€¢ PÃºblica: ${GREEN}http://$PUBLIC_IP:9000${NC}"
+echo -e "  â€¢ HTTPS (Traefik): ${GREEN}https://ledger.utnpf.site${NC}"
 
 echo -e "\n${BLUE}IMPORTANTE - Genesis URL para ACA-Py:${NC}"
 echo -e "  ${CYAN}+---------------------------------------------------------+${NC}"
-echo -e "  ${CYAN}¦${NC} Para comunicación INTERNA entre contenedores (Docker): ${CYAN}¦${NC}"
-echo -e "  ${CYAN}¦${NC}   ${YELLOW}http://von-webserver:${WEBSERVER_PORT}/genesis${NC}                  ${CYAN}¦${NC}"
-echo -e "  ${CYAN}+---------------------------------------------------------¦${NC}"
-echo -e "  ${CYAN}¦${NC} Para acceso EXTERNO (debugging/testing):               ${CYAN}¦${NC}"
-echo -e "  ${CYAN}¦${NC}   ${YELLOW}http://$PUBLIC_IP:9000/genesis${NC}                ${CYAN}¦${NC}"
+echo -e "  ${CYAN}Â¦${NC} Para comunicaciÃ³n INTERNA entre contenedores (Docker): ${CYAN}Â¦${NC}"
+echo -e "  ${CYAN}Â¦${NC}   ${YELLOW}http://von-webserver:${WEBSERVER_PORT}/genesis${NC}                  ${CYAN}Â¦${NC}"
+echo -e "  ${CYAN}+---------------------------------------------------------Â¦${NC}"
+echo -e "  ${CYAN}Â¦${NC} Para acceso EXTERNO (debugging/testing):               ${CYAN}Â¦${NC}"
+echo -e "  ${CYAN}Â¦${NC}   ${YELLOW}http://$PUBLIC_IP:9000/genesis${NC}                ${CYAN}Â¦${NC}"
 echo -e "  ${CYAN}+---------------------------------------------------------+${NC}"
 
 if [[ -n "$ACAPY_DID_SEED" ]]; then
     echo -e "\n${BLUE}DID de ACA-Py Registrado:${NC}"
-    echo -e "  • DID: ${GREEN}$REGISTERED_DID${NC}"
-    echo -e "  • Verkey: ${GREEN}$REGISTERED_VERKEY${NC}"
-    echo -e "  • Seed: ${YELLOW}$ACAPY_DID_SEED${NC} ${RED}(¡Guárdala de forma segura!)${NC}"
+    echo -e "  â€¢ DID: ${GREEN}$REGISTERED_DID${NC}"
+    echo -e "  â€¢ Verkey: ${GREEN}$REGISTERED_VERKEY${NC}"
+    echo -e "  â€¢ Seed: ${YELLOW}$ACAPY_DID_SEED${NC} ${RED}(Â¡GuÃ¡rdala de forma segura!)${NC}"
 fi
 
 echo -e "\n${BLUE}Variables de Entorno para Dokploy:${NC}"
 echo -e "  ${CYAN}+---------------------------------------------------------+${NC}"
-echo -e "  ${CYAN}¦${NC} ${YELLOW}ACAPY_GENESIS_URL=http://von-webserver:${WEBSERVER_PORT}/genesis${NC}  ${CYAN}¦${NC}"
+echo -e "  ${CYAN}Â¦${NC} ${YELLOW}ACAPY_GENESIS_URL=http://von-webserver:${WEBSERVER_PORT}/genesis${NC}  ${CYAN}Â¦${NC}"
 if [[ -n "$ACAPY_DID_SEED" ]]; then
-echo -e "  ${CYAN}¦${NC} ${YELLOW}ACAPY_DID_SEED=$ACAPY_DID_SEED${NC}        ${CYAN}¦${NC}"
+echo -e "  ${CYAN}Â¦${NC} ${YELLOW}ACAPY_DID_SEED=$ACAPY_DID_SEED${NC}        ${CYAN}Â¦${NC}"
 fi
 echo -e "  ${CYAN}+---------------------------------------------------------+${NC}"
 
 echo -e "\n${BLUE}Estado de Contenedores:${NC}"
 docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep "von" | sed 's/^/  /'
 
-echo -e "\n${BLUE}Comandos Útiles:${NC}"
-echo -e "  • Logs del webserver: ${YELLOW}docker logs von-webserver -f${NC}"
-echo -e "  • Logs de un nodo: ${YELLOW}docker logs von-node1-1 -f${NC}"
-echo -e "  • Reiniciar webserver: ${YELLOW}docker restart von-webserver${NC}"
-echo -e "  • Genesis (local): ${YELLOW}curl http://localhost:9000/genesis${NC}"
-echo -e "  • Verificar desde ACA-Py: ${YELLOW}docker exec acapy-agent curl http://von-webserver:${WEBSERVER_PORT}/genesis${NC}"
-echo -e "  • Ver DIDs registrados: ${YELLOW}curl http://localhost:9000/browse/domain${NC}"
+echo -e "\n${BLUE}Comandos Ãštiles:${NC}"
+echo -e "  â€¢ Logs del webserver: ${YELLOW}docker logs von-webserver -f${NC}"
+echo -e "  â€¢ Logs de un nodo: ${YELLOW}docker logs von-node1-1 -f${NC}"
+echo -e "  â€¢ Reiniciar webserver: ${YELLOW}docker restart von-webserver${NC}"
+echo -e "  â€¢ Genesis (local): ${YELLOW}curl http://localhost:9000/genesis${NC}"
+echo -e "  â€¢ Verificar desde ACA-Py: ${YELLOW}docker exec acapy-agent curl http://von-webserver:${WEBSERVER_PORT}/genesis${NC}"
+echo -e "  â€¢ Ver DIDs registrados: ${YELLOW}curl http://localhost:9000/browse/domain${NC}"
 
-echo -e "\n${BLUE}Próximos Pasos:${NC}"
+echo -e "\n${BLUE}PrÃ³ximos Pasos:${NC}"
 echo -e "  ${CYAN}1.${NC} Actualiza las variables en Dokploy con los valores de arriba"
 echo -e "  ${CYAN}2.${NC} Haz commit y push de tu docker-compose.yml actualizado"
 echo -e "  ${CYAN}3.${NC} Redeploy en Dokploy para aplicar los cambios"
 
-echo -e "\n${GREEN}¡Instalación completada exitosamente!${NC}\n"
+echo -e "\n${GREEN}Â¡InstalaciÃ³n completada exitosamente!${NC}\n"
 
-# Guardar información completa
+# Guardar informaciÃ³n completa
 cat > /opt/von-network-info.txt <<EOF
 VON Network Installation - Complete Information
 ================================================
@@ -592,7 +592,7 @@ echo "ACAPY_DID_SEED=$ACAPY_DID_SEED"
 fi)
 EOF
 
-print_message "Información completa guardada en: /opt/von-network-info.txt"
+print_message "InformaciÃ³n completa guardada en: /opt/von-network-info.txt"
 
 if [[ -n "$ACAPY_DID_SEED" ]]; then
     print_highlight "\n${RED}??  IMPORTANTE: Guarda la seed de forma segura:${NC}"

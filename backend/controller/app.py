@@ -13,7 +13,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, Optional
 
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field
@@ -22,24 +22,21 @@ import structlog
 
 from fabric_client import FabricClient
 from qr_generator import QRGenerator
-
-# Importar diccionario compartido de OpenID4VC
-from openid4vc_endpoints import pre_authorized_code_data, par_requests_data, access_tokens_data
 from storage import qr_storage
 from qr_endpoints import router as qr_router
 
-# NUEVO: Import OpenID4VC endpoints
-try:
-    from openid4vc_endpoints import oid4vc_router, generate_openid_offer
-    OPENID4VC_AVAILABLE = True
-except ImportError:
-    OPENID4VC_AVAILABLE = False
-    logger = structlog.get_logger()
-    logger.warning("⚠️ OpenID4VC endpoints no disponibles - instalar dependencias")
+# OpenID4VC Modular Router - No fallback, clean implementation
+from openid4vc.router import oid4vc_router
+from openid4vc.core_endpoints import generate_credential_offer as generate_openid_offer
+
+OPENID4VC_AVAILABLE = True
+OPENID4VC_MODE = "modular"
 
 # Configuración de logging estructurado
 logging.basicConfig(level=logging.INFO)
 logger = structlog.get_logger()
+
+logger.info("✅ OpenID4VC modular router initialized")
 
 # Configuración del Controller
 ACAPY_ADMIN_URL = os.getenv("ACAPY_ADMIN_URL", "http://acapy-agent:8020")
@@ -68,7 +65,7 @@ class CredentialResponse(BaseModel):
     instructions: Optional[str] = None
 
 # Inicializar FastAPI
-app = FastAPI(title="Controller Credenciales", version="1.0.0")
+app = FastAPI(title="Controller Credenciales", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -78,9 +75,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Middleware para logging exhaustivo de todas las peticiones
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log ALL HTTP requests for debugging DIDRoom flow"""
+    from fastapi import Request as FastAPIRequest
+    
+    # Capturar información de la petición
+    method = request.method
+    url = str(request.url)
+    path = request.url.path
+    query_params = dict(request.query_params)
+    
+    # Log especial para endpoints de OpenID4VC
+    if "/oid4vc/" in path or "/.well-known/" in path:
+        logger.info("=" * 80)
+        logger.info(f"📨 HTTP REQUEST: {method} {path}")
+        logger.info(f"   Full URL: {url}")
+        if query_params:
+            logger.info(f"   Query params: {query_params}")
+        logger.info("=" * 80)
+    
+    # Procesar la petición
+    response = await call_next(request)
+    
+    # Log de respuesta para endpoints críticos
+    if path == "/oid4vc/authorize" or path == "/oid4vc/par":
+        logger.info(f"✅ RESPONSE: {method} {path} → Status {response.status_code}")
+        logger.info("=" * 80)
+    
+    return response
+
+
 # Incluir router OpenID4VC si está disponible
 if OPENID4VC_AVAILABLE:
     app.include_router(oid4vc_router)
+    logger.info(f"✅ OpenID4VC router included (mode: {OPENID4VC_MODE})")
+
+# Incluir router QR
+app.include_router(qr_router)
 
 # Inicializar clientes
 try:
@@ -258,7 +291,7 @@ async def request_credential_didcomm(credential_request: StudentCredentialReques
 
 async def request_credential_openid4vc(credential_request: StudentCredentialRequest) -> CredentialResponse:
     """
-    [MODERN] Retorna oferta OpenID4VC (Lissi/Walt.id/EUDI)
+    [MODERN] Retorna oferta OpenID4VC (Lissi/Walt.id/EUDI/DIDRoom)
     """
     try:
         logger.info(f"📨 [MODERN] Solicitud OpenID4VC para: {credential_request.student_name}")
@@ -275,18 +308,25 @@ async def request_credential_openid4vc(credential_request: StudentCredentialRequ
                 logger.error(f"⚠️ Error registrando en Fabric: {e}")
 
         # 2. Generar oferta OpenID4VC
-        # Convertir modelo Pydantic a dict
         request_dict = credential_request.dict()
-
-        # Usar la función importada de openid4vc_endpoints
+        
+        # Usar función importada (modular o legacy)
         offer_result = await generate_openid_offer(request_dict)
 
+        # Generar instrucciones legibles
+        compatibility = offer_result.get("compatibility", {})
+        flows = compatibility.get("flows_supported", [])
+        if flows:
+            instructions_text = f"Escanea con wallet compatible OpenID4VC. Soporta: {', '.join(flows)}"
+        else:
+            instructions_text = "Escanea con wallet compatible OpenID4VC (WaltID, DIDRoom, Lissi, etc.)"
+        
         return CredentialResponse(
             qr_code_base64=offer_result["qr_code_base64"],
-            invitation_url=offer_result["qr_url"], # Mapear URL del QR a invitation_url
-            pre_authorized_code=offer_result["pre_authorized_code"],
-            offer_json=offer_result["offer"],
-            instructions=offer_result["instructions"]
+            invitation_url=offer_result["qr_url"],
+            pre_authorized_code=offer_result.get("pre_authorized_code"),
+            offer_json=offer_result.get("offer"),
+            instructions=instructions_text
         )
 
     except Exception as e:
@@ -298,8 +338,6 @@ async def request_credential(credential_request: StudentCredentialRequest):
     """
     Endpoint principal: Por defecto usa OpenID4VC (Moderno)
     """
-    # Opción: Podríamos recibir un query param para forzar legacy si fuera necesario
-    # Por ahora, default a OpenID4VC como pidió el usuario
     if OPENID4VC_AVAILABLE:
         return await request_credential_openid4vc(credential_request)
     else:
@@ -316,9 +354,7 @@ async def webhook_connections(data: dict):
     if data.get("state") == "active":
         connection_id = data.get("connection_id")
         if connection_id:
-            # Emitir credencial automáticamente cuando conexión esté activa
             logger.info(f"✅ Conexión activa, emitiendo credencial: {connection_id}")
-            # En background para no bloquear webhook
             asyncio.create_task(issue_credential_background(connection_id))
 
     return {"status": "received"}
@@ -342,7 +378,6 @@ async def webhook_issue_credential(data: dict):
 async def legacy_credential_endpoint(data: dict):
     """Endpoint de compatibilidad con Moodle (API anterior)"""
     try:
-        # Convertir formato anterior al nuevo
         credential_request = StudentCredentialRequest(
             student_id=str(data.get("usuarioId", "unknown")),
             student_name=data.get("usuarioNombre", "Usuario"),
@@ -357,7 +392,6 @@ async def legacy_credential_endpoint(data: dict):
         # USAR LEGACY EXPLICITAMENTE
         result = await request_credential_didcomm(credential_request)
 
-        # Formato compatible
         return {
             "success": True,
             "message": "Credencial procesada exitosamente",
@@ -373,12 +407,83 @@ async def legacy_credential_endpoint(data: dict):
             "message": str(e)
         }
 
+# METADATA ENDPOINTS (fallback si no hay OpenID4VC)
+
 @app.get("/.well-known/openid-credential-issuer")
 async def root_credential_issuer_metadata():
+    """Metadata OpenID4VC en ruta raíz"""
+    issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
+
+    metadata = {
+        "credential_issuer": issuer_url,
+        "authorization_servers": [issuer_url],
+        "authorization_server": issuer_url,
+        "credential_endpoint": f"{issuer_url}/oid4vc/credential",
+        "token_endpoint": f"{issuer_url}/oid4vc/token",
+        "nonce_endpoint": f"{issuer_url}/oid4vc/nonce",
+        "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
+        "display": [{
+            "name": "Sistema de Credenciales UTN",
+            "locale": "es-AR"
+        }],
+        "credential_configurations_supported": {
+            "UniversityDegree": {
+                "format": "jwt_vc_json",
+                "scope": "UniversityDegreeScope",
+                "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
+                "credential_signing_alg_values_supported": ["ES256"],
+                "display": [{
+                    "name": "Certificado Universitario",
+                    "locale": "es-AR",
+                    "background_color": "#1976d2",
+                    "text_color": "#FFFFFF",
+                    "logo": {
+                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
+                        "alt_text": "Logo UTN"
+                    }
+                }]
+            }
+        }
+    }
+
+    return JSONResponse(content=metadata)
+
+# METADATA ENDPOINTS (también en raíz para compatibilidad)
+
+
+@app.get("/.well-known/oauth-authorization-server")
+async def root_oauth_metadata():
     """
-    Metadata OpenID4VC en ruta raíz
-    Compatible con múltiples versiones del estándar
+    OAuth 2.0 Authorization Server Metadata en RAÍZ
+    Soporta AMBOS flujos: pre-authorized_code (WaltID) y authorization_code (DIDRoom)
     """
+    logger.info("📋 [ROOT] OAuth metadata requested - Dual flow support")
+    
+    metadata = {
+        "issuer": os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site"),
+        "authorization_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/authorize",
+        "token_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/token",
+        "jwks_uri": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/.well-known/jwks.json",
+        "pushed_authorization_request_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/par",
+        "grant_types_supported": [
+            "urn:ietf:params:oauth:grant-type:pre-authorized_code",
+            "authorization_code"
+        ],
+        "token_endpoint_auth_methods_supported": ["none"],
+        "request_parameter_supported": True,
+        "request_uri_parameter_supported": True,
+        "response_types_supported": ["code"],
+        "response_modes_supported": ["query"],
+        "code_challenge_methods_supported": ["S256"]
+    }
+    
+    return JSONResponse(content=metadata)
+
+@app.get("/.well-known/openid-credential-issuer")
+async def root_credential_issuer_metadata():
+    """Metadata OpenID4VC en raíz (fallback si DIDRoom no usa /oid4vc prefix)"""
+    logger.info("📋 [ROOT] Credential issuer metadata requested")
+    
     issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
 
     metadata = {
@@ -409,40 +514,51 @@ async def root_credential_issuer_metadata():
 
     return JSONResponse(content=metadata)
 
-@app.get("/.well-known/oauth-authorization-server")
-async def oauth_authorization_server_metadata():
-    """
-    OAuth 2.0 Authorization Server Metadata (RFC 8414)
-    """
-    issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
-
-    metadata = {
-        "issuer": issuer_url,
-        "authorization_endpoint": f"{issuer_url}/oid4vc/authorize",
-        "token_endpoint": f"{issuer_url}/oid4vc/token",
-        "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
-        "pushed_authorization_request_endpoint": f"{issuer_url}/oid4vc/par",
-        "grant_types_supported": [
-            "urn:ietf:params:oauth:grant-type:pre-authorized_code",
-            "authorization_code"
-        ],
-        "token_endpoint_auth_methods_supported": ["none"],
-        "request_parameter_supported": True,
-        "request_uri_parameter_supported": True,
-        "response_types_supported": ["code"],
-        "response_modes_supported": ["query"],
-        "code_challenge_methods_supported": ["S256"],
+@app.get("/health")
+async def healthcheck():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "openid4vc": OPENID4VC_MODE,
+        "timestamp": datetime.utcnow().isoformat()
     }
 
-    return JSONResponse(content=metadata)
+@app.get("/debug/last-offer")
+async def debug_last_offer():
+    """DEBUG: Muestra el último offer generado con su URL completo"""
+    # Obtener el último QR del storage
+    if not qr_storage:
+        return {"error": "No offers generated yet"}
+    
+    # Ordenar por timestamp y obtener el más reciente
+    sorted_offers = sorted(
+        qr_storage.items(),
+        key=lambda x: x[1].get("timestamp", ""),
+        reverse=True
+    )
+    
+    if not sorted_offers:
+        return {"error": "No offers found"}
+    
+    latest_code, latest_offer = sorted_offers[0]
+    
+    return {
+        "intent_url": latest_offer.get("qr_url"),
+        "student_name": latest_offer.get("student_name"),
+        "course_name": latest_offer.get("course_name"),
+        "timestamp": latest_offer.get("timestamp"),
+        "session_id": latest_offer.get("session_id"),
+        "instructions": "Copia el 'intent_url' y pégalo en DIDRoom web"
+    }
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info(f"🚀 Iniciando Controller en puerto {CONTROLLER_PORT}")
+    logger.info(f"🚀 Iniciando Controller v2.0 en puerto {CONTROLLER_PORT}")
+    logger.info(f"📋 OpenID4VC mode: {OPENID4VC_MODE}")
     uvicorn.run(
         "app:app",
         host="0.0.0.0",
         port=CONTROLLER_PORT,
-        reload=False,  # En producción
+        reload=False,
         log_level="info"
     )

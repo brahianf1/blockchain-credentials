@@ -24,6 +24,9 @@ RUN cd /var/www && \
     chown -R www-data:www-data /var/www/html /var/www/moodledata && \
     chmod -R 755 /var/www/moodledata
 
+# Copiar el plugin de credenciales al directorio de bloques
+COPY moodle-plugin/credenciales /var/www/html/blocks/credenciales
+
 # Configurar Apache
 RUN a2enmod rewrite headers
 
