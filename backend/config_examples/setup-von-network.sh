@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 ################################################################################
 # Script de Instalación Automática de VON Network v6.0 DEFINITIVO
 # Incluye: Puerto interno correcto, registro de DIDs habilitado, 
@@ -123,7 +123,7 @@ if ! command_exists unzip; then
 fi
 
 print_message "Detectando IP pública del servidor..."
-PUBLIC_IP=$(get_public_ip)
+PUBLIC_IP=$(hostname -I | awk '{print $1}')
 
 if [[ -z "$PUBLIC_IP" ]]; then
     print_error "No se pudo detectar la IP pública."
