@@ -29,6 +29,7 @@ echo
 # ========================================================================
 echo "🧼 (Paso 1/8) Limpiando directorios y contenedores Docker detenidos..."
 rm -rf "$TEMP_DIR"
+mkdir -p "${DEST_DIR}"
 rm -rf "${DEST_DIR}/organizations"
 mkdir -p "$TEMP_DIR"
 docker container prune -f > /dev/null 2>&1
