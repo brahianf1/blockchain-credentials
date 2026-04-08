@@ -1,0 +1,3 @@
+# Obligar a que todos los scripts de bash viajen y se guarden con formato de Linux puro (LF)
+# Esto soluciona los errores $'\r': command not found en servidores Ubuntu
+*.sh text eol=lf
