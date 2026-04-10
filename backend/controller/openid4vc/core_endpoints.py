@@ -67,9 +67,10 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
         "grants": {
             "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
                 "pre-authorized_code": pre_auth_code
+            },
+            "authorization_code": {
+                "issuer_state": session_id
             }
-            # NO incluimos authorization_code aquí para evitar confusión
-            # El session_id está disponible internamente para wallets que usen PAR
         }
     }
     
@@ -193,8 +194,16 @@ async def par_endpoint(request: Request):
         logger.info(f"   Client ID: {form_dict.get('client_id', 'Unknown')[:50]}...")
         logger.info("=" * 80)
         
-        # Buscar la sesión más reciente (fallback porque DIDRoom no envía issuer_state)
-        session = session_manager.get_most_recent_session()
+        issuer_state = form_dict.get("issuer_state")
+        session = None
+        
+        if issuer_state:
+            logger.info(f"   Issuer State: {issuer_state[:20]}...")
+            session = session_manager.get_session(issuer_state)
+            
+        if not session:
+            logger.warning("⚠️ No valid issuer_state found in PAR, falling back to most recent session")
+            session = session_manager.get_most_recent_session()
         
         if not session:
             logger.error("❌ No active sessions found")
@@ -756,6 +765,7 @@ async def credential_endpoint(
         next_c_nonce = secrets.token_urlsafe(32)
         
         response_data = {
+            "format": "jwt_vc",
             "credential": vc_jwt,
             "c_nonce": next_c_nonce,
             "c_nonce_expires_in": 86400
