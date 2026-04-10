@@ -20,3 +20,5 @@ $string['claim_credential'] = 'Reclamar Credencial';
 $string['download_pdf'] = 'Descargar PDF';
 $string['logs_heading'] = 'Registros del Sistema';
 $string['view_logs'] = 'Ver Logs de Depuración';
+$string['dashboard_no_credentials'] = 'Aún no tienes credenciales verificables.';
+$string['dashboard_has_credentials'] = 'Tienes {$a} credenciales verificables emitidas.';

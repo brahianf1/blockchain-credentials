@@ -20,3 +20,5 @@ $string['claim_credential'] = 'Claim Credential';
 $string['download_pdf'] = 'Download PDF'; // Future feature
 $string['logs_heading'] = 'System Logs';
 $string['view_logs'] = 'View Debug Logs';
+$string['dashboard_no_credentials'] = 'You do not have any verifiable credentials yet.';
+$string['dashboard_has_credentials'] = 'You have {$a} verifiable credentials issued.';

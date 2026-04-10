@@ -16,9 +16,20 @@ class block_credenciales extends block_base {
         $this->content = new stdClass;
         $this->content->text = '';
         $this->content->footer = '';
-
-        // Solo mostrar si estamos dentro de un curso (no en la página principal del sitio)
+        // Mostrar el estado global en el Dashboard (Panel de control / Portada)
         if ($COURSE->id == SITEID) {
+            $total_credentials = $DB->count_records('block_credenciales', array('userid' => $USER->id));
+            if ($total_credentials > 0) {
+                $message = get_string('dashboard_has_credentials', 'block_credenciales', $total_credentials);
+            } else {
+                $message = get_string('dashboard_no_credentials', 'block_credenciales');
+            }
+            $data = [
+                'has_credential' => false, // Set false to reuse empty state template for message
+                'message' => $message,
+                'dashboard_url' => new moodle_url('/blocks/credenciales/my_certificates.php')
+            ];
+            $this->content->text = $PAGE->get_renderer('block_credenciales')->render_credential_status($data);
             return $this->content;
         }
 
@@ -79,5 +90,15 @@ class block_credenciales extends block_base {
     // Permitir configuración de instancia (opcional, por ahora desactivado para forzar global)
     public function instance_allow_config() {
         return false;
+    }
+
+    // Definir los formatos de página donde el bloque puede ser agregado
+    public function applicable_formats() {
+        return array(
+            'all' => true,
+            'my-index' => true,      // Panel de Control (Dashboard)
+            'course-view' => true,   // Vista del Curso
+            'site-index' => true     // Portada del Sitio
+        );
     }
 }
