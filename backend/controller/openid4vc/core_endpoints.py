@@ -761,12 +761,28 @@ async def credential_endpoint(
         
         logger.info(f"✅ Credencial emitida para: {credential_data.get('student_name')}")
         
+        # Manejo adaptativo del formato según lo que pide la wallet
+        format_requested = json_data.get("format")
+        
+        if format_requested == "jwt_vc_json":
+            logger.info("📦 Formateando respuesta como jwt_vc_json (JSON Object)")
+            credential_response = vc_payload["vc"].copy()
+            credential_response["proof"] = {
+                "type": "JwtProof2020",
+                "jwt": vc_jwt
+            }
+            res_format = "jwt_vc_json"
+        else:
+            logger.info("📦 Formateando respuesta como jwt_vc (JWT String)")
+            credential_response = vc_jwt
+            res_format = "jwt_vc"
+        
         # Generar nuevo c_nonce
         next_c_nonce = secrets.token_urlsafe(32)
         
         response_data = {
-            "format": "jwt_vc",
-            "credential": vc_jwt,
+            "format": res_format,
+            "credential": credential_response,
             "c_nonce": next_c_nonce,
             "c_nonce_expires_in": 86400
         }
