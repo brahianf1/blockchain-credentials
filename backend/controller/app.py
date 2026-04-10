@@ -409,47 +409,7 @@ async def legacy_credential_endpoint(data: dict):
 
 # METADATA ENDPOINTS (fallback si no hay OpenID4VC)
 
-@app.get("/.well-known/openid-credential-issuer")
-async def root_credential_issuer_metadata():
-    """Metadata OpenID4VC en ruta raíz"""
-    issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
-
-    metadata = {
-        "credential_issuer": issuer_url,
-        "authorization_servers": [issuer_url],
-        "authorization_server": issuer_url,
-        "credential_endpoint": f"{issuer_url}/oid4vc/credential",
-        "token_endpoint": f"{issuer_url}/oid4vc/token",
-        "nonce_endpoint": f"{issuer_url}/oid4vc/nonce",
-        "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
-        "display": [{
-            "name": "Sistema de Credenciales UTN",
-            "locale": "es-AR"
-        }],
-        "credential_configurations_supported": {
-            "UniversityDegree": {
-                "format": "jwt_vc_json",
-                "scope": "UniversityDegreeScope",
-                "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
-                "credential_signing_alg_values_supported": ["ES256"],
-                "display": [{
-                    "name": "Certificado Universitario",
-                    "locale": "es-AR",
-                    "background_color": "#1976d2",
-                    "text_color": "#FFFFFF",
-                    "logo": {
-                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                        "alt_text": "Logo UTN"
-                    }
-                }]
-            }
-        }
-    }
-
-    return JSONResponse(content=metadata)
-
 # METADATA ENDPOINTS (también en raíz para compatibilidad)
-
 
 @app.get("/.well-known/oauth-authorization-server")
 async def root_oauth_metadata():
@@ -481,7 +441,7 @@ async def root_oauth_metadata():
 
 @app.get("/.well-known/openid-credential-issuer")
 async def root_credential_issuer_metadata():
-    """Metadata OpenID4VC en raíz (fallback si DIDRoom no usa /oid4vc prefix)"""
+    """Metadata OpenID4VC en raíz (usado por DIDRoom y otras wallets)"""
     logger.info("📋 [ROOT] Credential issuer metadata requested")
     
     issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
@@ -504,10 +464,29 @@ async def root_credential_issuer_metadata():
                 "scope": "UniversityDegreeScope",
                 "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
                 "credential_signing_alg_values_supported": ["ES256"],
-                "logo": {
-                    "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                    "alt_text": "Logo UTN"
-                }
+                "proof_types_supported": {
+                    "jwt": {
+                        "proof_signing_alg_values_supported": ["ES256"]
+                    }
+                },
+                "credential_definition": {
+                    "type": ["VerifiableCredential", "UniversityDegree"],
+                    "@context": [
+                        "https://www.w3.org/2018/credentials/v1",
+                        f"{issuer_url}/oid4vc/context/v1"
+                    ]
+                },
+                "display": [{
+                    "name": "Certificado Universitario",
+                    "description": "Credencial oficial que certifica la finalización de un curso en la Universidad Tecnológica Nacional.",
+                    "locale": "es-AR",
+                    "background_color": "#1976d2",
+                    "text_color": "#FFFFFF",
+                    "logo": {
+                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
+                        "alt_text": "Logo UTN"
+                    }
+                }]
             }
         }
     }
