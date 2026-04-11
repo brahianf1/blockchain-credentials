@@ -726,6 +726,7 @@ async def credential_endpoint(
             try:
                 proof_header = jwt.get_unverified_header(proof_jwt)
                 proof_payload = jwt.decode(proof_jwt, options={"verify_signature": False})
+                proof_jwk = proof_header.get("jwk")
                 
                 holder_did = extract_holder_did_from_proof(proof_jwt, proof_header, proof_payload)
                 
@@ -808,6 +809,7 @@ async def credential_endpoint(
             sdjwt_payload = {
                 "iss": ISSUER_DID,
                 "sub": holder_did,
+                "cnf": {"jwk": proof_jwk} if 'proof_jwk' in locals() and proof_jwk else {"jwk": {}},
                 "iat": now_timestamp - 5,
                 "exp": exp_timestamp,
                 "jti": f"urn:credential:{access_token[:16]}",
