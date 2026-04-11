@@ -762,6 +762,14 @@ async def credential_endpoint(
         
         # Manejo adaptativo del formato según lo que pide la wallet
         format_requested = json_data.get("format")
+        credential_identifier = json_data.get("credential_identifier")
+        
+        # OpenID4VCI Draft 13 usa credential_identifier y omite format en el request
+        if not format_requested and credential_identifier:
+            if credential_identifier == "UniversityDegree_LDP":
+                format_requested = "ldp_vc"
+            elif credential_identifier == "UniversityDegree_JWT":
+                format_requested = "jwt_vc"
         
         if format_requested in ["jwt_vc_json", "ldp_vc"]:
             logger.info(f"📦 Formateando respuesta como {format_requested} (JSON Object)")
