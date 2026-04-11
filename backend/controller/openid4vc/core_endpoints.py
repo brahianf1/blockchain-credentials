@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """
-OpenID4VC Core Endpoints - Offer, Auth, Token, Credential
-Complete implementation with session manager and PKCE support
+OpenID4VC Core Endpoints — Offer, Auth, Token, Credential
+
+Implementación completa del flujo OID4VCI con soporte dual de grants
+(pre-authorized_code y authorization_code) y multi-formato de credenciales
+(vc+sd-jwt y jwt_vc_json) vía Strategy Pattern.
+
+Las configuraciones de credenciales provienen del ``credential_registry``.
+Los formateadores de credenciales provienen de ``credential_formatters``.
 """
 
 import json
@@ -23,6 +29,12 @@ from .config import (
     PRIVATE_KEY,
     CredentialOfferRequest
 )
+from .credential_registry import get_all_config_ids
+from .credential_formatters import (
+    resolve_format,
+    format_credential,
+    build_credential_response,
+)
 from .helpers import add_security_headers, extract_holder_did_from_proof, extract_issuer_state_from_par
 
 logger = structlog.get_logger()
@@ -39,15 +51,19 @@ request_uri_to_session = {}
 
 async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Genera Credential Offer con DUAL GRANT support
-    Flujo 1: Pre-Authorized Code (WaltID)
-    Flujo 2: Authorization Code (DIDRoom)
+    Genera Credential Offer con DUAL GRANT support.
+
+    Grants incluidos:
+        • ``pre-authorized_code`` — Flujo directo, sin browser (Lissi, WaltID)
+        • ``authorization_code`` — Flujo con PAR → /authorize → HTML (DIDRoom)
+
+    Las configuraciones de credenciales provienen del ``credential_registry``.
     """
     student_id = request_data.get("student_id")
     student_email = request_data.get("student_email")
     student_name = request_data.get("student_name")
     course_name = request_data.get("course_name")
-    
+
     logger.info("📨 [DUAL-GRANT] Generando Credential Offer", student=student_name)
     
     # Crear sesión
@@ -58,31 +74,34 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
     pre_auth_code = f"pre_auth_{student_id}_{timestamp}_{hash(student_email) % 10000}"
     session_manager.link_pre_auth_code(session_id, pre_auth_code)
     
-    # Crear offer con PRE-AUTHORIZED CODE ONLY
-    # 
-    # ¿Por qué NO incluimos authorization_code?
-    # Cuando ambos grants están presentes, wallets como Lissi (wallet-framework-dotnet)
-    # PRIORIZAN authorization_code → esto abre un browser/Custom Tab para /authorize.
-    # El browser causa el loop "Processing Request..." por problemas de lifecycle
-    # del Custom Tab de Android (no se cierra correctamente al redirigir a deep links).
+    # ================================================================
+    # CREDENTIAL OFFER — Dual Grant + Multi-Format
+    # ================================================================
     #
-    # Con solo pre-authorized_code, la wallet usa AcceptOffer() que es API-only:
-    # POST /token → POST /credential → almacena → listo. Sin browser.
+    # Grants incluidos:
+    #   • pre-authorized_code — Lissi usa AcceptOffer() (API-only, sin browser)
+    #   • authorization_code  — DIDRoom usa InitiateAuthFlow() (PAR → /authorize)
     #
-    # Esto es arquitecturalmente correcto porque el usuario ya está autenticado
-    # desde Moodle, así que el authorization_code grant (consentimiento del issuer)
-    # es redundante.
+    # Config IDs: Provienen del credential_registry (fuente única de verdad).
+    # La metadata incluye credential_definition (jwt_vc_json) Y vct (sd-jwt)
+    # en la misma configuración para que cada wallet lea lo que entiende.
     #
-    # Los endpoints PAR/authorize/token siguen activos para backwards compatibility
-    # con wallets que inicien el flujo auth_code independientemente.
+    # Nota sobre Lissi y auth_code:
+    #   Cuando ambos grants están presentes, Lissi prioriza authorization_code
+    #   lo que causa un loop "Processing Request..." por un bug del Activity
+    #   lifecycle de Android en la app Lissi (la credencial sí se almacena).
+    #   Es un bug de la app Lissi, no del backend.  Se mantiene auth_code
+    #   para compatibilidad con DIDRoom.
+    # ================================================================
     offer = {
         "credential_issuer": ISSUER_URL,
-        "credential_configuration_ids": [
-            "UniversityDegree"
-        ],
+        "credential_configuration_ids": get_all_config_ids(),
         "grants": {
             "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
                 "pre-authorized_code": pre_auth_code
+            },
+            "authorization_code": {
+                "issuer_state": session_id
             }
         }
     }
@@ -116,10 +135,10 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
         "course_name": course_name,
         "timestamp": datetime.now().isoformat(),
         "expires_at": (datetime.now() + timedelta(minutes=10)).isoformat(),
-        "type": "openid4vc_pre_auth",
+        "type": "openid4vc_dual_grant",
         "session_id": session_id
     }
-    
+
     return {
         "qr_url": qr_url,
         "qr_code_base64": qr_code_base64,
@@ -131,7 +150,7 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
             "walt_id": True,
             "didroom": True,
             "lissi": True,
-            "flows_supported": ["pre-authorized"]
+            "flows_supported": ["pre-authorized", "authorization_code"]
         }
     }
 
@@ -816,8 +835,9 @@ async def token_endpoint(request: Request):
             "authorization_details": [
                 {
                     "type": "openid_credential",
-                    "credential_configuration_id": "UniversityDegree"
+                    "credential_configuration_id": config_id,
                 }
+                for config_id in get_all_config_ids()
             ]
         }
         
@@ -842,178 +862,125 @@ async def credential_endpoint(
     authorization: Optional[str] = Header(None, alias="Authorization")
 ):
     """
-    Credential Issuance Endpoint
-    Emite la credencial W3C firmada en formato JWT
+    Credential Issuance Endpoint — OID4VCI §7
+
+    Emite la credencial firmada en el formato que la wallet solicita.
+    El formato se resuelve automáticamente desde el request body de la
+    wallet (campo ``format`` o ``credential_configuration_id``) y se
+    despacha al formateador correcto via Strategy Pattern.
+
+    Formatos soportados:
+        • ``vc+sd-jwt``   — SD-JWT VC (Lissi, EUDI, Paradym)
+        • ``jwt_vc_json`` — W3C VC JWT (DIDRoom, WaltID)
     """
     logger.info("🎓 Credential endpoint llamado")
-    
+
     try:
-        # Extraer access token
+        # ─── Extraer access token del header Authorization ───
         auth_header = authorization or request.headers.get("authorization")
-        
+
         if not auth_header or " " not in auth_header:
-            raise HTTPException(status_code=401, detail={"error": "invalid_token", "error_description": "Authorization header required"})
-        
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "invalid_token", "error_description": "Authorization header required"},
+            )
+
         parts = auth_header.split(" ", 1)
         if len(parts) != 2 or parts[0].lower() != "bearer":
-            raise HTTPException(status_code=401, detail={"error": "invalid_token", "error_description": "Invalid format"})
-        
+            raise HTTPException(
+                status_code=401,
+                detail={"error": "invalid_token", "error_description": "Invalid format"},
+            )
+
         access_token = parts[1]
         logger.info(f"🔑 Token: {access_token[:20]}...")
-        
-        # Buscar sesión
+
+        # ─── Buscar sesión vinculada al token ───
         session = session_manager.get_by_access_token(access_token)
         if not session:
             logger.error("❌ Token no encontrado")
             raise HTTPException(status_code=401, detail={"error": "invalid_token"})
-        
+
         credential_data = session["credential_data"]
         logger.info(f"✅ Credential data recuperada para: {credential_data.get('student_name')}")
-        
-        # Parse JSON body para obtener proof
+
+        # ─── Parse request body ───
         try:
             json_data = await request.json()
-            logger.info(f"📄 Request body: {list(json_data.keys())}")
-        except:
+            logger.info(f"📄 Request body keys: {list(json_data.keys())}")
+        except Exception:
             json_data = {}
-        
-        # Extraer DID del holder desde proof JWT
+
+        # ─── Extraer DID del holder desde proof JWT ───
         proof = json_data.get("proof", {})
-        proof_jwt = proof.get("jwt")
+        proof_jwt_str = proof.get("jwt")
+        proof_jwk = None
         holder_did = None
-        
-        if proof_jwt:
+
+        if proof_jwt_str:
             try:
-                proof_header = jwt.get_unverified_header(proof_jwt)
-                proof_payload = jwt.decode(proof_jwt, options={"verify_signature": False})
+                proof_header = jwt.get_unverified_header(proof_jwt_str)
+                proof_payload = jwt.decode(proof_jwt_str, options={"verify_signature": False})
                 proof_jwk = proof_header.get("jwk")
-                
-                holder_did = extract_holder_did_from_proof(proof_jwt, proof_header, proof_payload)
-                
+
+                holder_did = extract_holder_did_from_proof(proof_jwt_str, proof_header, proof_payload)
+
                 if holder_did:
                     logger.info(f"✅ Holder DID: {holder_did[:60]}...")
                 else:
                     logger.error("❌ No se pudo extraer DID del holder")
-                    raise HTTPException(status_code=400, detail={"error": "invalid_request", "error_description": "Could not determine Holder DID"})
+                    raise HTTPException(
+                        status_code=400,
+                        detail={"error": "invalid_request", "error_description": "Could not determine Holder DID"},
+                    )
+            except HTTPException:
+                raise
             except Exception as e:
                 logger.error(f"❌ Error validando proof: {e}")
-                raise HTTPException(status_code=400, detail={"error": "invalid_proof", "error_description": str(e)})
+                raise HTTPException(
+                    status_code=400,
+                    detail={"error": "invalid_proof", "error_description": str(e)},
+                )
         else:
             logger.error("❌ No proof JWT provided")
-            raise HTTPException(status_code=400, detail={"error": "invalid_request", "error_description": "Proof required"})
-        
-        # Crear W3C Verifiable Credential
-        now = datetime.now()
-        now_timestamp = int(now.timestamp())
-        exp_timestamp = now_timestamp + (365 * 24 * 60 * 60)
-        
-        now_iso = datetime.fromtimestamp(now_timestamp).isoformat() + "Z"
-        exp_iso = datetime.fromtimestamp(exp_timestamp).isoformat() + "Z"
-        
-        vc_payload = {
-            "iss": ISSUER_URL,
-            "sub": holder_did,
-            "iat": now_timestamp - 5,
-            "exp": exp_timestamp,
-            "jti": f"urn:credential:{access_token[:16]}",
-            "vc": {
-                "@context": [
-                    "https://www.w3.org/2018/credentials/v1",
-                    f"{ISSUER_URL}/oid4vc/context/v1"
-                ],
-                "type": ["VerifiableCredential", "UniversityDegree"],
-                "id": f"urn:credential:{access_token[:16]}",
-                "issuer": ISSUER_URL,
-                "issuanceDate": now_iso,
-                "expirationDate": exp_iso,
-                "credentialSubject": {
-                    "id": holder_did,
-                    "student_name": credential_data.get("student_name", "Unknown"),
-                    "student_email": credential_data.get("student_email", "unknown@example.com"),
-                    "student_id": credential_data.get("student_id", "unknown"),
-                    "course_name": credential_data.get("course_name", "N/A"),
-                    "completion_date": credential_data.get("completion_date", "N/A"),
-                    "grade": credential_data.get("grade", "N/A"),
-                    "university": "UTN"
-                }
-            }
-        }
-        
-        # Firmar credencial
-        vc_jwt = jwt.encode(
-            vc_payload,
-            PRIVATE_KEY,
-            algorithm="ES256",
-            headers={"kid": f"{ISSUER_DID}#key-1"}
-        )
-        
-        logger.info(f"✅ Credencial emitida para: {credential_data.get('student_name')}")
-        
-        # MODO ESTRICTO LISSI
-        format_requested = "vc+sd-jwt"
-        
-        logger.info(f"Mapeo forzado a {format_requested} para Validación Estricta de Lissi")
-        
-        if format_requested in ["jwt_vc_json", "ldp_vc"]:
-            logger.info(f"📦 Formateando respuesta como {format_requested} (JSON Object)")
-            credential_response = vc_payload["vc"].copy()
-            credential_response["validUntil"] = exp_iso
-            credential_response["proof"] = {
-                "type": "JwtProof2020",
-                "jwt": vc_jwt
-            }
-            res_format = format_requested
-        elif format_requested == "vc+sd-jwt":
-            logger.info("📦 Formateando respuesta como vc+sd-jwt (SD-JWT String)")
-            # EUDI / Zenroom requieren Payload Plano con 'vct' y Header 'typ' = 'vc+sd-jwt'
-            sdjwt_payload = {
-                "iss": ISSUER_URL,
-                "sub": holder_did,
-                "cnf": {"jwk": proof_jwk} if 'proof_jwk' in locals() and proof_jwk else {"jwk": {}},
-                "iat": now_timestamp - 5,
-                "exp": exp_timestamp,
-                "jti": f"urn:credential:{access_token[:16]}",
-                "vct": "UniversityDegree",
-                "university": "UTN",
-                "student_name": credential_data.get("student_name", "Unknown"),
-                "student_email": credential_data.get("student_email", "unknown@example.com"),
-                "student_id": credential_data.get("student_id", "unknown"),
-                "course_name": credential_data.get("course_name", "N/A"),
-                "completion_date": credential_data.get("completion_date", "N/A"),
-                "grade": credential_data.get("grade", "N/A")
-            }
-            sd_jwt = jwt.encode(
-                sdjwt_payload,
-                PRIVATE_KEY,
-                algorithm="ES256",
-                headers={"kid": f"{ISSUER_DID}#key-1", "typ": "vc+sd-jwt"}
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "invalid_request", "error_description": "Proof required"},
             )
-            # SD-JWT base sin disclosures es el JWT normal seguido de una tilde
-            credential_response = f"{sd_jwt}~"
-            res_format = "vc+sd-jwt"
-        else:
-            logger.info("📦 Formateando respuesta como jwt_vc (JWT String)")
-            credential_response = vc_jwt
-            res_format = "jwt_vc"
-        
-        import secrets
-        response_data = {
-            "credential": credential_response,
-            "c_nonce": secrets.token_urlsafe(32),
-            "c_nonce_expires_in": 300,
-            "notification_id": f"notif_{secrets.token_urlsafe(16)}"
-        }
-        
+
+        # ─── Resolver formato y generar credencial (Strategy Pattern) ───
+        format_key = resolve_format(json_data)
+        logger.info(f"🎯 Formato resuelto: {format_key}")
+
+        credential, format_name = format_credential(
+            format_key,
+            credential_data=credential_data,
+            holder_did=holder_did,
+            proof_jwk=proof_jwk,
+            access_token=access_token,
+            private_key=PRIVATE_KEY,
+            issuer_url=ISSUER_URL,
+            issuer_did=ISSUER_DID,
+        )
+
+        logger.info(f"✅ Credencial emitida como {format_name} para: {credential_data.get('student_name')}")
+
+        # ─── Construir respuesta OID4VCI §7.3 ───
+        response_data = build_credential_response(credential, format_name)
+
         response = JSONResponse(content=response_data)
         return await add_security_headers(response)
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Error emitiendo credencial: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail={"error": "server_error", "error_description": str(e)})
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "server_error", "error_description": str(e)},
+        )
 
 # ============================================================================
 # NOTIFICATION ENDPOINT (Cierra el ciclo en wallets estrictas)

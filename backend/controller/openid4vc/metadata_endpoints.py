@@ -2,6 +2,10 @@
 """
 OpenID4VC Metadata Endpoints
 All .well-known endpoints for service discovery
+
+Toda la información de credenciales (display, claims, formatos) proviene
+del ``credential_registry`` — fuente única de verdad.  Estos endpoints
+solo se encargan de construir la respuesta HTTP con los headers correctos.
 """
 
 from fastapi import APIRouter, Request
@@ -12,6 +16,10 @@ from .config import (
     ISSUER_URL,
     ISSUER_DID,
     PUBLIC_KEY_JWK
+)
+from .credential_registry import (
+    ISSUER_DISPLAY,
+    get_configurations_for_metadata,
 )
 from .helpers import add_security_headers
 
@@ -65,11 +73,15 @@ async def oauth_authorization_server_metadata():
 @metadata_router.get("/.well-known/openid-credential-issuer")
 async def get_credential_issuer_metadata(request: Request):
     """
-    OpenID Credential Issuer Metadata
-    Modo Estricto Lissi: SD-JWT
+    OpenID Credential Issuer Metadata — OID4VCI §11.2.3
+
+    Toda la información de credenciales (display, claims, formatos)
+    proviene del ``credential_registry`` — fuente única de verdad.
+    Este endpoint solo ensambla la respuesta con la estructura
+    requerida por la especificación.
     """
-    logger.info("📋 Serving OpenID Credential Issuer Metadata (STRICT LISSI MODE)")
-    
+    logger.info("📋 Serving OpenID Credential Issuer Metadata")
+
     metadata = {
         "credential_issuer": ISSUER_URL,
         "client_name": "Universidad Tecnológica Nacional",
@@ -83,81 +95,12 @@ async def get_credential_issuer_metadata(request: Request):
         "nonce_endpoint": f"{ISSUER_URL}/oid4vc/nonce",
         "notification_endpoint": f"{ISSUER_URL}/oid4vc/notification",
         "jwks_uri": f"{ISSUER_URL}/oid4vc/.well-known/jwks.json",
-        "display": [
-            {
-                "name": "Universidad Tecnológica Nacional",
-                "locale": "es-AR"
-            },
-            {
-                "name": "National Technological University",
-                "locale": "en-US"
-            }
-        ],
-        "credential_configurations_supported": {
-            "UniversityDegree": {
-                "format": "vc+sd-jwt",
-                "scope": "UniversityDegreeScope",
-                "vct": "UniversityDegree",
-                "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
-                "credential_signing_alg_values_supported": ["ES256"],
-                "display": [
-                    {
-                        "name": "Certificado Universitario",
-                        "description": "Credencial oficial que certifica la finalización de un curso.",
-                        "locale": "es-AR",
-                        "background_color": "#1976d2",
-                        "text_color": "#FFFFFF",
-                        "logo": {
-                            "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                            "alt_text": "Logo UTN"
-                        }
-                    },
-                    {
-                        "name": "University Certificate",
-                        "description": "Official credential certifying course completion.",
-                        "locale": "en-US",
-                        "background_color": "#1976d2",
-                        "text_color": "#FFFFFF",
-                        "logo": {
-                            "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                            "alt_text": "UTN Logo"
-                        }
-                    }
-                ],
-                "claims": {
-                    "student_name": {
-                        "mandatory": True,
-                        "display": [{"name": "Nombre / Name"}]
-                    },
-                    "student_id": {
-                        "mandatory": False,
-                        "display": [{"name": "Identificación / ID"}]
-                    },
-                    "student_email": {
-                        "mandatory": False,
-                        "display": [{"name": "Correo / Email"}]
-                    },
-                    "course_name": {
-                        "mandatory": True,
-                        "display": [{"name": "Curso / Course"}]
-                    },
-                    "completion_date": {
-                        "mandatory": True,
-                        "display": [{"name": "Fecha / Date"}]
-                    },
-                    "grade": {
-                        "mandatory": False,
-                        "display": [{"name": "Calificación / Grade"}]
-                    },
-                    "university": {
-                        "mandatory": True,
-                        "display": [{"name": "Universidad / University"}]
-                    }
-                }
-            }
-        }
+        # Display del issuer — desde el registry (fuente única de verdad)
+        "display": ISSUER_DISPLAY,
+        # Configuraciones de credenciales — desde el registry
+        "credential_configurations_supported": get_configurations_for_metadata(),
     }
-    
+
     response = JSONResponse(content=metadata)
     return await add_security_headers(response)
 
