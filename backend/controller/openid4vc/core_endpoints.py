@@ -751,7 +751,7 @@ async def credential_endpoint(
         exp_iso = datetime.fromtimestamp(exp_timestamp).isoformat() + "Z"
         
         vc_payload = {
-            "iss": ISSUER_DID,
+            "iss": ISSUER_URL,
             "sub": holder_did,
             "iat": now_timestamp - 5,
             "exp": exp_timestamp,
@@ -763,7 +763,7 @@ async def credential_endpoint(
                 ],
                 "type": ["VerifiableCredential", "UniversityDegree"],
                 "id": f"urn:credential:{access_token[:16]}",
-                "issuer": ISSUER_DID,
+                "issuer": ISSUER_URL,
                 "issuanceDate": now_iso,
                 "expirationDate": exp_iso,
                 "credentialSubject": {
@@ -807,7 +807,7 @@ async def credential_endpoint(
             logger.info("📦 Formateando respuesta como vc+sd-jwt (SD-JWT String)")
             # EUDI / Zenroom requieren Payload Plano con 'vct' y Header 'typ' = 'vc+sd-jwt'
             sdjwt_payload = {
-                "iss": ISSUER_DID,
+                "iss": ISSUER_URL,
                 "sub": holder_did,
                 "cnf": {"jwk": proof_jwk} if 'proof_jwk' in locals() and proof_jwk else {"jwk": {}},
                 "iat": now_timestamp - 5,
