@@ -809,11 +809,7 @@ async def credential_endpoint(
         next_c_nonce = secrets.token_urlsafe(32)
         
         response_data = {
-            "format": res_format,
             "credential": credential_response,
-            # Polyfills para wallets como DIDRoom (Draft 11 y 12)
-            "credentials": [{"credential": credential_response, "format": res_format}],
-            "credential_responses": [{"credential": credential_response, "format": res_format}],
             "c_nonce": next_c_nonce,
             "c_nonce_expires_in": 86400
         }
