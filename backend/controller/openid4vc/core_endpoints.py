@@ -631,7 +631,13 @@ async def token_endpoint(request: Request):
             "token_type": "Bearer",
             "expires_in": 600,
             "c_nonce": c_nonce,
-            "c_nonce_expires_in": 300
+            "c_nonce_expires_in": 300,
+            "authorization_details": [
+                {
+                    "type": "openid_credential",
+                    "credential_configuration_id": "UniversityDegree"
+                }
+            ]
         }
         
         response = JSONResponse(content=response_data)
