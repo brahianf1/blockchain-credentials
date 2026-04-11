@@ -407,80 +407,40 @@ async def legacy_credential_endpoint(data: dict):
             "message": str(e)
         }
 
-# METADATA ENDPOINTS (fallback si no hay OpenID4VC)
+# ============================================================================
+# ROOT METADATA ENDPOINTS
+# ============================================================================
+# Delegación a los handlers modulares de openid4vc.metadata_endpoints.
+# Los wallets (Lissi, WaltID, DIDRoom, EUDI) acceden a /.well-known/ en la raíz
+# del dominio (RFC 8414 / OID4VCI §12.2.2), mientras que el router modular
+# monta sus endpoints bajo el prefijo /oid4vc/.  Para garantizar una Single
+# Source of Truth, estos root handlers delegan directamente a las
+# implementaciones canónicas del módulo modular.
+# ============================================================================
 
-# METADATA ENDPOINTS (también en raíz para compatibilidad)
+from openid4vc.metadata_endpoints import (
+    oauth_authorization_server_metadata as _modular_oauth_metadata,
+    get_credential_issuer_metadata as _modular_issuer_metadata,
+)
+
 
 @app.get("/.well-known/oauth-authorization-server")
 async def root_oauth_metadata():
     """
-    OAuth 2.0 Authorization Server Metadata en RAÍZ
-    Soporta AMBOS flujos: pre-authorized_code (WaltID) y authorization_code (DIDRoom)
+    OAuth 2.0 Authorization Server Metadata en RAÍZ (RFC 8414).
+    Delega al handler modular para mantener una única fuente de verdad.
     """
-    logger.info("📋 [ROOT] OAuth metadata requested - Dual flow support")
-    
-    metadata = {
-        "issuer": os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site"),
-        "authorization_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/authorize",
-        "token_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/token",
-        "jwks_uri": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/.well-known/jwks.json",
-        "pushed_authorization_request_endpoint": f"{os.getenv('ISSUER_URL', 'https://api-credenciales.utnpf.site')}/oid4vc/par",
-        "grant_types_supported": [
-            "urn:ietf:params:oauth:grant-type:pre-authorized_code",
-            "authorization_code"
-        ],
-        "token_endpoint_auth_methods_supported": ["none"],
-        "request_parameter_supported": True,
-        "request_uri_parameter_supported": True,
-        "response_types_supported": ["code"],
-        "response_modes_supported": ["query"],
-        "code_challenge_methods_supported": ["S256"]
-    }
-    
-    return JSONResponse(content=metadata)
+    return await _modular_oauth_metadata()
+
 
 @app.get("/.well-known/openid-credential-issuer")
 async def root_credential_issuer_metadata(request: Request):
-    """Metadata genérica (Modo estricto Lissi: SD-JWT)"""
-    logger.info("📋 [ROOT] Credential issuer metadata requested STRICT LISSI MODE")
-    
-    issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
-
-    metadata = {
-        "credential_issuer": issuer_url,
-        "authorization_servers": [issuer_url],
-        "authorization_server": issuer_url,
-        "credential_endpoint": f"{issuer_url}/oid4vc/credential",
-        "token_endpoint": f"{issuer_url}/oid4vc/token",
-        "nonce_endpoint": f"{issuer_url}/oid4vc/nonce",
-        "jwks_uri": f"{issuer_url}/oid4vc/.well-known/jwks.json",
-        "display": [{
-            "name": "Sistema de Credenciales UTN",
-            "locale": "es-AR"
-        }],
-        "credential_configurations_supported": {
-            "UniversityDegree": {
-                "format": "vc+sd-jwt",
-                "scope": "UniversityDegreeScope",
-                "vct": "UniversityDegree",
-                "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
-                "credential_signing_alg_values_supported": ["ES256"],
-                "display": [{
-                    "name": "Certificado U. Tecnológica",
-                    "description": "Credencial oficial que certifica la finalización de un curso.",
-                    "locale": "es-AR",
-                    "background_color": "#1976d2",
-                    "text_color": "#FFFFFF",
-                    "logo": {
-                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                        "alt_text": "Logo UTN"
-                    }
-                }]
-            }
-        }
-    }
-
-    return JSONResponse(content=metadata)
+    """
+    OpenID Credential Issuer Metadata en RAÍZ (OID4VCI §12.2.2).
+    Delega al handler modular que incluye notification_endpoint,
+    claims definitions y display multi-locale.
+    """
+    return await _modular_issuer_metadata(request)
 
 @app.get("/health")
 async def healthcheck():

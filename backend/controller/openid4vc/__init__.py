@@ -25,7 +25,7 @@ __all__ = [
     "PRIVATE_KEY",
     "PUBLIC_KEY",
     "PUBLIC_KEY_JWK",
-    "Credential OfferRequest",
+    "CredentialOfferRequest",
     "OpenIDCredentialRequest",
     "add_security_headers",
     "extract_holder_did_from_proof",

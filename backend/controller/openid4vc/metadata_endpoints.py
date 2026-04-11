@@ -196,25 +196,27 @@ async def get_credential_issuer_metadata(request: Request):
 @metadata_router.get("/.well-known/jwks.json")
 async def jwks_endpoint():
     """
-    JSON Web Key Set endpoint - requerido para validación de certificados SSL
-    Compatible con Lissi Wallet y estándares de seguridad Android
+    JSON Web Key Set (JWKS) endpoint — RFC 7517
+
+    Sirve la clave pública real ES256 usada para firmar las credenciales,
+    permitiendo que los wallets y verificadores validen las firmas JWT
+    criptográficamente.  El ``kid`` coincide con el usado en los headers
+    de firma de credenciales (ISSUER_DID#key-1) para que la resolución
+    de claves funcione correctamente en wallets como Lissi, WaltID, EUDI, etc.
     """
-    logger.info("🔑 Serving JWKS")
-    
+    logger.info("🔑 Serving JWKS (real issuer public key)")
+
     jwks = {
         "keys": [
             {
-                "kty": "EC",
+                **PUBLIC_KEY_JWK,
                 "use": "sig",
-                "crv": "P-256",
-                "kid": "utnpf-ssl-key-2025",
-                "x": "t7eP9kR5F3gN2vQ8mL6yE2nF7K9aZ3QhM2nF7vE8wL6",
-                "y": "vN4xShRANCAATt7eP9kR5F3gN2vQ8mL6yE2nF7K9aZ3",
-                "alg": "ES256"
+                "kid": f"{ISSUER_DID}#key-1",
+                "alg": "ES256",
             }
         ]
     }
-    
+
     response = JSONResponse(content=jwks)
     return await add_security_headers(response)
 
