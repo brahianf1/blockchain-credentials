@@ -112,18 +112,7 @@ async def credential_issuer_metadata():
                     }
                 }]
             },
-                "display": [{
-                    "name": "Certificado U. (WaltID)",
-                    "description": "Credencial oficial que certifica la finalización de un curso (formato JWT).",
-                    "locale": "es-AR",
-                    "background_color": "#1976d2",
-                    "text_color": "#FFFFFF",
-                    "logo": {
-                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                        "alt_text": "Logo UTN"
-                    }
-                }]
-            },
+
             "UniversityDegree_SDJWT": {
                 "format": "vc+sd-jwt",
                 "scope": "UniversityDegreeScope",
