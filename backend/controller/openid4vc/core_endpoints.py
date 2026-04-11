@@ -807,13 +807,8 @@ async def credential_endpoint(
             credential_response = vc_jwt
             res_format = "jwt_vc"
         
-        # Generar nuevo c_nonce
-        next_c_nonce = secrets.token_urlsafe(32)
-        
         response_data = {
-            "credential": credential_response,
-            "c_nonce": next_c_nonce,
-            "c_nonce_expires_in": 86400
+            "credential": credential_response
         }
         
         response = JSONResponse(content=response_data)
