@@ -19,6 +19,8 @@ from .config import (
 )
 from .credential_registry import (
     ISSUER_DISPLAY,
+    UNIVERSITY_DEGREE_CLAIMS,
+    UNIVERSITY_DEGREE_DISPLAY,
     get_configurations_for_metadata,
 )
 from .helpers import add_security_headers
@@ -98,7 +100,7 @@ async def get_credential_issuer_metadata(request: Request):
         # Display del issuer — desde el registry (fuente única de verdad)
         "display": ISSUER_DISPLAY,
         # Configuraciones de credenciales — desde el registry
-        "credential_configurations_supported": get_configurations_for_metadata(),
+        "credential_configurations_supported": get_configurations_for_metadata(ISSUER_URL),
     }
 
     response = JSONResponse(content=metadata)
@@ -133,6 +135,41 @@ async def jwks_endpoint():
     }
 
     response = JSONResponse(content=jwks)
+    return await add_security_headers(response)
+
+# ============================================================================
+# VCT METADATA ENDPOINT (IETF SD-JWT VC §6.3)
+# ============================================================================
+
+@metadata_router.get("/vct/{vct_id}")
+async def vct_metadata_endpoint(vct_id: str):
+    """
+    Verifiable Credential Type Metadata endpoint — IETF SD-JWT VC §6.3
+
+    Sirve metadata del tipo de credencial cuando una wallet derreferencia
+    la URL del ``vct``.  WaltID llama a ``resolveVctUrl?vct=<url>`` y espera
+    un JSON con nombre, descripción, claims y display del tipo.
+
+    Referencia: draft-ietf-oauth-sd-jwt-vc §6.3 — Type Metadata
+    """
+    logger.info(f"📋 Serving VCT metadata for: {vct_id}")
+
+    # Por ahora solo soportamos UniversityDegree; extensible vía registry
+    if vct_id != "UniversityDegree":
+        return JSONResponse(
+            status_code=404,
+            content={"error": "vct_not_found", "vct": vct_id},
+        )
+
+    vct_metadata = {
+        "vct": f"{ISSUER_URL}/oid4vc/vct/{vct_id}",
+        "name": "University Certificate",
+        "description": "Official credential certifying course completion at UTN.",
+        "claims": UNIVERSITY_DEGREE_CLAIMS,
+        "display": UNIVERSITY_DEGREE_DISPLAY,
+    }
+
+    response = JSONResponse(content=vct_metadata)
     return await add_security_headers(response)
 
 # ============================================================================

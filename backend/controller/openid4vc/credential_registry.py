@@ -175,7 +175,9 @@ def get_config(config_id: str) -> dict[str, Any] | None:
     return CREDENTIAL_CONFIGURATIONS.get(config_id)
 
 
-def get_configurations_for_metadata() -> dict[str, dict[str, Any]]:
+def get_configurations_for_metadata(
+    issuer_url: str = "",
+) -> dict[str, dict[str, Any]]:
     """
     Retorna ``credential_configurations_supported`` spec-compliant.
 
@@ -187,13 +189,14 @@ def get_configurations_for_metadata() -> dict[str, dict[str, Any]]:
             ``credentialSubject`` como ``Map<String, ClaimDescriptor>``
             para W3C VCs, mientras que ``claims`` es
             ``Map<String, Map<String, ClaimDescriptor>>`` para mDL/mdoc)
+          - Convierte ``vct`` a URL resoluble (IETF SD-JWT VC §6.3)
+            para que WaltID pueda dereferenciar el tipo de credencial.
 
         • ``jwt_vc_json``:
           - Elimina ``vct`` y ``claims`` (campos de vc+sd-jwt)
 
-    Esto evita el error de WaltID ``JsonLiteral is not a JsonObject``
-    causado por intentar parsear un ``ClaimDescriptor`` de 1 nivel
-    como un mapa namespaceDO de 2 niveles.
+    Args:
+        issuer_url: URL base del issuer para construir VCT URLs.
     """
     # Campos a ELIMINAR según formato (OID4VCI §A)
     _FIELDS_TO_REMOVE: dict[str, frozenset[str]] = {
@@ -211,13 +214,17 @@ def get_configurations_for_metadata() -> dict[str, dict[str, Any]]:
             if k not in fields_to_remove
         }
 
-        # Para vc+sd-jwt y jwt_vc_json (W3C VC): servir claims como
-        # ``credentialSubject`` que es el campo que WaltID parsea como
-        # Map<String, ClaimDescriptor> (1 nivel, correcto para nuestro caso).
+        # Para W3C VC: servir claims como ``credentialSubject``
         if fmt in ("vc+sd-jwt", "jwt_vc_json"):
             claims = config.get("claims")
             if claims and "credentialSubject" not in cleaned:
                 cleaned["credentialSubject"] = claims
+
+        # Para vc+sd-jwt: ``vct`` debe ser una URL resoluble.
+        # WaltID dereference vct para obtener type metadata (SD-JWT VC §6.3).
+        if fmt == "vc+sd-jwt" and issuer_url and "vct" in cleaned:
+            vct_id = cleaned["vct"]
+            cleaned["vct"] = f"{issuer_url}/oid4vc/vct/{vct_id}"
 
         result[config_id] = cleaned
     return result
