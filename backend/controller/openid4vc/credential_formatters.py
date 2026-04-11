@@ -302,31 +302,51 @@ def format_credential(
 def build_credential_response(
     credential: Any,
     format_name: str,
+    legacy_credential: Any = None,
+    legacy_format: str | None = None,
 ) -> dict[str, Any]:
     """
     Construye el objeto de respuesta completo del credential endpoint.
 
-    Según OID4VCI §7.3, la respuesta incluye la credencial, un
-    ``c_nonce`` fresco y opcionalmente un ``notification_id``.
+    La respuesta incluye la credencial en AMBOS formatos para máxima
+    compatibilidad:
+
+        • Campo singular ``credential`` → Draft 13+ (Lissi lee aquí)
+        • Arrays ``credentials[0]`` / ``credential_responses[0]``
+          → Draft 11/12 (DIDRoom lee aquí)
+
+    Si se proporciona ``legacy_credential``, se coloca PRIMERO en los
+    arrays legacy (``[0]``).  DIDRoom siempre lee ``[0]`` sin buscar
+    en más posiciones.
 
     Args:
-        credential: La credencial formateada (string o dict).
-        format_name: Nombre del formato usado.
+        credential: Credencial primaria (para campo singular).
+        format_name: Formato de la credencial primaria.
+        legacy_credential: Credencial alternativa para arrays legacy.
+        legacy_format: Formato de la credencial legacy.
 
     Returns:
         Diccionario listo para serializar como JSON response.
     """
-    credential_entry = {"credential": credential, "format": format_name}
+    # Entrada primaria (siempre presente en ambos lugares)
+    primary_entry = {"credential": credential, "format": format_name}
+
+    # Si hay credencial legacy (otro formato), va PRIMERO en los arrays
+    if legacy_credential is not None and legacy_format is not None:
+        legacy_entry = {"credential": legacy_credential, "format": legacy_format}
+        array_entries = [legacy_entry, primary_entry]
+    else:
+        array_entries = [primary_entry]
 
     return {
-        # Draft 13+ (OID4VCI 1.0) — Campo singular
+        # Draft 13+ (OID4VCI 1.0) — Campo singular (Lissi lee aquí)
         "format": format_name,
         "credential": credential,
-        # Polyfills Draft 11/12 — Arrays legacy para wallets como DIDRoom
-        # que parsean credential_responses[0] o credentials[0] en lugar
-        # del campo singular "credential".
-        "credentials": [credential_entry],
-        "credential_responses": [credential_entry],
+        # Draft 11/12 — Arrays legacy (DIDRoom lee [0])
+        # jwt_vc_json va PRIMERO para que DIDRoom encuentre el JSON object
+        # con credentialSubject en [0].
+        "credentials": array_entries,
+        "credential_responses": array_entries,
         # Nonce y notificación
         "c_nonce": secrets.token_urlsafe(32),
         "c_nonce_expires_in": 300,

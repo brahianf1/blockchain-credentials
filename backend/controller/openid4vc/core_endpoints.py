@@ -948,12 +948,14 @@ async def credential_endpoint(
                 detail={"error": "invalid_request", "error_description": "Proof required"},
             )
 
-        # ─── Resolver formato y generar credencial (Strategy Pattern) ───
-        format_key = resolve_format(json_data)
-        logger.info(f"🎯 Formato resuelto: {format_key}")
-
-        credential, format_name = format_credential(
-            format_key,
+        # ─── Generar credenciales en AMBOS formatos ───
+        # Cada wallet lee de un lugar diferente de la respuesta:
+        #   • Lissi (Draft 13)   → campo singular "credential" → vc+sd-jwt
+        #   • DIDRoom (Draft 11) → arrays "credentials[0]"    → jwt_vc_json
+        #
+        # Generamos ambos y los ubicamos donde cada wallet los busca.
+        # Sin heurísticas, sin detección — cada wallet siempre recibe su formato.
+        formatter_kwargs = dict(
             credential_data=credential_data,
             holder_did=holder_did,
             proof_jwk=proof_jwk,
@@ -963,10 +965,22 @@ async def credential_endpoint(
             issuer_did=ISSUER_DID,
         )
 
-        logger.info(f"✅ Credencial emitida como {format_name} para: {credential_data.get('student_name')}")
+        # Primario: vc+sd-jwt (campo singular, Lissi)
+        credential, format_name = format_credential("vc+sd-jwt", **formatter_kwargs)
+        # Legacy: jwt_vc_json (arrays[0], DIDRoom)
+        legacy_cred, legacy_fmt = format_credential("jwt_vc_json", **formatter_kwargs)
 
-        # ─── Construir respuesta OID4VCI §7.3 ───
-        response_data = build_credential_response(credential, format_name)
+        logger.info(
+            f"✅ Credencial emitida para: {credential_data.get('student_name')} "
+            f"| Primario: {format_name} | Legacy[0]: {legacy_fmt}"
+        )
+
+        # ─── Construir respuesta multi-formato ───
+        response_data = build_credential_response(
+            credential, format_name,
+            legacy_credential=legacy_cred,
+            legacy_format=legacy_fmt,
+        )
 
         response = JSONResponse(content=response_data)
         return await add_security_headers(response)
