@@ -64,7 +64,6 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
     offer = {
         "credential_issuer": ISSUER_URL,
         "credential_configuration_ids": [
-            "UniversityDegree_LDP",
             "UniversityDegree_SDJWT",
             "UniversityDegree_JWT"
         ],
@@ -777,9 +776,7 @@ async def credential_endpoint(
         if format_requested in ["jwt_vc_json", "ldp_vc"]:
             logger.info(f"📦 Formateando respuesta como {format_requested} (JSON Object)")
             credential_response = vc_payload["vc"].copy()
-            # Añadimos validUntil para compatibilidad con la lectura de DIDRoom de ldp_vc
             credential_response["validUntil"] = exp_iso
-            # La prueba (proof) es requerida para ldp_vc. Por ahora pasamos el JWT firmado como prueba.
             credential_response["proof"] = {
                 "type": "JwtProof2020",
                 "jwt": vc_jwt
@@ -787,8 +784,30 @@ async def credential_endpoint(
             res_format = format_requested
         elif format_requested == "vc+sd-jwt":
             logger.info("📦 Formateando respuesta como vc+sd-jwt (SD-JWT String)")
+            # EUDI / Zenroom requieren Payload Plano con 'vct' y Header 'typ' = 'vc+sd-jwt'
+            sdjwt_payload = {
+                "iss": ISSUER_DID,
+                "sub": holder_did,
+                "iat": now_timestamp - 5,
+                "exp": exp_timestamp,
+                "jti": f"urn:credential:{access_token[:16]}",
+                "vct": "UniversityDegree",
+                "university": "UTN",
+                "student_name": credential_data.get("student_name", "Unknown"),
+                "student_email": credential_data.get("student_email", "unknown@example.com"),
+                "student_id": credential_data.get("student_id", "unknown"),
+                "course_name": credential_data.get("course_name", "N/A"),
+                "completion_date": credential_data.get("completion_date", "N/A"),
+                "grade": credential_data.get("grade", "N/A")
+            }
+            sd_jwt = jwt.encode(
+                sdjwt_payload,
+                PRIVATE_KEY,
+                algorithm="ES256",
+                headers={"kid": f"{ISSUER_DID}#key-1", "typ": "vc+sd-jwt"}
+            )
             # SD-JWT base sin disclosures es el JWT normal seguido de una tilde
-            credential_response = f"{vc_jwt}~"
+            credential_response = f"{sd_jwt}~"
             res_format = "vc+sd-jwt"
         else:
             logger.info("📦 Formateando respuesta como jwt_vc (JWT String)")
