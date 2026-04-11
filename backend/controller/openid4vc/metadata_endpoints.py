@@ -141,16 +141,19 @@ async def jwks_endpoint():
 # VCT METADATA ENDPOINT (IETF SD-JWT VC §6.3)
 # ============================================================================
 
-@metadata_router.get("/vct/{vct_id}")
+@metadata_router.get("/.well-known/vct/{vct_id}")
 async def vct_metadata_endpoint(vct_id: str):
     """
-    Verifiable Credential Type Metadata endpoint — IETF SD-JWT VC §6.3
+    Verifiable Credential Type Metadata — IETF SD-JWT VC §6.3
 
-    Sirve metadata del tipo de credencial cuando una wallet derreferencia
-    la URL del ``vct``.  WaltID llama a ``resolveVctUrl?vct=<url>`` y espera
-    un JSON con nombre, descripción, claims y display del tipo.
+    WaltID deriva la URL well-known a partir del ``vct``::
 
-    Referencia: draft-ietf-oauth-sd-jwt-vc §6.3 — Type Metadata
+        vct = https://api-credenciales.utnpf.site/UniversityDegree
+        ↓  insertar /.well-known/vct después del authority
+        GET /.well-known/vct/UniversityDegree
+
+    Este endpoint sirve la metadata del tipo de credencial con nombre,
+    descripción, claims y display.  Datos desde el ``credential_registry``.
     """
     logger.info(f"📋 Serving VCT metadata for: {vct_id}")
 
@@ -162,7 +165,7 @@ async def vct_metadata_endpoint(vct_id: str):
         )
 
     vct_metadata = {
-        "vct": f"{ISSUER_URL}/oid4vc/vct/{vct_id}",
+        "vct": f"{ISSUER_URL}/{vct_id}",
         "name": "University Certificate",
         "description": "Official credential certifying course completion at UTN.",
         "claims": UNIVERSITY_DEGREE_CLAIMS,
