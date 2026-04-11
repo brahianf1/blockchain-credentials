@@ -64,8 +64,8 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
     offer = {
         "credential_issuer": ISSUER_URL,
         "credential_configuration_ids": [
-            "UniversityDegree_SDJWT",
-            "UniversityDegree_JWT"
+            "UniversityDegree_LDP",
+            "UniversityDegree_SDJWT"
         ],
         "grants": {
             "urn:ietf:params:oauth:grant-type:pre-authorized_code": {

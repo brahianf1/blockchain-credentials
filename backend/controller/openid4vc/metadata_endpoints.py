@@ -113,6 +113,27 @@ async def credential_issuer_metadata():
                 }]
             },
 
+            "UniversityDegree_LDP": {
+                "format": "ldp_vc",
+                "credential_definition": {
+                    "@context": [
+                        "https://www.w3.org/2018/credentials/v1",
+                        f"{ISSUER_URL}/oid4vc/context/v1"
+                    ],
+                    "type": ["VerifiableCredential", "UniversityDegree"]
+                },
+                "display": [{
+                    "name": "Certificado U. (DIDRoom)",
+                    "description": "Credencial oficial que certifica la finalización de un curso (formato LDP).",
+                    "locale": "es-AR",
+                    "background_color": "#1976d2",
+                    "text_color": "#FFFFFF",
+                    "logo": {
+                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
+                        "alt_text": "Logo UTN"
+                    }
+                }]
+            },
             "UniversityDegree_SDJWT": {
                 "format": "vc+sd-jwt",
                 "scope": "UniversityDegreeScope",
