@@ -416,13 +416,39 @@ async def authorize_endpoint(
         # Devolver HTML con botón de consentimiento
         logger.info(f"↩️ URL de redirect preparado: {redirect_url}")
         
-        # ⚡ REDIRECCIÓN 302 INSTANTÁNEA (Evita colgar el Custom Tab en Lissi Wallet)
+        # ⚡ DETECCIÓN INTELIGENTE DE WALLET NATIVA
+        # Las wallets nativas (Lissi, Sphereon, etc.) registran custom URI schemes
+        # como deep links (ej: "id.lissi.mobile://", "openid4vci://"). Cuando
+        # Android abre un Custom Tab para /authorize, necesita un 302 directo
+        # para que el Intent del redirect_uri cierre correctamente el Custom Tab
+        # y devuelva el control a la Activity de la wallet.
+        # Mostrar un HTML intermedio con <form> rompe este ciclo porque el POST
+        # del form mantiene el Custom Tab como actividad en primer plano, causando
+        # el loop "Processing Request...".
+        # Las wallets web (DIDRoom, etc.) usan redirect_uri HTTP y SÍ necesitan
+        # ver el HTML porque ejecutan el flujo dentro de un webview/iframe.
         import os
-        # Modificado a false por defecto a petición tuya para que se vea la pantalla
-        if os.getenv("BYPASS_CONSENT_SCREEN", "false").lower() == "true":
-            logger.info("⚡ Realizando auto-redirect 302 directo a la wallet (BYPASS_CONSENT_SCREEN)")
-            from fastapi.responses import RedirectResponse
+        from urllib.parse import urlparse
+        
+        bypass_env = os.getenv("BYPASS_CONSENT_SCREEN", "auto").lower()
+        
+        if bypass_env == "true":
+            # Override explícito: siempre redirigir sin pantalla de consentimiento
+            logger.info("⚡ Realizando auto-redirect 302 directo (BYPASS_CONSENT_SCREEN=true)")
             return RedirectResponse(url=redirect_url, status_code=302)
+        
+        if bypass_env == "false":
+            # Override explícito: siempre mostrar pantalla de consentimiento
+            logger.info("📄 Mostrando pantalla de consentimiento (BYPASS_CONSENT_SCREEN=false)")
+        elif bypass_env == "auto" and redirect_uri:
+            # Detección automática: redirect_uri con custom scheme → wallet nativa
+            parsed_redirect = urlparse(redirect_uri)
+            is_native_wallet = parsed_redirect.scheme not in ("http", "https", "")
+            
+            if is_native_wallet:
+                logger.info(f"⚡ Wallet nativa detectada (scheme: {parsed_redirect.scheme}). "
+                            f"Realizando auto-redirect 302 directo.")
+                return RedirectResponse(url=redirect_url, status_code=302)
             
         student_name = session['credential_data'].get('student_name', 'Usuario')
         course_name = session['credential_data'].get('course_name', 'Curso')
