@@ -247,6 +247,24 @@ async def par_endpoint(request: Request):
         return JSONResponse(content=error_response, status_code=500)
 
 # ============================================================================
+# AUTHORIZE CONFIRM ENDPOINT (Para HTML Browser fallback)
+# ============================================================================
+
+from fastapi import Form
+from fastapi.responses import RedirectResponse
+
+@core_router.post("/authorize/confirm")
+async def authorize_confirm_endpoint(redirect_url: str = Form(...)):
+    """
+    Transmisión de consentimiento puenteada por backend.
+    Fuerza una redirección 302 para que el OS de Android reciba
+    el URI scheme directamente del protocolo HTTP, resolviendo 
+    conflictos de ventanas de navegación (Custom Tabs / Browsers externos).
+    """
+    logger.info(f"⚡ [HTML Consent] Recibido click del usuario. Ejecutando Redirect 302 Nativo -> {redirect_url[:80]}...")
+    return RedirectResponse(url=redirect_url, status_code=302)
+
+# ============================================================================
 # AUTHORIZE ENDPOINT
 # ============================================================================
 
@@ -516,9 +534,12 @@ async def authorize_endpoint(
                     </div>
                 </div>
                 
-                <a href="{redirect_url}" class="btn" style="display: block; text-decoration: none; padding-top: 16px; padding-bottom: 16px;">
-                    ✓ Aceptar y Recibir Credencial
-                </a>
+                <form action="/oid4vc/authorize/confirm" method="POST">
+                    <input type="hidden" name="redirect_url" value="{redirect_url}">
+                    <button type="submit" class="btn" style="width: 100%; display: block;">
+                        ✓ Aceptar y Recibir Credencial
+                    </button>
+                </form>
                 
                 <p class="info-text">
                     Al aceptar, recibirás una credencial verificable en tu wallet digital.
