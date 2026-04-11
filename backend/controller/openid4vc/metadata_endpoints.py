@@ -83,10 +83,15 @@ async def get_credential_issuer_metadata(request: Request):
         "nonce_endpoint": f"{ISSUER_URL}/oid4vc/nonce",
         "notification_endpoint": f"{ISSUER_URL}/oid4vc/notification",
         "jwks_uri": f"{ISSUER_URL}/oid4vc/.well-known/jwks.json",
-        "display": [{
-            "name": "Sistema de Credenciales UTN",
-            "locale": "es-AR"
-        }],
+        "display": [
+            {
+                "name": "Universidad Tecnológica Nacional",
+                "locale": "es-AR"
+            },
+            {
+                "name": "Universidad Tecnológica Nacional"
+            }
+        ],
         "credential_configurations_supported": {
             "UniversityDegree": {
                 "format": "vc+sd-jwt",
@@ -94,17 +99,59 @@ async def get_credential_issuer_metadata(request: Request):
                 "vct": "UniversityDegree",
                 "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
                 "credential_signing_alg_values_supported": ["ES256"],
-                "display": [{
-                    "name": "Certificado U. Tecnológica",
-                    "description": "Credencial oficial que certifica la finalización de un curso.",
-                    "locale": "es-AR",
-                    "background_color": "#1976d2",
-                    "text_color": "#FFFFFF",
-                    "logo": {
-                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                        "alt_text": "Logo UTN"
+                "display": [
+                    {
+                        "name": "Certificado Universitario",
+                        "description": "Credencial oficial que certifica la finalización de un curso.",
+                        "locale": "es-AR",
+                        "background_color": "#1976d2",
+                        "text_color": "#FFFFFF",
+                        "logo": {
+                            "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
+                            "alt_text": "Logo UTN"
+                        }
+                    },
+                    {
+                        "name": "University Certificate",
+                        "description": "Official credential certifying course completion.",
+                        "background_color": "#1976d2",
+                        "text_color": "#FFFFFF",
+                        "logo": {
+                            "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
+                            "alt_text": "UTN Logo"
+                        }
                     }
-                }]
+                ],
+                "claims": {
+                    "student_name": {
+                        "mandatory": True,
+                        "display": [{"name": "Nombre / Name"}]
+                    },
+                    "student_id": {
+                        "mandatory": False,
+                        "display": [{"name": "Identificación / ID"}]
+                    },
+                    "student_email": {
+                        "mandatory": False,
+                        "display": [{"name": "Correo / Email"}]
+                    },
+                    "course_name": {
+                        "mandatory": True,
+                        "display": [{"name": "Curso / Course"}]
+                    },
+                    "completion_date": {
+                        "mandatory": True,
+                        "display": [{"name": "Fecha / Date"}]
+                    },
+                    "grade": {
+                        "mandatory": False,
+                        "display": [{"name": "Calificación / Grade"}]
+                    },
+                    "university": {
+                        "mandatory": True,
+                        "display": [{"name": "Universidad / University"}]
+                    }
+                }
             }
         }
     }
