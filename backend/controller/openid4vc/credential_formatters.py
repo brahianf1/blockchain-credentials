@@ -108,16 +108,33 @@ def format_jwt_vc_json(
     private_key: Any,
     issuer_url: str,
     issuer_did: str,
-) -> tuple[str, str]:
+) -> tuple[dict[str, Any], str]:
     """
     Genera una credencial en formato ``jwt_vc_json`` (W3C VC Data Model 1.1).
 
-    El resultado es un JWT firmado que contiene un claim ``vc`` con la
-    estructura completa de W3C Verifiable Credential, incluyendo
-    ``@context``, ``type``, ``credentialSubject``, etc.
+    DIDRoom almacena internamente las credenciales como objetos ``LdpVc``
+    (ver ``ForkbombEu/wallet/.../credentials.ts``), lo que significa que
+    espera un **JSON object** con ``credentialSubject`` en el top-level,
+    NO un JWT string.
+
+    El JWT se genera igualmente para integridad criptográfica y se incluye
+    dentro del campo ``proof`` del objeto VC, siguiendo la convención
+    ``JwtProof2020``.
+
+    Estructura retornada (compatible con ``LdpVc`` de DIDRoom)::
+
+        {
+            "@context": [...],
+            "type": ["VerifiableCredential", "UniversityDegree"],
+            "credentialSubject": { claims... },
+            "issuer": "...",
+            "issuanceDate": "...",
+            "validUntil": "...",
+            "proof": { "type": "JwtProof2020", "jwt": "eyJ..." }
+        }
 
     Returns:
-        Tupla ``(credential_jwt_string, format_name)``.
+        Tupla ``(credential_object, format_name)``.
     """
     now_ts = int(datetime.now().timestamp())
     exp_ts = now_ts + _CREDENTIAL_VALIDITY_SECONDS
@@ -125,44 +142,54 @@ def format_jwt_vc_json(
     now_iso = datetime.fromtimestamp(now_ts).isoformat() + "Z"
     exp_iso = datetime.fromtimestamp(exp_ts).isoformat() + "Z"
 
-    payload = {
+    # El objeto VC completo (W3C Verifiable Credential Data Model 1.1)
+    vc_object = {
+        "@context": [
+            "https://www.w3.org/2018/credentials/v1",
+            f"{issuer_url}/oid4vc/context/v1",
+        ],
+        "type": ["VerifiableCredential", "UniversityDegree"],
+        "id": f"urn:credential:{access_token[:16]}",
+        "issuer": issuer_url,
+        "issuanceDate": now_iso,
+        "validUntil": exp_iso,
+        "credentialSubject": {
+            "id": holder_did,
+            "student_name": credential_data.get("student_name", "Unknown"),
+            "student_email": credential_data.get("student_email", "unknown@example.com"),
+            "student_id": credential_data.get("student_id", "unknown"),
+            "course_name": credential_data.get("course_name", "N/A"),
+            "completion_date": credential_data.get("completion_date", "N/A"),
+            "grade": credential_data.get("grade", "N/A"),
+            "university": "UTN",
+        },
+    }
+
+    # JWT para integridad criptográfica
+    jwt_payload = {
         "iss": issuer_url,
         "sub": holder_did,
         "iat": now_ts - 5,
         "exp": exp_ts,
         "jti": f"urn:credential:{access_token[:16]}",
-        "vc": {
-            "@context": [
-                "https://www.w3.org/2018/credentials/v1",
-                f"{issuer_url}/oid4vc/context/v1",
-            ],
-            "type": ["VerifiableCredential", "UniversityDegree"],
-            "id": f"urn:credential:{access_token[:16]}",
-            "issuer": issuer_url,
-            "issuanceDate": now_iso,
-            "expirationDate": exp_iso,
-            "credentialSubject": {
-                "id": holder_did,
-                "student_name": credential_data.get("student_name", "Unknown"),
-                "student_email": credential_data.get("student_email", "unknown@example.com"),
-                "student_id": credential_data.get("student_id", "unknown"),
-                "course_name": credential_data.get("course_name", "N/A"),
-                "completion_date": credential_data.get("completion_date", "N/A"),
-                "grade": credential_data.get("grade", "N/A"),
-                "university": "UTN",
-            },
-        },
+        "vc": vc_object,
     }
 
-    credential = jwt.encode(
-        payload,
+    vc_jwt = jwt.encode(
+        jwt_payload,
         private_key,
         algorithm="ES256",
         headers={"kid": f"{issuer_did}#key-1"},
     )
 
-    logger.info("📦 Credencial formateada como jwt_vc_json")
-    return credential, "jwt_vc_json"
+    # Agregar proof JWT al objeto VC (DIDRoom lee esto como LdpVc.proof)
+    vc_object["proof"] = {
+        "type": "JwtProof2020",
+        "jwt": vc_jwt,
+    }
+
+    logger.info("📦 Credencial formateada como jwt_vc_json (JSON object con proof)")
+    return vc_object, "jwt_vc_json"
 
 
 # ============================================================================
