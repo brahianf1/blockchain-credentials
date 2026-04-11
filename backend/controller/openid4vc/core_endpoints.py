@@ -64,8 +64,7 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
     offer = {
         "credential_issuer": ISSUER_URL,
         "credential_configuration_ids": [
-            "UniversityDegree_LDP",
-            "UniversityDegree_SDJWT"
+            "UniversityDegree"
         ],
         "grants": {
             "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
@@ -760,28 +759,10 @@ async def credential_endpoint(
         
         logger.info(f"✅ Credencial emitida para: {credential_data.get('student_name')}")
         
-        # Manejo adaptativo del formato según lo que pide la wallet y su User-Agent
-        format_requested = json_data.get("format")
-        credential_identifier = json_data.get("credential_identifier")
+        # MODO ESTRICTO LISSI
+        format_requested = "vc+sd-jwt"
         
-        user_agent = request.headers.get("user-agent", "").lower()
-        is_lissi = "lissi" in user_agent or "ktor" in user_agent
-        
-        # Mapeo dinámico por multiplexión de User-Agent
-        if credential_identifier == "UniversityDegree":
-            if is_lissi:
-                format_requested = "vc+sd-jwt"
-            else:
-                format_requested = "ldp_vc"
-        
-        # Fallbacks (si siguen usando los anteriores por alguna razón)
-        if not format_requested and credential_identifier:
-            if credential_identifier == "UniversityDegree_LDP":
-                format_requested = "ldp_vc"
-            elif credential_identifier == "UniversityDegree_JWT":
-                format_requested = "jwt_vc_json"
-            elif credential_identifier == "UniversityDegree_SDJWT":
-                format_requested = "vc+sd-jwt"
+        logger.info(f"Mapeo forzado a {format_requested} para Validación Estricta de Lissi")
         
         if format_requested in ["jwt_vc_json", "ldp_vc"]:
             logger.info(f"📦 Formateando respuesta como {format_requested} (JSON Object)")

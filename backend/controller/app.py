@@ -441,11 +441,8 @@ async def root_oauth_metadata():
 
 @app.get("/.well-known/openid-credential-issuer")
 async def root_credential_issuer_metadata(request: Request):
-    """Metadata OpenID4VC en raíz con multiplexión por User-Agent para sortear bugs de wallets"""
-    user_agent = request.headers.get("user-agent", "").lower()
-    is_lissi = "lissi" in user_agent or "ktor" in user_agent
-    
-    logger.info(f"📋 [ROOT] Credential issuer metadata requested by: {user_agent}")
+    """Metadata genérica (Modo estricto Lissi: SD-JWT)"""
+    logger.info("📋 [ROOT] Credential issuer metadata requested STRICT LISSI MODE")
     
     issuer_url = os.getenv("ISSUER_URL", "https://api-credenciales.utnpf.site")
 
@@ -462,16 +459,12 @@ async def root_credential_issuer_metadata(request: Request):
             "locale": "es-AR"
         }],
         "credential_configurations_supported": {
-
             "UniversityDegree": {
+                "format": "vc+sd-jwt",
                 "scope": "UniversityDegreeScope",
+                "vct": "UniversityDegree",
                 "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
                 "credential_signing_alg_values_supported": ["ES256"],
-                "proof_types_supported": {
-                    "jwt": {
-                        "proof_signing_alg_values_supported": ["ES256"]
-                    }
-                },
                 "display": [{
                     "name": "Certificado U. Tecnológica",
                     "description": "Credencial oficial que certifica la finalización de un curso.",
@@ -486,19 +479,6 @@ async def root_credential_issuer_metadata(request: Request):
             }
         }
     }
-
-    # Inyectar formato dependiendo si la wallet soporta LDP o explota (Lissi)
-    if is_lissi:
-        metadata["credential_configurations_supported"]["UniversityDegree"]["format"] = "vc+sd-jwt"
-        metadata["credential_configurations_supported"]["UniversityDegree"]["vct"] = "UniversityDegree"
-        # Remover attributes incompatibles
-        metadata["credential_configurations_supported"]["UniversityDegree"].pop("proof_types_supported", None)
-    else:
-        metadata["credential_configurations_supported"]["UniversityDegree"]["format"] = "ldp_vc"
-        metadata["credential_configurations_supported"]["UniversityDegree"]["credential_definition"] = {
-            "@context": ["https://www.w3.org/2018/credentials/v1", f"{issuer_url}/oid4vc/context/v1"],
-            "type": ["VerifiableCredential", "UniversityDegree"]
-        }
 
     return JSONResponse(content=metadata)
 
