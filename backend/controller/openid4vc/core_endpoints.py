@@ -257,12 +257,129 @@ from fastapi.responses import RedirectResponse
 async def authorize_confirm_endpoint(redirect_url: str = Form(...)):
     """
     Transmisión de consentimiento puenteada por backend.
-    Fuerza una redirección 302 para que el OS de Android reciba
-    el URI scheme directamente del protocolo HTTP, resolviendo 
-    conflictos de ventanas de navegación (Custom Tabs / Browsers externos).
+    Cuando el usuario presiona "Aceptar" en la página de consentimiento HTML,
+    este endpoint recibe la URL de redirect y la ejecuta.
+    
+    Para wallets nativas (custom URI scheme): sirve trampoline HTML con JS.
+    Para wallets web (HTTP/HTTPS redirect): usa 302 redirect estándar.
     """
-    logger.info(f"⚡ [HTML Consent] Recibido click del usuario. Ejecutando Redirect 302 Nativo -> {redirect_url[:80]}...")
-    return RedirectResponse(url=redirect_url, status_code=302)
+    from urllib.parse import urlparse
+    
+    parsed = urlparse(redirect_url)
+    is_native_scheme = parsed.scheme not in ("http", "https", "")
+    
+    if is_native_scheme:
+        logger.info(f"⚡ [HTML Consent] Click recibido. Sirviendo deep-link trampoline -> {redirect_url[:80]}...")
+        return _build_deep_link_trampoline(redirect_url)
+    else:
+        logger.info(f"⚡ [HTML Consent] Click recibido. Ejecutando Redirect 302 -> {redirect_url[:80]}...")
+        return RedirectResponse(url=redirect_url, status_code=302)
+
+# ============================================================================
+# DEEP-LINK TRAMPOLINE (cierra correctamente Chrome Custom Tabs)
+# ============================================================================
+
+def _build_deep_link_trampoline(deep_link_url: str) -> HTMLResponse:
+    """
+    Genera una página HTML "trampoline" que redirige al custom URI scheme
+    de la wallet nativa mediante JavaScript.
+    
+    ¿Por qué no un simple 302?
+    Chrome Custom Tabs bloquea los redirects HTTP (302/303) a URI schemes
+    no-HTTP (ej: id.lissi.mobile://) por política de seguridad "user gesture
+    requirement". Esto deja el Custom Tab abierto encima de la wallet.
+    
+    Un window.location.href en JavaScript SÍ es aceptado por Chrome como
+    navegación válida, lo que permite:
+    1. Que el Intent de Android se dispare correctamente
+    2. Que el Custom Tab se cierre al perder el foco
+    3. Que la wallet reciba el authorization code y complete el flujo
+    
+    Incluye un link de fallback por si JavaScript está deshabilitado.
+    """
+    html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirigiendo a tu Wallet...</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                         Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 20px;
+        }}
+        .container {{
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 400px;
+            width: 100%;
+            padding: 40px 30px;
+            text-align: center;
+        }}
+        .spinner {{
+            width: 48px;
+            height: 48px;
+            border: 4px solid #e0e0e0;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }}
+        @keyframes spin {{
+            to {{ transform: rotate(360deg); }}
+        }}
+        h2 {{
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 12px;
+        }}
+        p {{
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }}
+        .fallback-link {{
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }}
+        .fallback-link:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <h2>Redirigiendo a tu Wallet...</h2>
+        <p>Si no se abre automáticamente, presiona el botón:</p>
+        <a href="{deep_link_url}" class="fallback-link">Abrir Wallet</a>
+    </div>
+    <script>
+        // Navegar al deep link usando JS — Chrome Custom Tabs acepta esto 
+        // como navegación válida (a diferencia de 302 HTTP).
+        window.location.href = "{deep_link_url}";
+    </script>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
 
 # ============================================================================
 # AUTHORIZE ENDPOINT
@@ -419,23 +536,28 @@ async def authorize_endpoint(
         # ⚡ DETECCIÓN INTELIGENTE DE WALLET NATIVA
         # Las wallets nativas (Lissi, Sphereon, etc.) registran custom URI schemes
         # como deep links (ej: "id.lissi.mobile://", "openid4vci://"). Cuando
-        # Android abre un Custom Tab para /authorize, necesita un 302 directo
-        # para que el Intent del redirect_uri cierre correctamente el Custom Tab
-        # y devuelva el control a la Activity de la wallet.
-        # Mostrar un HTML intermedio con <form> rompe este ciclo porque el POST
-        # del form mantiene el Custom Tab como actividad en primer plano, causando
-        # el loop "Processing Request...".
+        # Android abre un Custom Tab para /authorize, un simple 302 redirect a
+        # un custom scheme es BLOQUEADO por la política de seguridad de Chrome
+        # ("user gesture requirement"). Esto deja el Custom Tab abierto encima
+        # de la wallet, causando el loop "Processing Request...".
+        #
+        # La solución correcta es servir una "trampoline page" HTML minimalista
+        # que use JavaScript (window.location.href) para navegar al deep link.
+        # Chrome trata la navegación JS como válida y permite que el Intent
+        # se dispare, cerrando el Custom Tab correctamente.
+        #
         # Las wallets web (DIDRoom, etc.) usan redirect_uri HTTP y SÍ necesitan
-        # ver el HTML porque ejecutan el flujo dentro de un webview/iframe.
+        # ver el HTML con formulario de consentimiento porque ejecutan el flujo
+        # dentro de un webview/iframe.
         import os
         from urllib.parse import urlparse
         
         bypass_env = os.getenv("BYPASS_CONSENT_SCREEN", "auto").lower()
         
         if bypass_env == "true":
-            # Override explícito: siempre redirigir sin pantalla de consentimiento
-            logger.info("⚡ Realizando auto-redirect 302 directo (BYPASS_CONSENT_SCREEN=true)")
-            return RedirectResponse(url=redirect_url, status_code=302)
+            # Override explícito: siempre usar trampoline sin pantalla de consentimiento
+            logger.info("⚡ Realizando deep-link trampoline (BYPASS_CONSENT_SCREEN=true)")
+            return _build_deep_link_trampoline(redirect_url)
         
         if bypass_env == "false":
             # Override explícito: siempre mostrar pantalla de consentimiento
@@ -447,8 +569,8 @@ async def authorize_endpoint(
             
             if is_native_wallet:
                 logger.info(f"⚡ Wallet nativa detectada (scheme: {parsed_redirect.scheme}). "
-                            f"Realizando auto-redirect 302 directo.")
-                return RedirectResponse(url=redirect_url, status_code=302)
+                            f"Sirviendo deep-link trampoline HTML.")
+                return _build_deep_link_trampoline(redirect_url)
             
         student_name = session['credential_data'].get('student_name', 'Usuario')
         course_name = session['credential_data'].get('course_name', 'Curso')
