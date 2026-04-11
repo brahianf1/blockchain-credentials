@@ -63,7 +63,10 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
     # Si la wallet necesita authorization_code, puede ignorar este offer y usar el flujo PAR
     offer = {
         "credential_issuer": ISSUER_URL,
-        "credential_configuration_ids": ["UniversityDegree"],
+        "credential_configuration_ids": [
+            "UniversityDegree_JWT", 
+            "UniversityDegree_LDP"
+        ],
         "grants": {
             "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
                 "pre-authorized_code": pre_auth_code
@@ -731,11 +734,7 @@ async def credential_endpoint(
                 ],
                 "type": ["VerifiableCredential", "UniversityDegree"],
                 "id": f"urn:credential:{access_token[:16]}",
-                "issuer": {
-                    "id": ISSUER_DID,
-                    "name": "Sistema de Credenciales UTN",
-                    "url": ISSUER_URL
-                },
+                "issuer": ISSUER_DID,
                 "issuanceDate": now_iso,
                 "expirationDate": exp_iso,
                 "credentialSubject": {
@@ -764,14 +763,17 @@ async def credential_endpoint(
         # Manejo adaptativo del formato según lo que pide la wallet
         format_requested = json_data.get("format")
         
-        if format_requested == "jwt_vc_json":
-            logger.info("📦 Formateando respuesta como jwt_vc_json (JSON Object)")
+        if format_requested in ["jwt_vc_json", "ldp_vc"]:
+            logger.info(f"📦 Formateando respuesta como {format_requested} (JSON Object)")
             credential_response = vc_payload["vc"].copy()
+            # Añadimos validUntil para compatibilidad con la lectura de DIDRoom de ldp_vc
+            credential_response["validUntil"] = exp_iso
+            # La prueba (proof) es requerida para ldp_vc. Por ahora pasamos el JWT firmado como prueba.
             credential_response["proof"] = {
                 "type": "JwtProof2020",
                 "jwt": vc_jwt
             }
-            res_format = "jwt_vc_json"
+            res_format = format_requested
         else:
             logger.info("📦 Formateando respuesta como jwt_vc (JWT String)")
             credential_response = vc_jwt

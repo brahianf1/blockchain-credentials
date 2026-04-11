@@ -83,8 +83,8 @@ async def credential_issuer_metadata():
             "locale": "es-AR"
         }],
         "credential_configurations_supported": {
-            "UniversityDegree": {
-                "format": "jwt_vc",
+            "UniversityDegree_JWT": {
+                "format": "jwt_vc_json",
                 "scope": "UniversityDegreeScope",
                 "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
                 "credential_signing_alg_values_supported": ["ES256"],
@@ -101,8 +101,38 @@ async def credential_issuer_metadata():
                     ]
                 },
                 "display": [{
-                    "name": "Credencial Universitaria",
-                    "locale": "es-ES",
+                    "name": "Certificado U. (WaltID/Lissi)",
+                    "description": "Credencial oficial que certifica la finalización de un curso (formato JWT).",
+                    "locale": "es-AR",
+                    "background_color": "#1976d2",
+                    "text_color": "#FFFFFF",
+                    "logo": {
+                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
+                        "alt_text": "Logo UTN"
+                    }
+                }]
+            },
+            "UniversityDegree_LDP": {
+                "format": "ldp_vc",
+                "scope": "UniversityDegreeScope",
+                "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
+                "credential_signing_alg_values_supported": ["ES256"],
+                "proof_types_supported": {
+                    "jwt": {
+                        "proof_signing_alg_values_supported": ["ES256"]
+                    }
+                },
+                "credential_definition": {
+                    "type": ["VerifiableCredential", "UniversityDegree"],
+                    "@context": [
+                        "https://www.w3.org/2018/credentials/v1",
+                        f"{ISSUER_URL}/oid4vc/context/v1"
+                    ]
+                },
+                "display": [{
+                    "name": "Certificado U. (DIDRoom)",
+                    "description": "Credencial oficial que certifica la finalización de un curso (formato LDP).",
+                    "locale": "es-AR",
                     "background_color": "#1976d2",
                     "text_color": "#FFFFFF",
                     "logo": {
