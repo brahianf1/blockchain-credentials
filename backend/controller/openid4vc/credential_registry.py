@@ -179,29 +179,47 @@ def get_configurations_for_metadata() -> dict[str, dict[str, Any]]:
     """
     Retorna ``credential_configurations_supported`` spec-compliant.
 
-    Filtra campos que no pertenecen al formato declarado:
+    Transformaciones por formato:
 
-        • ``vc+sd-jwt``   → conserva ``vct``, ``claims``.  Elimina ``credential_definition``.
-        • ``jwt_vc_json`` → conserva ``credential_definition``.  Elimina ``vct``, ``claims``.
+        • ``vc+sd-jwt``:
+          - Elimina ``credential_definition`` (campo de jwt_vc_json)
+          - Renombra ``claims`` → ``credentialSubject`` (WaltID usa
+            ``credentialSubject`` como ``Map<String, ClaimDescriptor>``
+            para W3C VCs, mientras que ``claims`` es
+            ``Map<String, Map<String, ClaimDescriptor>>`` para mDL/mdoc)
 
-    Esto evita errores de parseo en wallets estrictas (ej: WaltID con
-    kotlinx.serialization lanza ``JsonLiteral is not a JsonObject``
-    al encontrar campos inesperados para el formato declarado).
+        • ``jwt_vc_json``:
+          - Elimina ``vct`` y ``claims`` (campos de vc+sd-jwt)
+
+    Esto evita el error de WaltID ``JsonLiteral is not a JsonObject``
+    causado por intentar parsear un ``ClaimDescriptor`` de 1 nivel
+    como un mapa namespaceDO de 2 niveles.
     """
-    # Campos exclusivos de cada formato (OID4VCI §A)
-    _FIELDS_BY_FORMAT: dict[str, frozenset[str]] = {
-        "vc+sd-jwt": frozenset({"credential_definition"}),   # eliminar
-        "jwt_vc_json": frozenset({"vct", "claims"}),          # eliminar
+    # Campos a ELIMINAR según formato (OID4VCI §A)
+    _FIELDS_TO_REMOVE: dict[str, frozenset[str]] = {
+        "vc+sd-jwt": frozenset({"credential_definition", "claims"}),
+        "jwt_vc_json": frozenset({"vct", "claims"}),
     }
 
     result: dict[str, dict[str, Any]] = {}
     for config_id, config in CREDENTIAL_CONFIGURATIONS.items():
         fmt = config.get("format", "vc+sd-jwt")
-        fields_to_remove = _FIELDS_BY_FORMAT.get(fmt, frozenset())
-        result[config_id] = {
+        fields_to_remove = _FIELDS_TO_REMOVE.get(fmt, frozenset())
+
+        cleaned = {
             k: v for k, v in config.items()
             if k not in fields_to_remove
         }
+
+        # Para vc+sd-jwt y jwt_vc_json (W3C VC): servir claims como
+        # ``credentialSubject`` que es el campo que WaltID parsea como
+        # Map<String, ClaimDescriptor> (1 nivel, correcto para nuestro caso).
+        if fmt in ("vc+sd-jwt", "jwt_vc_json"):
+            claims = config.get("claims")
+            if claims and "credentialSubject" not in cleaned:
+                cleaned["credentialSubject"] = claims
+
+        result[config_id] = cleaned
     return result
 
 
