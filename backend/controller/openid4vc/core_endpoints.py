@@ -59,8 +59,22 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
     session_manager.link_pre_auth_code(session_id, pre_auth_code)
     
     # Crear offer con PRE-AUTHORIZED CODE ONLY
-    # Ofrecemos solo este flujo porque el usuario ya está autenticado desde Moodle
-    # Si la wallet necesita authorization_code, puede ignorar este offer y usar el flujo PAR
+    # 
+    # ¿Por qué NO incluimos authorization_code?
+    # Cuando ambos grants están presentes, wallets como Lissi (wallet-framework-dotnet)
+    # PRIORIZAN authorization_code → esto abre un browser/Custom Tab para /authorize.
+    # El browser causa el loop "Processing Request..." por problemas de lifecycle
+    # del Custom Tab de Android (no se cierra correctamente al redirigir a deep links).
+    #
+    # Con solo pre-authorized_code, la wallet usa AcceptOffer() que es API-only:
+    # POST /token → POST /credential → almacena → listo. Sin browser.
+    #
+    # Esto es arquitecturalmente correcto porque el usuario ya está autenticado
+    # desde Moodle, así que el authorization_code grant (consentimiento del issuer)
+    # es redundante.
+    #
+    # Los endpoints PAR/authorize/token siguen activos para backwards compatibility
+    # con wallets que inicien el flujo auth_code independientemente.
     offer = {
         "credential_issuer": ISSUER_URL,
         "credential_configuration_ids": [
@@ -69,9 +83,6 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
         "grants": {
             "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
                 "pre-authorized_code": pre_auth_code
-            },
-            "authorization_code": {
-                "issuer_state": session_id
             }
         }
     }
@@ -105,7 +116,7 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
         "course_name": course_name,
         "timestamp": datetime.now().isoformat(),
         "expires_at": (datetime.now() + timedelta(minutes=10)).isoformat(),
-        "type": "openid4vc_dual_grant",
+        "type": "openid4vc_pre_auth",
         "session_id": session_id
     }
     
@@ -119,7 +130,8 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
         "compatibility": {
             "walt_id": True,
             "didroom": True,
-            "flows_supported": ["pre-authorized", "authorization_code"]
+            "lissi": True,
+            "flows_supported": ["pre-authorized"]
         }
     }
 
