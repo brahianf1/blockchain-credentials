@@ -836,8 +836,11 @@ async def credential_endpoint(
             credential_response = vc_jwt
             res_format = "jwt_vc"
         
+        import secrets
         response_data = {
-            "credential": credential_response
+            "credential": credential_response,
+            "c_nonce": secrets.token_urlsafe(32),
+            "c_nonce_expires_in": 300
         }
         
         response = JSONResponse(content=response_data)
