@@ -140,6 +140,29 @@ async def credential_issuer_metadata():
                         "alt_text": "Logo UTN"
                     }
                 }]
+            },
+            "UniversityDegree_SDJWT": {
+                "format": "vc+sd-jwt",
+                "scope": "UniversityDegreeScope",
+                "vct": "UniversityDegree",
+                "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
+                "credential_signing_alg_values_supported": ["ES256"],
+                "proof_types_supported": {
+                    "jwt": {
+                        "proof_signing_alg_values_supported": ["ES256"]
+                    }
+                },
+                "display": [{
+                    "name": "Certificado U. (Lissi/EUDI)",
+                    "description": "Credencial oficial que certifica la finalización de un curso (formato SD-JWT).",
+                    "locale": "es-AR",
+                    "background_color": "#1976d2",
+                    "text_color": "#FFFFFF",
+                    "logo": {
+                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
+                        "alt_text": "Logo Lissi"
+                    }
+                }]
             }
         }
     }

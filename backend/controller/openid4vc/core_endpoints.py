@@ -64,8 +64,9 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
     offer = {
         "credential_issuer": ISSUER_URL,
         "credential_configuration_ids": [
-            "UniversityDegree_JWT", 
-            "UniversityDegree_LDP"
+            "UniversityDegree_LDP",
+            "UniversityDegree_SDJWT",
+            "UniversityDegree_JWT"
         ],
         "grants": {
             "urn:ietf:params:oauth:grant-type:pre-authorized_code": {
@@ -769,7 +770,9 @@ async def credential_endpoint(
             if credential_identifier == "UniversityDegree_LDP":
                 format_requested = "ldp_vc"
             elif credential_identifier == "UniversityDegree_JWT":
-                format_requested = "jwt_vc"
+                format_requested = "jwt_vc_json"
+            elif credential_identifier == "UniversityDegree_SDJWT":
+                format_requested = "vc+sd-jwt"
         
         if format_requested in ["jwt_vc_json", "ldp_vc"]:
             logger.info(f"📦 Formateando respuesta como {format_requested} (JSON Object)")
@@ -782,6 +785,11 @@ async def credential_endpoint(
                 "jwt": vc_jwt
             }
             res_format = format_requested
+        elif format_requested == "vc+sd-jwt":
+            logger.info("📦 Formateando respuesta como vc+sd-jwt (SD-JWT String)")
+            # SD-JWT base sin disclosures es el JWT normal seguido de una tilde
+            credential_response = f"{vc_jwt}~"
+            res_format = "vc+sd-jwt"
         else:
             logger.info("📦 Formateando respuesta como jwt_vc (JWT String)")
             credential_response = vc_jwt
