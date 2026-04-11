@@ -37,6 +37,8 @@ async def oauth_authorization_server_metadata():
     
     metadata = {
         "issuer": ISSUER_URL,
+        "client_name": "Universidad Tecnológica Nacional",
+        "organization_name": "Universidad Tecnológica Nacional",
         "authorization_endpoint": f"{ISSUER_URL}/oid4vc/authorize",
         "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
         # PAR endpoint presente para validación de wallets (DIDRoom),
@@ -70,6 +72,8 @@ async def get_credential_issuer_metadata(request: Request):
     
     metadata = {
         "credential_issuer": ISSUER_URL,
+        "client_name": "Universidad Tecnológica Nacional",
+        "organization_name": "Universidad Tecnológica Nacional",
         "authorization_servers": [ISSUER_URL],
         "authorization_server": ISSUER_URL,
         "require_pushed_authorization_requests": False,
@@ -77,6 +81,7 @@ async def get_credential_issuer_metadata(request: Request):
         "credential_endpoint": f"{ISSUER_URL}/oid4vc/credential",
         "token_endpoint": f"{ISSUER_URL}/oid4vc/token",
         "nonce_endpoint": f"{ISSUER_URL}/oid4vc/nonce",
+        "notification_endpoint": f"{ISSUER_URL}/oid4vc/notification",
         "jwks_uri": f"{ISSUER_URL}/oid4vc/.well-known/jwks.json",
         "display": [{
             "name": "Sistema de Credenciales UTN",

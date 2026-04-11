@@ -850,6 +850,33 @@ async def credential_endpoint(
         raise HTTPException(status_code=500, detail={"error": "server_error", "error_description": str(e)})
 
 # ============================================================================
+# NOTIFICATION ENDPOINT (Cierra el ciclo en wallets estrictas)
+# ============================================================================
+
+from fastapi import Response
+
+@core_router.post("/notification")
+async def notification_endpoint(request: Request):
+    """
+    Endpoint para que la Wallet notifique el éxito de la recepción de credencial.
+    Para algunas wallets como Lissi, este ACK es el disparador final 
+    para cerrar la ruedita de carga (Processing Request) en la interfaz gráfica.
+    Devuelve 204 No Content.
+    """
+    logger.info("================================================================================")
+    logger.info("📥 NOTIFICATION ENDPOINT LLAMADO (La Wallet confirma la transacción!)")
+    logger.info("================================================================================")
+    
+    try:
+        data = await request.json()
+        logger.info(f"✅ Notificación del dispositivo: {data}")
+    except Exception:
+        logger.info("ℹ️ Payload sin formato o vacío recibido en notification.")
+        
+    # La especificación OpenID4VCI exige que este endpoint devuelva HTTP 204 No Content
+    return Response(status_code=204)
+
+# ============================================================================
 # QR CODE PAGE ENDPOINT
 # ============================================================================
 
