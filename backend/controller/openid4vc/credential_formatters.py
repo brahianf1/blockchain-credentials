@@ -289,8 +289,18 @@ def build_credential_response(
     Returns:
         Diccionario listo para serializar como JSON response.
     """
+    credential_entry = {"credential": credential, "format": format_name}
+
     return {
+        # Draft 13+ (OID4VCI 1.0) — Campo singular
+        "format": format_name,
         "credential": credential,
+        # Polyfills Draft 11/12 — Arrays legacy para wallets como DIDRoom
+        # que parsean credential_responses[0] o credentials[0] en lugar
+        # del campo singular "credential".
+        "credentials": [credential_entry],
+        "credential_responses": [credential_entry],
+        # Nonce y notificación
         "c_nonce": secrets.token_urlsafe(32),
         "c_nonce_expires_in": 300,
         "notification_id": f"notif_{secrets.token_urlsafe(16)}",
