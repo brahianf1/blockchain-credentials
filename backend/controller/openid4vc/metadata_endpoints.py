@@ -91,13 +91,6 @@ async def get_credential_issuer_metadata(request: Request):
             {
                 "name": "National Technological University",
                 "locale": "en-US"
-            },
-            {
-                "name": "National Technological University",
-                "locale": "en"
-            },
-            {
-                "name": "Universidad Tecnológica Nacional"
             }
         ],
         "credential_configurations_supported": {
@@ -122,28 +115,7 @@ async def get_credential_issuer_metadata(request: Request):
                     {
                         "name": "University Certificate",
                         "description": "Official credential certifying course completion.",
-                        "locale": "en",
-                        "background_color": "#1976d2",
-                        "text_color": "#FFFFFF",
-                        "logo": {
-                            "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                            "alt_text": "UTN Logo"
-                        }
-                    },
-                    {
-                        "name": "University Certificate",
-                        "description": "Official credential certifying course completion.",
                         "locale": "en-US",
-                        "background_color": "#1976d2",
-                        "text_color": "#FFFFFF",
-                        "logo": {
-                            "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                            "alt_text": "UTN Logo"
-                        }
-                    },
-                    {
-                        "name": "University Certificate",
-                        "description": "Official credential certifying course completion.",
                         "background_color": "#1976d2",
                         "text_color": "#FFFFFF",
                         "logo": {
