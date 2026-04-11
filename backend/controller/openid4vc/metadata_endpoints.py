@@ -61,12 +61,16 @@ async def oauth_authorization_server_metadata():
 # ============================================================================
 
 @metadata_router.get("/.well-known/openid-credential-issuer")
-async def credential_issuer_metadata():
+async def get_credential_issuer_metadata(request: Request):
     """
-    Metadata requerido por wallets OpenID4VC
-    Compatible con Draft 13, 15, 16 y versión 1.0 del estándar
+    OpenID Credential Issuer Metadata
+    RFC 8414 compliant - Requerido para descubrimiento automático de credenciales
+    
+    Implementa Multiplexión por User-Agent para enviar `vc+sd-jwt` a Lissi y `ldp_vc` a DIDRoom.
     """
-    logger.info("📋 Serving OpenID Credential Issuer Metadata")
+    user_agent = request.headers.get("user-agent", "").lower()
+    is_lissi = "lissi" in user_agent or "ktor" in user_agent
+    logger.info(f"📋 Serving OpenID Credential Issuer Metadata to: {user_agent}")
     
     metadata = {
         "credential_issuer": ISSUER_URL,
@@ -83,8 +87,7 @@ async def credential_issuer_metadata():
             "locale": "es-AR"
         }],
         "credential_configurations_supported": {
-            "UniversityDegree_JWT": {
-                "format": "jwt_vc",
+            "UniversityDegree": {
                 "scope": "UniversityDegreeScope",
                 "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
                 "credential_signing_alg_values_supported": ["ES256"],
@@ -93,72 +96,32 @@ async def credential_issuer_metadata():
                         "proof_signing_alg_values_supported": ["ES256"]
                     }
                 },
-                "credential_definition": {
-                    "type": ["VerifiableCredential", "UniversityDegree"],
-                    "@context": [
-                        "https://www.w3.org/2018/credentials/v1",
-                        f"{ISSUER_URL}/oid4vc/context/v1"
-                    ]
-                },
                 "display": [{
-                    "name": "Certificado U. (WaltID/Lissi)",
-                    "description": "Credencial oficial que certifica la finalización de un curso (formato JWT).",
+                    "name": "Certificado U. Tecnológica",
+                    "description": "Credencial oficial que certifica la finalización de un curso.",
                     "locale": "es-AR",
                     "background_color": "#1976d2",
                     "text_color": "#FFFFFF",
                     "logo": {
                         "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
                         "alt_text": "Logo UTN"
-                    }
-                }]
-            },
-
-            "UniversityDegree_LDP": {
-                "format": "ldp_vc",
-                "credential_definition": {
-                    "@context": [
-                        "https://www.w3.org/2018/credentials/v1",
-                        f"{ISSUER_URL}/oid4vc/context/v1"
-                    ],
-                    "type": ["VerifiableCredential", "UniversityDegree"]
-                },
-                "display": [{
-                    "name": "Certificado U. (DIDRoom)",
-                    "description": "Credencial oficial que certifica la finalización de un curso (formato LDP).",
-                    "locale": "es-AR",
-                    "background_color": "#1976d2",
-                    "text_color": "#FFFFFF",
-                    "logo": {
-                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                        "alt_text": "Logo UTN"
-                    }
-                }]
-            },
-            "UniversityDegree_SDJWT": {
-                "format": "vc+sd-jwt",
-                "scope": "UniversityDegreeScope",
-                "vct": "UniversityDegree",
-                "cryptographic_binding_methods_supported": ["did:key", "did:jwk", "jwk"],
-                "credential_signing_alg_values_supported": ["ES256"],
-                "proof_types_supported": {
-                    "jwt": {
-                        "proof_signing_alg_values_supported": ["ES256"]
-                    }
-                },
-                "display": [{
-                    "name": "Certificado U. (Lissi/EUDI)",
-                    "description": "Credencial oficial que certifica la finalización de un curso (formato SD-JWT).",
-                    "locale": "es-AR",
-                    "background_color": "#1976d2",
-                    "text_color": "#FFFFFF",
-                    "logo": {
-                        "uri": "https://placehold.co/150x150/1976d2/white?text=UTN",
-                        "alt_text": "Logo Lissi"
                     }
                 }]
             }
         }
     }
+    
+    # Inyectar formato dependiendo si la wallet soporta LDP o explota (Lissi)
+    if is_lissi:
+        metadata["credential_configurations_supported"]["UniversityDegree"]["format"] = "vc+sd-jwt"
+        metadata["credential_configurations_supported"]["UniversityDegree"]["vct"] = "UniversityDegree"
+        metadata["credential_configurations_supported"]["UniversityDegree"].pop("proof_types_supported", None)
+    else:
+        metadata["credential_configurations_supported"]["UniversityDegree"]["format"] = "ldp_vc"
+        metadata["credential_configurations_supported"]["UniversityDegree"]["credential_definition"] = {
+            "@context": ["https://www.w3.org/2018/credentials/v1", f"{ISSUER_URL}/oid4vc/context/v1"],
+            "type": ["VerifiableCredential", "UniversityDegree"]
+        }
     
     response = JSONResponse(content=metadata)
     return await add_security_headers(response)

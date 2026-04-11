@@ -760,11 +760,21 @@ async def credential_endpoint(
         
         logger.info(f"✅ Credencial emitida para: {credential_data.get('student_name')}")
         
-        # Manejo adaptativo del formato según lo que pide la wallet
+        # Manejo adaptativo del formato según lo que pide la wallet y su User-Agent
         format_requested = json_data.get("format")
         credential_identifier = json_data.get("credential_identifier")
         
-        # OpenID4VCI Draft 13 usa credential_identifier y omite format en el request
+        user_agent = request.headers.get("user-agent", "").lower()
+        is_lissi = "lissi" in user_agent or "ktor" in user_agent
+        
+        # Mapeo dinámico por multiplexión de User-Agent
+        if credential_identifier == "UniversityDegree":
+            if is_lissi:
+                format_requested = "vc+sd-jwt"
+            else:
+                format_requested = "ldp_vc"
+        
+        # Fallbacks (si siguen usando los anteriores por alguna razón)
         if not format_requested and credential_identifier:
             if credential_identifier == "UniversityDegree_LDP":
                 format_requested = "ldp_vc"
