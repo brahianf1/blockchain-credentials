@@ -141,8 +141,13 @@ CREDENTIAL_CONFIGURATIONS: dict[str, dict[str, Any]] = {
 
         # Campo requerido por jwt_vc_json (OID4VCI §A.1.1)
         # Incluido para compatibilidad con DIDRoom que busca este campo.
+        # ``credentialSubject`` contiene los claims en la convención jwt_vc_json
+        # (DIDRoom lee aquí), mientras que ``claims`` (top-level) es la
+        # convención vc+sd-jwt (Lissi lee ahí).  Ambos apuntan a la misma
+        # definición — cero duplicación.
         "credential_definition": {
             "type": ["VerifiableCredential", "UniversityDegree"],
+            "credentialSubject": UNIVERSITY_DEGREE_CLAIMS,
         },
 
         # Métodos de binding criptográfico soportados
