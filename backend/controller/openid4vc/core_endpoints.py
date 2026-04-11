@@ -840,7 +840,8 @@ async def credential_endpoint(
         response_data = {
             "credential": credential_response,
             "c_nonce": secrets.token_urlsafe(32),
-            "c_nonce_expires_in": 300
+            "c_nonce_expires_in": 300,
+            "notification_id": f"notif_{secrets.token_urlsafe(16)}"
         }
         
         response = JSONResponse(content=response_data)
