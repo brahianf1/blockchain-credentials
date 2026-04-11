@@ -396,7 +396,16 @@ async def authorize_endpoint(
         logger.info("=" * 80)
         
         # Devolver HTML con botón de consentimiento
-        # DIDRoom necesita ver esto en su webview
+        logger.info(f"↩️ URL de redirect preparado: {redirect_url}")
+        
+        # ⚡ REDIRECCIÓN 302 INSTANTÁNEA (Evita colgar el Custom Tab en Lissi Wallet)
+        import os
+        # Modificado a false por defecto a petición tuya para que se vea la pantalla
+        if os.getenv("BYPASS_CONSENT_SCREEN", "false").lower() == "true":
+            logger.info("⚡ Realizando auto-redirect 302 directo a la wallet (BYPASS_CONSENT_SCREEN)")
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=redirect_url, status_code=302)
+            
         student_name = session['credential_data'].get('student_name', 'Usuario')
         course_name = session['credential_data'].get('course_name', 'Curso')
         
@@ -507,21 +516,14 @@ async def authorize_endpoint(
                     </div>
                 </div>
                 
-                <button class="btn" onclick="authorize()">
+                <a href="{redirect_url}" class="btn" style="display: block; text-decoration: none; padding-top: 16px; padding-bottom: 16px;">
                     ✓ Aceptar y Recibir Credencial
-                </button>
+                </a>
                 
                 <p class="info-text">
                     Al aceptar, recibirás una credencial verificable en tu wallet digital.
                 </p>
             </div>
-            
-            <script>
-                function authorize() {{
-                    // Redirigir a la wallet con el authorization code
-                    window.location.href = "{redirect_url}";
-                }}
-            </script>
         </body>
         </html>
         """
