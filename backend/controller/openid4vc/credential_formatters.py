@@ -325,17 +325,21 @@ def build_credential_response(
     evitar fallos en arrays híbridos como los que Rompen a Paradym).
     """
 
-    entry = {"credential": credential, "format": format_name}
-    array_entries = [entry]
-
+    # Draft 13+ (OID4VCI 1.0) usa 'credential_responses' con wrappers
+    wrapped_entry = {"credential": credential, "format": format_name}
+    
     return {
-        # Draft 13+ (OID4VCI 1.0) — Campo singular
+        # Draft 13+ — Única credencial
         "format": format_name,
         "credential": credential,
         
         # Draft 11/12 — Arrays legacy
-        "credentials": array_entries,
-        "credential_responses": array_entries,
+        # DIDRoom (Draft 11) busca directamente en 'credentials' y espera que sea
+        # el objeto JSON (LdpVc) o String (JWT), NO envuelto en un wrapper.
+        "credentials": [credential],
+        
+        # Draft 13+ — Array envoltorio
+        "credential_responses": [wrapped_entry],
 
         # Nonce y notificación
         "c_nonce": secrets.token_urlsafe(32),
