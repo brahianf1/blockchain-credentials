@@ -421,6 +421,7 @@ async def legacy_credential_endpoint(data: dict):
 from openid4vc.metadata_endpoints import (
     oauth_authorization_server_metadata as _modular_oauth_metadata,
     get_credential_issuer_metadata as _modular_issuer_metadata,
+    vct_metadata_endpoint as _modular_vct_metadata,
 )
 
 
@@ -441,6 +442,15 @@ async def root_credential_issuer_metadata(request: Request):
     claims definitions y display multi-locale.
     """
     return await _modular_issuer_metadata(request)
+
+
+@app.get("/.well-known/vct/{vct_id}")
+async def root_vct_metadata(vct_id: str):
+    """
+    VCT Type Metadata en RAÍZ (IETF SD-JWT VC §6.3).
+    Delega al handler modular que sirve metadata del tipo de credencial.
+    """
+    return await _modular_vct_metadata(vct_id)
 
 @app.get("/health")
 async def healthcheck():
