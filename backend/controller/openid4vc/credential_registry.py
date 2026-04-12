@@ -254,15 +254,6 @@ def get_configurations_for_metadata(
             if claims and "credentialSubject" not in cleaned:
                 cleaned["credentialSubject"] = claims
 
-        # Para vc+sd-jwt: ``vct`` debe ser una URL resoluble.
-        # WaltID deriva el well-known URL como:
-        #   {authority}/.well-known/vct/{path}
-        # Para que resulte en /.well-known/vct/UniversityDegree,
-        # el vct debe ser {issuer_url}/UniversityDegree (path = /UniversityDegree).
-        if fmt == "vc+sd-jwt" and issuer_url and "vct" in cleaned:
-            vct_id = cleaned["vct"]
-            cleaned["vct"] = f"{issuer_url}/{vct_id}"
-
         result[config_id] = cleaned
     return result
 

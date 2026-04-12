@@ -73,7 +73,7 @@ def format_sd_jwt(
         "iat": now_ts - 5,  # clock skew tolerance
         "exp": exp_ts,
         "jti": f"urn:credential:{access_token[:16]}",
-        "vct": f"{issuer_url}/UniversityDegree",
+        "vct": "UniversityDegree",
         "university": "UTN",
         "student_name": credential_data.get("student_name", "Unknown"),
         "student_email": credential_data.get("student_email", "unknown@example.com"),
