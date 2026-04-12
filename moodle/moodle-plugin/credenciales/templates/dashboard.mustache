@@ -1,21 +1,97 @@
-<div class="container-fluid">
-    <h2>{{#str}}my_certificates, block_credenciales{{/str}}</h2>
+<div class="container-fluid md3-container">
+    <h2 class="md3-page-title">{{#str}}my_certificates, block_credenciales{{/str}}</h2>
     
     {{#has_certificates}}
-        <div class="row">
+        <div class="md3-certificates-list">
             {{#certificates}}
-                <div class="col-md-4 mb-4">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-body text-center">
-                            <h5 class="card-title">{{course_name}}</h5>
-                            <p class="text-muted">{{date}}</p>
-                            <div class="qr-wrapper mb-3">
-                                <img src="{{qr_code}}" alt="QR Code" class="img-fluid" style="max-height: 150px;">
+                <div class="md3-card-surface mb-5">
+                    
+                    <!-- Estado de la Credencial -->
+                    <div class="md3-status-bar d-flex justify-content-between align-items-center">
+                        <span class="md3-label">Estado de Emisión:</span>
+                        {{#is_pending}}
+                            <span class="md3-badge md3-badge-pending"><i class="fa fa-clock-o"></i> Pendiente de Reclamar</span>
+                        {{/is_pending}}
+                        {{#is_claimed}}
+                            <span class="md3-badge md3-badge-claimed"><i class="fa fa-check-circle"></i> Credencial en Wallet</span>
+                        {{/is_claimed}}
+                    </div>
+
+                    <!-- Representación Visual Ilustrativa del Certificado -->
+                    <div class="md3-certificate-illustration">
+                        <div class="cert-inner">
+                            <div class="cert-header">
+                                <div class="cert-logo-placeholder">
+                                    <strong>{{org_name}}</strong>
+                                </div>
                             </div>
-                            <a href="{{invitation_url}}" class="btn btn-primary btn-block">
-                                <i class="fa fa-wallet"></i> {{#str}}claim_credential, block_credenciales{{/str}}
-                            </a>
+                            
+                            <div class="cert-body">
+                                <h1>Certifico que</h1>
+                                <h2 class="cert-student">{{student_name}}</h2>
+                                <h3 class="cert-dni">DNI {{student_dni}}</h3>
+                                
+                                <p class="cert-text">
+                                    Con fecha {{date}} ha aprobado <strong>'{{course_name}}'</strong><br>
+                                    dictado por {{org_name}} con un total de {{hours}} horas reloj.
+                                </p>
+                            </div>
+                            
+                            <div class="cert-footer">
+                                <div class="cert-signatures">
+                                    <div class="signature">
+                                        <div class="sig-line"></div>
+                                        <span>Secretaría de Extensión</span>
+                                    </div>
+                                    <div class="signature">
+                                        <div class="sig-line"></div>
+                                        <span>Decano</span>
+                                    </div>
+                                </div>
+                                <div class="cert-public-qr">
+                                    <a href="{{public_verify_url}}" target="_blank" title="Verificar en Web Pública">
+                                        <!-- Placeholder QR para el enlace público abstracto -->
+                                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data={{public_verify_url}}" alt="QR Validación Pública">
+                                    </a>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+
+                    <!-- Acciones MD3 -->
+                    <div class="md3-actions-container">
+                        {{#is_pending}}
+                            <!-- Action to Claim -->
+                            <button class="md3-btn md3-btn-primary" type="button" data-toggle="collapse" data-target="#walletCollapse{{cert_id}}" aria-expanded="false" aria-controls="walletCollapse{{cert_id}}">
+                                <i class="fa fa-wallet"></i> Guardar credencial en mi Wallet ID
+                            </button>
+                            
+                            <!-- Collapse Scanner -->
+                            <div class="collapse mt-3" id="walletCollapse{{cert_id}}">
+                                <div class="md3-scanner-card">
+                                    <h4 class="md3-headline-small">Escanea para reclamar tu Identidad Digital</h4>
+                                    <p class="md3-body-medium">Abre tu aplicación de billetera compatible con DID (Lissi, Paradym, DIDRoom) y escanea el siguiente código para descargar tu credencial criptográfica original y firmada.</p>
+                                    
+                                    <div class="scanner-qr-wrapper">
+                                        <img src="{{qr_code}}" alt="QR Code" class="img-fluid">
+                                    </div>
+                                    <p class="mt-2"><small>O utiliza el enlace directo si estás en dispositivo móvil:</small></p>
+                                    <a href="{{invitation_url}}" class="md3-btn md3-btn-outlined"><i class="fa fa-link"></i> Abrir en Billetera</a>
+                                </div>
+                            </div>
+                        {{/is_pending}}
+                        
+                        {{#is_claimed}}
+                            <!-- Actions to Share -->
+                            <div class="md3-share-actions">
+                                <a href="{{linkedin_share_url}}" target="_blank" class="md3-btn md3-btn-linkedin">
+                                    <i class="fa fa-linkedin-square"></i> Compartir como Logro en LinkedIn
+                                </a>
+                                <a href="{{public_verify_url}}" target="_blank" class="md3-btn md3-btn-secondary">
+                                    <i class="fa fa-globe"></i> Ver Página Pública (Mock)
+                                </a>
+                            </div>
+                        {{/is_claimed}}
                     </div>
                 </div>
             {{/certificates}}
@@ -23,8 +99,8 @@
     {{/has_certificates}}
 
     {{^has_certificates}}
-        <div class="alert alert-info">
-            You haven't earned any certificates yet. Complete courses to see them here!
+        <div class="md3-alert md3-alert-info">
+            <i class="fa fa-info-circle"></i> Aún no has adquirido ninguna credencial. Completá los cursos requeridos para verlas aquí.
         </div>
     {{/has_certificates}}
 </div>
