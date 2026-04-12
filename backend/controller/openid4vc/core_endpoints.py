@@ -977,6 +977,14 @@ async def credential_endpoint(
         # (mezcla de strings SD-JWT y diccionarios JWT_VC_JSON).
         resolved_format = resolve_format(json_data)
 
+        # Heurística de retrocompatibilidad estricta para DIDRoom
+        # DIDRoom lee nuestro metadata y pide vc+sd-jwt, pero su frontend (ForkbombEu)
+        # está hardcodeado para leer objetos LdpVc y crashea leyendo propiedades
+        # (ej: 'issuer') si recibe un string SD-JWT. Forzamos jwt_vc_json.
+        if holder_did and holder_did.startswith("did:dyne"):
+            logger.info("⚠️ Compatibilidad activada: Forzando jwt_vc_json para DIDRoom (did:dyne)")
+            resolved_format = "jwt_vc_json"
+
         # Generar UNA ÚNICA credencial en el formato exacto requerido
         credential, format_name = format_credential(resolved_format, **formatter_kwargs)
 
