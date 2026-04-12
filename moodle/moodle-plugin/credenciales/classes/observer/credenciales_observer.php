@@ -92,14 +92,15 @@ class credenciales_observer {
                 $record->invitation_url = isset($responseData['invitation_url']) ? $responseData['invitation_url'] : '';
                 $record->qr_code_base64 = isset($responseData['qr_code_base64']) ? $responseData['qr_code_base64'] : (isset($responseData['qr_code']) ? $responseData['qr_code'] : '');
                 
-                // Guardar pre_authorized_code si existe (OpenID4VC)
+                // OpenID4VCI: Usamos el pre_authorized_code como la llave única transaccional (connection_id)
+                // para que luego el Webhook pueda encontrar este registro
                 if (isset($responseData['pre_authorized_code'])) {
-                    // Podríamos guardarlo en un campo extra si la BD lo soporta, 
-                    // por ahora lo logueamos o usamos connection_id si es string
-                    logger::info("Recibido pre_authorized_code: " . $responseData['pre_authorized_code']);
+                    $record->connection_id = $responseData['pre_authorized_code'];
+                    logger::info("Mapeado pre_authorized_code a connection_id: " . $record->connection_id);
                 }
 
-                $record->status = 'issued';
+                // Generación de Oferta = Estado Pendiente de Reclamar
+                $record->status = 'pending';
                 $record->timemodified = time();
                 
                 if ($existing) {

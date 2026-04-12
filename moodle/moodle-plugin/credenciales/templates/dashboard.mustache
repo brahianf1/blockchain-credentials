@@ -12,31 +12,44 @@
                         <div class="md3-card-header d-flex justify-content-between">
                             <i class="fa fa-university text-muted"></i>
                             {{#is_pending}}
-                                <span class="md3-badge md3-badge-pending" title="Pendiente"><i class="fa fa-clock-o"></i> Pendiente</span>
+                                <span class="md3-badge md3-badge-pending" title="Pendiente"><i class="fa fa-clock-o"></i> Pendiente de Guardar</span>
                             {{/is_pending}}
                             {{#is_claimed}}
-                                <span class="md3-badge md3-badge-claimed" title="En Billetera"><i class="fa fa-check-circle"></i> Claimed</span>
+                                <span class="md3-badge md3-badge-claimed" title="En Billetera"><i class="fa fa-check-circle"></i> Almacenado en Billetera</span>
                             {{/is_claimed}}
                         </div>
                         <div class="md3-card-body mt-3">
                             <h4 class="md3-card-course-title">{{course_name}}</h4>
-                            <p class="md3-card-date text-muted mt-2"><i class="fa fa-calendar-check-o"></i> {{exact_time}}</p>
+                            <p class="md3-card-date text-muted mt-2 mb-1"><i class="fa fa-flag-checkered"></i> Curso Aprobado el: <strong>{{exact_completion_time}}</strong></p>
+                            {{#is_claimed}}
+                                <p class="md3-card-date text-success mb-0"><i class="fa fa-shield"></i> Guardado en Billetera el: <strong>{{exact_claimed_time}}</strong></p>
+                            {{/is_claimed}}
                         </div>
                         <div class="md3-card-footer mt-4 border-top pt-3">
                             <button type="button" class="btn btn-block md3-btn-outlined mb-2" data-toggle="modal" data-target="#certModal{{cert_id}}">
-                                <i class="fa fa-search-plus"></i> Ver Diploma
+                                <i class="fa fa-search-plus"></i> Ver Diploma Ilustrativo
                             </button>
                             
                             {{#is_pending}}
                                 <button type="button" class="btn btn-block md3-btn-primary" data-toggle="collapse" data-target="#walletCollapse{{cert_id}}">
-                                    <i class="fa fa-qrcode"></i> Reclamar Credencial
+                                    <i class="fa fa-qrcode"></i> Guardar Credencial en Billetera DID
                                 </button>
                                 <div class="collapse mt-2" id="walletCollapse{{cert_id}}">
-                                    <div class="p-3 bg-light rounded text-center border">
-                                        <p class="small text-muted mb-2">Escanea el QR o usa el enlace si estás en móvil:</p>
+                                    <div class="p-4 bg-light rounded text-center border">
+                                        
+                                        <!-- MD3 Microcopy Explainer -->
+                                        <div class="alert alert-info text-left small mb-3" style="border-radius: 8px; border-left: 4px solid #17a2b8;">
+                                            <i class="fa fa-lightbulb-o mb-1" style="font-size: 1.2rem;"></i><br>
+                                            <strong>¿Por qué debo guardar esto?</strong><br>
+                                            Al guardar esta credencial en tu móvil (ej. Paradym o DIDRoom), obtienes <strong>soberanía matemática</strong> sobre este logro. Funciona sin conexión, no requiere que Moodle esté en línea en el futuro y nadie puede revocar tu título sin tu consentimiento.
+                                        </div>
+
+                                        <p class="small text-muted mb-2"><strong>1.</strong> Abre tu Billetera DID y escanea este código:</p>
                                         <img src="{{qr_code}}" alt="QR" style="max-width: 150px; background: white; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
-                                        <div class="mt-2">
-                                            <a href="{{invitation_url}}" class="btn btn-sm btn-outline-secondary"><i class="fa fa-external-link"></i> Abrir Billetera</a>
+                                        
+                                        <div class="mt-3 border-top pt-2">
+                                            <p class="small text-muted mb-1"><strong>2.</strong> O si navegas desde tu celular:</p>
+                                            <a href="{{invitation_url}}" class="btn btn-sm btn-outline-secondary"><i class="fa fa-external-link"></i> Abrir Billetera Automáticamente</a>
                                         </div>
                                     </div>
                                 </div>
@@ -44,7 +57,7 @@
 
                             {{#is_claimed}}
                                 <a href="{{linkedin_share_url}}" target="_blank" class="btn btn-block md3-btn-linkedin mt-2">
-                                    <i class="fa fa-linkedin-square"></i> Compartir Logro
+                                    <i class="fa fa-linkedin-square"></i> Compartir Logro Profesional
                                 </a>
                             {{/is_claimed}}
                         </div>

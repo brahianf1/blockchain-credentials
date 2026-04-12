@@ -993,6 +993,36 @@ async def credential_endpoint(
             f"| Formato Único: {format_name}"
         )
 
+        # ─── Notificar a Moodle vía Webhook (Actualizar status a 'claimed') ───
+        # Usamos asyncio.create_task para no bloquear la respuesta de la wallet
+        import asyncio
+        import httpx
+        import os
+
+        async def notify_moodle_webhook(conn_id: str):
+            # Resolvemos el dominio directamente desde la variable de entorno ya existente (Principio DRY)
+            moodle_domain = os.getenv("MOODLE_DOMAIN", "moodle")
+            moodle_url = f"https://{moodle_domain}" if "http" not in moodle_domain else moodle_domain
+            webhook_url = f"{moodle_url}/blocks/credenciales/webhook.php"
+            try:
+                async with httpx.AsyncClient() as client:
+                    await client.post(
+                        webhook_url,
+                        json={"connection_id": conn_id, "status": "claimed"},
+                        timeout=5.0
+                    )
+                logger.info(f"✅ Webhook Moodle notificado exitosamente (Claimed) para conn_id: {conn_id}")
+            except Exception as w_e:
+                logger.warning(f"⚠️ Webhook Moodle falló: {w_e}")
+
+        # Sacar el connection_id (pre-auth_code) de la sesión
+        # Prevenimos si el flujo fue puro authorization_code recuperando desde 'flows'
+        conn_id = session.get("pre_authorized_code")
+        if not conn_id and session.get("flows"):
+            conn_id = session["flows"].get("authorization", {}).get("par_data", {}).get("pre_authorized_code")
+        if conn_id:
+            asyncio.create_task(notify_moodle_webhook(conn_id))
+
         # ─── Construir respuesta con un solo formato ───
         response_data = build_credential_response(
             credential, format_name

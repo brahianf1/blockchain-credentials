@@ -53,7 +53,7 @@ class block_credenciales extends block_base {
                 'student_name' => fullname($USER),
                 'course_name' => $COURSE->fullname,
                 'date' => userdate($credential->timecreated, get_string('strftimedate', 'core_langconfig')),
-                'exact_time' => userdate($credential->timecreated, '%d/%m/%Y %H:%M'),
+                'exact_completion_time' => userdate($credential->timecreated, '%d/%m/%Y %H:%M'),
                 'org_name' => $org_name,
                 'brand_color' => $brand_color,
                 'is_modal' => ($view_mode === 'modal'),
