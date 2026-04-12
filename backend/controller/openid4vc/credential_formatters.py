@@ -46,6 +46,7 @@ def format_sd_jwt(
     credential_data: dict[str, Any],
     holder_did: str,
     proof_jwk: dict[str, Any] | None,
+    proof_kid: str | None = None,
     access_token: str,
     private_key: Any,
     issuer_url: str,
@@ -68,9 +69,13 @@ def format_sd_jwt(
     # Construcción de confirmation (cnf)
     # Evitamos reconstruir jwk manualmente desde did:jwk para no romper
     # el cálculo estricto de Thumbprint (RFC 7638) por orden lexicográfico.
+    # Usamos proof_kid (Absolute KID con fragmento si existe) para pasar
+    # validaciones estrictas tipo `credo-ts` en lugar del base DID.
     cnf = {}
     if proof_jwk:
         cnf = {"jwk": proof_jwk}
+    elif proof_kid:
+        cnf = {"kid": proof_kid}
     elif holder_did:
         cnf = {"kid": holder_did}
 
@@ -112,6 +117,7 @@ def format_jwt_vc_json(
     credential_data: dict[str, Any],
     holder_did: str,
     proof_jwk: dict[str, Any] | None,
+    proof_kid: str | None = None,
     access_token: str,
     private_key: Any,
     issuer_url: str,

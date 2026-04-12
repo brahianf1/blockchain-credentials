@@ -922,6 +922,7 @@ async def credential_endpoint(
                 proof_header = jwt.get_unverified_header(proof_jwt_str)
                 proof_payload = jwt.decode(proof_jwt_str, options={"verify_signature": False})
                 proof_jwk = proof_header.get("jwk")
+                proof_kid = proof_header.get("kid")
 
                 holder_did = extract_holder_did_from_proof(proof_jwt_str, proof_header, proof_payload)
 
@@ -963,6 +964,7 @@ async def credential_endpoint(
             credential_data=credential_data,
             holder_did=holder_did,
             proof_jwk=proof_jwk,
+            proof_kid=proof_kid,
             access_token=access_token,
             private_key=PRIVATE_KEY,
             issuer_url=ISSUER_URL,
