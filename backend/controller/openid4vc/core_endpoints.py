@@ -970,8 +970,6 @@ async def credential_endpoint(
             requires_absolute_vct=requires_absolute_vct,
         )
 
-        from credential_formatters import resolve_format
-        
         # ─── Resolver el formato exigido EXACTAMENTE por la wallet ───
         # Paradym y DIDRoom crashean si les devuelves un array híbrido 
         # (mezcla de strings SD-JWT y diccionarios JWT_VC_JSON).
