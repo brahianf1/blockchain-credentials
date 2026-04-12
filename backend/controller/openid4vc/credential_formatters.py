@@ -326,7 +326,11 @@ def build_credential_response(
     """
 
     # Draft 13+ (OID4VCI 1.0) usa 'credential_responses' con wrappers
+    # NOTA: En Draft 11 (DIDRoom), si la wallet requiere un formato distinto al
+    # que solicitó (Heurística did:dyne), depende estrictamente del campo 'format'
+    # dentro del wrapper para cambiar su parser interno y no estrellarse.
     wrapped_entry = {"credential": credential, "format": format_name}
+    array_entries = [wrapped_entry]
     
     return {
         # Draft 13+ — Única credencial
@@ -334,12 +338,10 @@ def build_credential_response(
         "credential": credential,
         
         # Draft 11/12 — Arrays legacy
-        # DIDRoom (Draft 11) busca directamente en 'credentials' y espera que sea
-        # el objeto JSON (LdpVc) o String (JWT), NO envuelto en un wrapper.
-        "credentials": [credential],
+        "credentials": array_entries,
         
         # Draft 13+ — Array envoltorio
-        "credential_responses": [wrapped_entry],
+        "credential_responses": array_entries,
 
         # Nonce y notificación
         "c_nonce": secrets.token_urlsafe(32),
