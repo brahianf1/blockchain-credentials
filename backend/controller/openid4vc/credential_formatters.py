@@ -65,25 +65,13 @@ def format_sd_jwt(
     now_ts = int(datetime.now().timestamp())
     exp_ts = now_ts + _CREDENTIAL_VALIDITY_SECONDS
 
-    # Reconstrucción inteligente del objeto confirmation (cnf)
-    # Evitar NUNCA entregar '{"jwk": {}}' porque crashea a esquemas Zod estrictos
+    # Construcción de confirmation (cnf)
+    # Evitamos reconstruir jwk manualmente desde did:jwk para no romper
+    # el cálculo estricto de Thumbprint (RFC 7638) por orden lexicográfico.
     cnf = {}
     if proof_jwk:
         cnf = {"jwk": proof_jwk}
-    elif holder_did and holder_did.startswith("did:jwk:"):
-        import base64
-        import json
-        try:
-            b64_jwk = holder_did.split(":", 2)[2]
-            padding = 4 - (len(b64_jwk) % 4)
-            if padding != 4:
-                b64_jwk += '=' * padding
-            jwk_str = base64.urlsafe_b64decode(b64_jwk).decode('utf-8')
-            cnf = {"jwk": json.loads(jwk_str)}
-        except Exception as e:
-            logger.warning(f"⚠️ No se pudo decodificar el JWK desde did:jwk: {e}")
-            cnf = {"kid": holder_did}
-    else:
+    elif holder_did:
         cnf = {"kid": holder_did}
 
     payload = {
