@@ -171,7 +171,7 @@ async def vct_metadata_endpoint(vct_id: str):
     )
 
     vct_metadata = {
-        "vct": vct_id,
+        "vct": f"{ISSUER_URL}/{vct_id}",
         "name": en_display.get("name", "University Certificate"),
         "description": en_display.get(
             "description",

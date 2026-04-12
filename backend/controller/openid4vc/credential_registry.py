@@ -254,7 +254,25 @@ def get_configurations_for_metadata(
             if claims and "credentialSubject" not in cleaned:
                 cleaned["credentialSubject"] = claims
 
-        result[config_id] = cleaned
+        # Para vc+sd-jwt: ``vct`` debe ser una URL resoluble.
+        # WaltID deriva el well-known URL como:
+        #   {authority}/.well-known/vct/{path}
+        # Para que resulte en /.well-known/vct/UniversityDegree,
+        # el vct debe ser {issuer_url}/UniversityDegree (path = /UniversityDegree).
+        if fmt == "vc+sd-jwt" and issuer_url and "vct" in cleaned:
+            vct_id = cleaned["vct"]
+            vct_url = f"{issuer_url}/{vct_id}"
+            cleaned["vct"] = vct_url
+            
+            result[config_id] = cleaned.copy()
+            # FIX LISSI WALLET: 
+            # Wallets asumen erróneamente que config_id == vct claim.
+            # Al enviar un vct URL, Lissi no encuentra "UniversityDegree".
+            # Agregamos la URL como alias en las configuraciones soportadas.
+            result[vct_url] = cleaned.copy()
+        else:
+            result[config_id] = cleaned
+
     return result
 
 
