@@ -422,6 +422,7 @@ from openid4vc.metadata_endpoints import (
     oauth_authorization_server_metadata as _modular_oauth_metadata,
     get_credential_issuer_metadata as _modular_issuer_metadata,
     vct_metadata_endpoint as _modular_vct_metadata,
+    did_document_endpoint as _modular_did_document,
 )
 
 
@@ -432,6 +433,15 @@ async def root_oauth_metadata():
     Delega al handler modular para mantener una única fuente de verdad.
     """
     return await _modular_oauth_metadata()
+
+@app.get("/.well-known/did.json")
+async def root_did_document():
+    """
+    Resolución criptográfica W3C DID Core para did:web en la RAÍZ del dominio.
+    Imprescindible para carteras estrictas de SSI (Paradym, Animo, Credo-TS)
+    cuando el Issuer o firmante se declara vía Identificadores Descentralizados.
+    """
+    return await _modular_did_document()
 
 
 @app.get("/.well-known/openid-credential-issuer")
