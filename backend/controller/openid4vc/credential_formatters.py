@@ -245,13 +245,12 @@ def resolve_format(
             requested=fmt,
         )
 
-    # Prioridad 2: credential_configuration_id del request
-    config_id = request_body.get("credential_configuration_id")
+    # Prioridad 2: credential_configuration_id (Draft 11) o credential_identifier (Draft 13)
+    config_id = request_body.get("credential_configuration_id") or request_body.get("credential_identifier")
     if config_id and config_id in CREDENTIAL_CONFIGURATIONS:
         resolved = CREDENTIAL_CONFIGURATIONS[config_id]["format"]
         logger.info(
-            f"🎯 Formato resuelto desde credential_configuration_id: {resolved}",
-            config_id=config_id,
+            f"🎯 Formato resuelto desde config_id ({config_id}): {resolved}"
         )
         return resolved
 
@@ -300,55 +299,31 @@ def format_credential(
     logger.info(f"📋 Despachando a formateador: {normalized}")
     return formatter(**kwargs)
 
-
 def build_credential_response(
     credential: Any,
     format_name: str,
-    legacy_credential: Any = None,
-    legacy_format: str | None = None,
 ) -> dict[str, Any]:
     """
     Construye el objeto de respuesta completo del credential endpoint.
-
-    La respuesta incluye la credencial en AMBOS formatos para máxima
-    compatibilidad:
-
-        • Campo singular ``credential`` → Draft 13+ (Lissi lee aquí)
-        • Arrays ``credentials[0]`` / ``credential_responses[0]``
-          → Draft 11/12 (DIDRoom lee aquí)
-
-    Si se proporciona ``legacy_credential``, se coloca PRIMERO en los
-    arrays legacy (``[0]``).  DIDRoom siempre lee ``[0]`` sin buscar
-    en más posiciones.
-
-    Args:
-        credential: Credencial primaria (para campo singular).
-        format_name: Formato de la credencial primaria.
-        legacy_credential: Credencial alternativa para arrays legacy.
-        legacy_format: Formato de la credencial legacy.
-
-    Returns:
-        Diccionario listo para serializar como JSON response.
+    
+    Genera el json exacto esperado para el formato devuelto, cumpliendo las
+    draft specs 11 y 13 mediante el re-uso del mismo payload en 'credential'
+    y 'credentials'/'credential_responses' (pero strictly del mismo tipo, para
+    evitar fallos en arrays híbridos como los que Rompen a Paradym).
     """
-    # Entrada primaria (siempre presente en ambos lugares)
-    primary_entry = {"credential": credential, "format": format_name}
 
-    # Si hay credencial legacy (otro formato), va PRIMERO en los arrays
-    if legacy_credential is not None and legacy_format is not None:
-        legacy_entry = {"credential": legacy_credential, "format": legacy_format}
-        array_entries = [legacy_entry, primary_entry]
-    else:
-        array_entries = [primary_entry]
+    entry = {"credential": credential, "format": format_name}
+    array_entries = [entry]
 
     return {
-        # Draft 13+ (OID4VCI 1.0) — Campo singular (Lissi lee aquí)
+        # Draft 13+ (OID4VCI 1.0) — Campo singular
         "format": format_name,
         "credential": credential,
-        # Draft 11/12 — Arrays legacy (DIDRoom lee [0])
-        # jwt_vc_json va PRIMERO para que DIDRoom encuentre el JSON object
-        # con credentialSubject en [0].
+        
+        # Draft 11/12 — Arrays legacy
         "credentials": array_entries,
         "credential_responses": array_entries,
+
         # Nonce y notificación
         "c_nonce": secrets.token_urlsafe(32),
         "c_nonce_expires_in": 300,

@@ -970,21 +970,24 @@ async def credential_endpoint(
             requires_absolute_vct=requires_absolute_vct,
         )
 
-        # Primario: vc+sd-jwt (campo singular, Lissi)
-        credential, format_name = format_credential("vc+sd-jwt", **formatter_kwargs)
-        # Legacy: jwt_vc_json (arrays[0], DIDRoom)
-        legacy_cred, legacy_fmt = format_credential("jwt_vc_json", **formatter_kwargs)
+        from credential_formatters import resolve_format
+        
+        # ─── Resolver el formato exigido EXACTAMENTE por la wallet ───
+        # Paradym y DIDRoom crashean si les devuelves un array híbrido 
+        # (mezcla de strings SD-JWT y diccionarios JWT_VC_JSON).
+        resolved_format = resolve_format(json_data)
+
+        # Generar UNA ÚNICA credencial en el formato exacto requerido
+        credential, format_name = format_credential(resolved_format, **formatter_kwargs)
 
         logger.info(
             f"✅ Credencial emitida para: {credential_data.get('student_name')} "
-            f"| Primario: {format_name} | Legacy[0]: {legacy_fmt}"
+            f"| Formato Único: {format_name}"
         )
 
-        # ─── Construir respuesta multi-formato ───
+        # ─── Construir respuesta con un solo formato ───
         response_data = build_credential_response(
-            credential, format_name,
-            legacy_credential=legacy_cred,
-            legacy_format=legacy_fmt,
+            credential, format_name
         )
 
         response = JSONResponse(content=response_data)
