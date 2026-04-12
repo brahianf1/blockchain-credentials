@@ -954,13 +954,11 @@ async def credential_endpoint(
         #   • DIDRoom (Draft 11) → arrays "credentials[0]"    → jwt_vc_json
         #
         # Generamos ambos y los ubicamos donde cada wallet los busca.
-        # Sin heurísticas, sin detección — cada wallet siempre recibe su formato.
-        
-        # Mapeo semántico de capacidades del cliente según cómo invocó el endpoint
-        # Si la wallet solicita mediante 'credential_configuration_id' asume Draft 13 (Literal config matching).
-        # Si la wallet usa 'credential_definition' o 'vct' asume Draft 11/12 (Schema Definition URI resolving).
-        requested_via_config_id = "credential_configuration_id" in json_data
-        requires_absolute_vct = not requested_via_config_id
+        # Todos los wallets (Draft 11 y Draft 13+) recibirán una URL absoluta en el
+        # campo vct de SD-JWT, siguiendo la recomendación rigurosa de IETF SD-JWT VC §6.3.
+        # Lissi (Draft 13) hará matching perfecto con el registry y luego probará HTTP GET a la raíz.
+        # WaltID (Draft 11) realizará fetching en .well-known/vct/.
+        requires_absolute_vct = True
 
         formatter_kwargs = dict(
             credential_data=credential_data,

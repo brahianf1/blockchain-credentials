@@ -452,6 +452,21 @@ async def root_vct_metadata(vct_id: str):
     """
     return await _modular_vct_metadata(vct_id)
 
+@app.get("/{vct_id}")
+async def alias_vct_metadata(vct_id: str):
+    """
+    Alias estricto de VCT Type Metadata en RAÍZ pura (IETF SD-JWT VC §6.3 ver. 06).
+    Las wallets que siguen el RFC al pie de la letra (e.g. Lissi) intentarán un 
+    HTTP GET directo sobre el valor 'vct' (https://api-credenciales.../UniversityDegree)
+    sin inyectar sub-paths como .well-known/vct/.
+    Validamos explícitamente el ID para evitar falsos positivos con otros paths.
+    """
+    if vct_id in ("UniversityDegree", "WaltIdDegree"):
+        return await _modular_vct_metadata(vct_id)
+    # Evitar capturar otros recursos (JS, CSS, static, etc)
+    from fastapi import HTTPException
+    raise HTTPException(status_code=404, detail="Not Found")
+
 @app.get("/health")
 async def healthcheck():
     """Health check endpoint"""

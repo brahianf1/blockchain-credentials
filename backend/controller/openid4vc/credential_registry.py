@@ -254,12 +254,15 @@ def get_configurations_for_metadata(
             if claims and "credentialSubject" not in cleaned:
                 cleaned["credentialSubject"] = claims
 
-        # Para vc+sd-jwt: Mantenemos el VCT literal. Diferentes clientes (Draft 11 vs 13) 
-        # recibirán payloads diferentes del credential endpoint dependiendo de sus capacidades,
-        # pero la metadata maestra (CATÁLOGO) se mantiene pura para no romper el mapeo de LINQ en billeteras como Lissi.
-        # if fmt == "vc+sd-jwt" and issuer_url and "vct" in cleaned:
-        #     vct_id = cleaned["vct"]
-        #     cleaned["vct"] = f"{issuer_url}/{vct_id}"
+        # Para vc+sd-jwt: ``vct`` debe ser una URL resoluble (IETF SD-JWT VC draft-06).
+        # WaltID deriva el well-known URL como:
+        #   {authority}/.well-known/vct/{path}
+        # Lissi (purista) resuelve la URL literal:
+        #   {issuer_url}/{path}
+        # Ambos se logran sirviendo un VCT configurado con URL absoluta.
+        if fmt == "vc+sd-jwt" and issuer_url and "vct" in cleaned:
+            vct_id = cleaned["vct"]
+            cleaned["vct"] = f"{issuer_url}/{vct_id}"
 
         result[config_id] = cleaned
 
