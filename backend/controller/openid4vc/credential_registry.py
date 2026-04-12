@@ -184,6 +184,13 @@ CREDENTIAL_CONFIGURATIONS: dict[str, dict[str, Any]] = {
             "did:jwk",
             "jwk",
         ],
+        
+        # Tipos de prueba de posesión soportados (Requerido por Paradym Wallet)
+        "proof_types_supported": {
+            "jwt": {
+                "proof_signing_alg_values_supported": ["ES256"]
+            }
+        },
 
         # Algoritmos de firma soportados
         "credential_signing_alg_values_supported": ["ES256"],
