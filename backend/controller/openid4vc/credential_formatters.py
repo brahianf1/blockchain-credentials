@@ -80,7 +80,7 @@ def format_sd_jwt(
         cnf = {"kid": holder_did}
 
     payload = {
-        "iss": issuer_url,
+        "iss": issuer_did,
         "sub": holder_did,
         "cnf": cnf,
         "iat": now_ts - 5,  # clock skew tolerance
