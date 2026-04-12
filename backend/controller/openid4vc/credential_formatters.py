@@ -50,6 +50,7 @@ def format_sd_jwt(
     private_key: Any,
     issuer_url: str,
     issuer_did: str,
+    requires_absolute_vct: bool = False,
 ) -> tuple[str, str]:
     """
     Genera una credencial en formato ``vc+sd-jwt`` (SD-JWT VC).
@@ -73,7 +74,7 @@ def format_sd_jwt(
         "iat": now_ts - 5,  # clock skew tolerance
         "exp": exp_ts,
         "jti": f"urn:credential:{access_token[:16]}",
-        "vct": f"{issuer_url}/UniversityDegree",
+        "vct": f"{issuer_url}/UniversityDegree" if requires_absolute_vct else "UniversityDegree",
         "university": "UTN",
         "student_name": credential_data.get("student_name", "Unknown"),
         "student_email": credential_data.get("student_email", "unknown@example.com"),
@@ -108,6 +109,7 @@ def format_jwt_vc_json(
     private_key: Any,
     issuer_url: str,
     issuer_did: str,
+    requires_absolute_vct: bool = False,
 ) -> tuple[dict[str, Any], str]:
     """
     Genera una credencial en formato ``jwt_vc_json`` (W3C VC Data Model 1.1).

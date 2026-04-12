@@ -955,6 +955,13 @@ async def credential_endpoint(
         #
         # Generamos ambos y los ubicamos donde cada wallet los busca.
         # Sin heurísticas, sin detección — cada wallet siempre recibe su formato.
+        
+        # Mapeo semántico de capacidades del cliente según cómo invocó el endpoint
+        # Si la wallet solicita mediante 'credential_configuration_id' asume Draft 13 (Literal config matching).
+        # Si la wallet usa 'credential_definition' o 'vct' asume Draft 11/12 (Schema Definition URI resolving).
+        requested_via_config_id = "credential_configuration_id" in json_data
+        requires_absolute_vct = not requested_via_config_id
+
         formatter_kwargs = dict(
             credential_data=credential_data,
             holder_did=holder_did,
@@ -963,6 +970,7 @@ async def credential_endpoint(
             private_key=PRIVATE_KEY,
             issuer_url=ISSUER_URL,
             issuer_did=ISSUER_DID,
+            requires_absolute_vct=requires_absolute_vct,
         )
 
         # Primario: vc+sd-jwt (campo singular, Lissi)
