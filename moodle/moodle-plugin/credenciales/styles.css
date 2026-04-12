@@ -14,81 +14,109 @@
     --md-sys-color-surface-container-high: #ebeeef;
     --md-sys-color-outline: #6f797a;
     --md-elevation-1: 0px 1px 3px 1px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
-    --md-elevation-2: 0px 2px 6px 2px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.3);
 }
 
 .md3-container {
     font-family: 'Roboto', 'Inter', sans-serif;
     color: var(--md-sys-color-on-surface);
-    padding: 24px;
 }
 
 .md3-page-title {
     font-size: 24px;
     font-weight: 500;
     color: var(--md-sys-color-on-surface);
-    margin-bottom: 24px;
 }
 
-.md3-certificates-list {
-    display: flex;
-    flex-direction: column;
-    gap: 32px;
-}
-
-.md3-card-surface {
+/* Master-Detail: Summary Cards */
+.md3-summary-card {
     background-color: var(--md-sys-color-surface);
     border-radius: 12px;
     border: 1px solid var(--md-sys-color-outline);
     padding: 24px;
-    box-shadow: none; /* MD3 strict */
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
-/* Status Bar */
-.md3-status-bar {
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--md-sys-color-surface-container-high);
-    margin-bottom: 24px;
+.md3-card-course-title {
+    font-size: 1.2rem;
+    font-weight: 500;
+    line-height: 1.4;
+    margin: 0;
+    color: var(--md-sys-color-on-surface);
 }
 
-.md3-label {
-    font-size: 14px;
-    color: var(--md-sys-color-outline);
+.md3-card-date {
+    font-size: 0.9rem;
+    margin: 0;
 }
 
+/* Tonal Badges */
 .md3-badge {
-    padding: 6px 12px;
-    border-radius: 16px;
+    padding: 4px 10px;
+    border-radius: 8px;
     font-size: 12px;
     font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .md3-badge-pending {
     background-color: #fff3e0;
     color: #e65100;
-    border: 1px solid #ffe0b2;
 }
 
 .md3-badge-claimed {
     background-color: #e8f5e9;
     color: #2e7d32;
-    border: 1px solid #c8e6c9;
 }
 
-/* Certificate Illustration (HTML Mockup analogous to physical diploma) */
+/* Modal Content override */
+.md3-modal-content {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+/* Certificate Illustration */
 .md3-certificate-illustration {
     background-color: #ffffff;
-    border: 10px solid var(--md-sys-color-primary); /* Classic solid border */
+    border: 10px solid var(--md-sys-color-primary);
     padding: 4px;
-    margin-bottom: 24px;
+    position: relative;
+    box-shadow: var(--md-elevation-1);
+    max-width: 1000px;
+    margin: 0 auto;
 }
 
 .cert-inner {
-    border: 2px solid #bdbdbd; /* Inner subtle border */
+    border: 2px solid #bdbdbd;
     padding: 48px;
     text-align: center;
     background-color: #fafafa;
     position: relative;
+    overflow: hidden;
+}
+
+/* Abstract UI Watermark (No images, strict CSS MD3 geometric approach) */
+.cert-watermark {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: linear-gradient(135deg, rgba(0, 95, 115, 0.03) 25%, transparent 25%),
+                      linear-gradient(225deg, rgba(0, 95, 115, 0.03) 25%, transparent 25%),
+                      linear-gradient(45deg, rgba(0, 95, 115, 0.03) 25%, transparent 25%),
+                      linear-gradient(315deg, rgba(0, 95, 115, 0.03) 25%, transparent 25%);
+    background-position: 10px 0, 10px 0, 0 0, 0 0;
+    background-size: 20px 20px;
+    background-repeat: repeat;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.cert-header, .cert-body, .cert-footer {
+    position: relative;
+    z-index: 1;
 }
 
 .cert-header {
@@ -96,7 +124,7 @@
 }
 
 .cert-logo-placeholder {
-    font-size: 24px;
+    font-size: 28px;
     color: var(--md-sys-color-primary);
     text-transform: uppercase;
     letter-spacing: 2px;
@@ -104,14 +132,14 @@
 
 .cert-body h1 {
     font-family: 'Georgia', serif;
-    font-size: 28px;
+    font-size: 32px;
     color: #424242;
     margin-bottom: 16px;
 }
 
 .cert-student {
     font-family: 'Georgia', serif;
-    font-size: 36px;
+    font-size: 42px;
     color: var(--md-sys-color-primary);
     margin-bottom: 8px;
     font-weight: bold;
@@ -125,10 +153,10 @@
 }
 
 .cert-text {
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1.6;
     color: #424242;
-    max-width: 600px;
+    max-width: 700px;
     margin: 0 auto 48px auto;
 }
 
@@ -140,66 +168,66 @@
 
 .cert-signatures {
     display: flex;
-    gap: 48px;
+    gap: 64px;
 }
 
 .signature {
     text-align: center;
+    position: relative;
+}
+
+/* Realistic SVG Signatures inline */
+.sig-path {
+    height: 60px;
+    width: 150px;
+    margin: 0 auto;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center bottom;
+    opacity: 0.8;
+}
+
+/* Base64 encoded SVGs representing abstract ink signatures */
+.sig-path-1 {
+    background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg"><path d="M10,30 Q20,10 30,25 T50,15 T70,30 T90,20" fill="none" stroke="%230b3d91" stroke-width="2" stroke-linecap="round"/></svg>');
+}
+.sig-path-2 {
+    background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg"><path d="M5,25 C15,5 30,35 45,15 S60,35 75,20 S90,30 95,10" fill="none" stroke="%230b3d91" stroke-width="2" stroke-linecap="round"/></svg>');
 }
 
 .sig-line {
-    width: 150px;
+    width: 180px;
     border-bottom: 1px solid #424242;
     margin-bottom: 8px;
 }
 
 .signature span {
-    font-size: 12px;
+    font-size: 14px;
     color: #616161;
+    font-weight: 500;
 }
 
 .cert-public-qr img {
-    width: 80px;
-    height: 80px;
+    width: 90px;
+    height: 90px;
     border: 2px solid #eeeeee;
     padding: 4px;
     background: #fff;
+    box-shadow: var(--md-elevation-1);
 }
 
-/* Actions Container */
-.md3-actions-container {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.md3-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 24px;
-    border-radius: 100px; /* Fully rounded MD3 */
-    font-size: 14px;
-    font-weight: 500;
-    text-decoration: none;
-    border: none;
-    cursor: pointer;
-    transition: background-color 0.2s, box-shadow 0.2s;
-}
-
-.md3-btn i {
-    font-size: 16px;
-}
-
+/* Buttons and interactions */
 .md3-btn-primary {
     background-color: var(--md-sys-color-primary);
     color: var(--md-sys-color-on-primary);
+    border-radius: 100px;
+    font-weight: 500;
+    border: none;
+    transition: background-color 0.2s;
 }
 
 .md3-btn-primary:hover {
     background-color: #004d5b;
-    box-shadow: var(--md-elevation-1);
     color: #ffffff;
 }
 
@@ -207,75 +235,24 @@
     background-color: transparent;
     color: var(--md-sys-color-primary);
     border: 1px solid var(--md-sys-color-outline);
+    border-radius: 100px;
+    font-weight: 500;
 }
 
 .md3-btn-outlined:hover {
     background-color: var(--md-sys-color-surface-container);
-    text-decoration: none;
 }
 
 .md3-btn-linkedin {
     background-color: #0a66c2;
     color: #ffffff;
+    border-radius: 100px;
+    font-weight: 500;
 }
 
 .md3-btn-linkedin:hover {
     background-color: #004182;
     color: #ffffff;
-    box-shadow: var(--md-elevation-1);
-}
-
-.md3-btn-secondary {
-    background-color: var(--md-sys-color-surface-container);
-    color: var(--md-sys-color-on-surface);
-}
-
-.md3-btn-secondary:hover {
-    background-color: var(--md-sys-color-surface-container-high);
-}
-
-.md3-share-actions {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
-.md3-scanner-card {
-    background-color: var(--md-sys-color-surface-container);
-    padding: 24px;
-    border-radius: 12px;
-    text-align: center;
-    margin-top: 16px;
-}
-
-.md3-headline-small {
-    font-size: 20px;
-    font-weight: 500;
-    color: var(--md-sys-color-on-surface);
-    margin-bottom: 8px;
-}
-
-.md3-body-medium {
-    font-size: 14px;
-    color: #424242;
-    margin-bottom: 24px;
-    max-width: 500px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.scanner-qr-wrapper {
-    background-color: #ffffff;
-    padding: 16px;
-    border-radius: 8px;
-    display: inline-block;
-    border: 1px solid var(--md-sys-color-outline);
-    margin-bottom: 16px;
-}
-
-.scanner-qr-wrapper img {
-    max-width: 200px;
-    display: block;
 }
 
 .md3-alert {
@@ -283,10 +260,9 @@
     border-radius: 8px;
     font-size: 14px;
     font-weight: 500;
+    background-color: var(--md-sys-color-surface-container);
 }
 
-.md3-alert-info {
-    background-color: var(--md-sys-color-surface-container);
-    color: var(--md-sys-color-on-surface);
-    border-left: 4px solid var(--md-sys-color-primary);
+.md3-side-block .md3-surface {
+    background-color: var(--md-sys-color-surface);
 }

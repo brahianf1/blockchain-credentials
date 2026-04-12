@@ -1,106 +1,122 @@
-<div class="container-fluid md3-container">
-    <h2 class="md3-page-title">{{#str}}my_certificates, block_credenciales{{/str}}</h2>
+<div class="container-fluid md3-container pt-4">
+    <div class="d-flex align-items-center mb-4">
+        <i class="fa fa-certificate text-primary mr-3" style="font-size: 2rem;"></i>
+        <h2 class="md3-page-title m-0">{{#str}}my_certificates, block_credenciales{{/str}}</h2>
+    </div>
     
     {{#has_certificates}}
-        <div class="md3-certificates-list">
+        <div class="row">
             {{#certificates}}
-                <div class="md3-card-surface mb-5">
-                    
-                    <!-- Estado de la Credencial -->
-                    <div class="md3-status-bar d-flex justify-content-between align-items-center">
-                        <span class="md3-label">Estado de Emisión:</span>
-                        {{#is_pending}}
-                            <span class="md3-badge md3-badge-pending"><i class="fa fa-clock-o"></i> Pendiente de Reclamar</span>
-                        {{/is_pending}}
-                        {{#is_claimed}}
-                            <span class="md3-badge md3-badge-claimed"><i class="fa fa-check-circle"></i> Credencial en Wallet</span>
-                        {{/is_claimed}}
-                    </div>
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="md3-summary-card">
+                        <div class="md3-card-header d-flex justify-content-between">
+                            <i class="fa fa-university text-muted"></i>
+                            {{#is_pending}}
+                                <span class="md3-badge md3-badge-pending" title="Pendiente"><i class="fa fa-clock-o"></i> Pendiente</span>
+                            {{/is_pending}}
+                            {{#is_claimed}}
+                                <span class="md3-badge md3-badge-claimed" title="En Billetera"><i class="fa fa-check-circle"></i> Claimed</span>
+                            {{/is_claimed}}
+                        </div>
+                        <div class="md3-card-body mt-3">
+                            <h4 class="md3-card-course-title">{{course_name}}</h4>
+                            <p class="md3-card-date text-muted mt-2"><i class="fa fa-calendar-check-o"></i> {{exact_time}}</p>
+                        </div>
+                        <div class="md3-card-footer mt-4 border-top pt-3">
+                            <button type="button" class="btn btn-block md3-btn-outlined mb-2" data-toggle="modal" data-target="#certModal{{cert_id}}">
+                                <i class="fa fa-search-plus"></i> Ver Diploma
+                            </button>
+                            
+                            {{#is_pending}}
+                                <button type="button" class="btn btn-block md3-btn-primary" data-toggle="collapse" data-target="#walletCollapse{{cert_id}}">
+                                    <i class="fa fa-qrcode"></i> Reclamar Credencial
+                                </button>
+                                <div class="collapse mt-2" id="walletCollapse{{cert_id}}">
+                                    <div class="p-3 bg-light rounded text-center border">
+                                        <p class="small text-muted mb-2">Escanea el QR o usa el enlace si estás en móvil:</p>
+                                        <img src="{{qr_code}}" alt="QR" style="max-width: 150px; background: white; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+                                        <div class="mt-2">
+                                            <a href="{{invitation_url}}" class="btn btn-sm btn-outline-secondary"><i class="fa fa-external-link"></i> Abrir Billetera</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            {{/is_pending}}
 
-                    <!-- Representación Visual Ilustrativa del Certificado -->
-                    <div class="md3-certificate-illustration">
-                        <div class="cert-inner">
-                            <div class="cert-header">
-                                <div class="cert-logo-placeholder">
-                                    <strong>{{org_name}}</strong>
-                                </div>
+                            {{#is_claimed}}
+                                <a href="{{linkedin_share_url}}" target="_blank" class="btn btn-block md3-btn-linkedin mt-2">
+                                    <i class="fa fa-linkedin-square"></i> Compartir Logro
+                                </a>
+                            {{/is_claimed}}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal for the Certificate Full Illustration -->
+                <div class="modal fade" id="certModal{{cert_id}}" tabindex="-1" role="dialog" aria-hidden="true">
+                    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+                        <div class="modal-content md3-modal-content">
+                            <div class="modal-header border-0 pb-0">
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
                             </div>
-                            
-                            <div class="cert-body">
-                                <h1>Certifico que</h1>
-                                <h2 class="cert-student">{{student_name}}</h2>
-                                <h3 class="cert-dni">DNI {{student_dni}}</h3>
-                                
-                                <p class="cert-text">
-                                    Con fecha {{date}} ha aprobado <strong>'{{course_name}}'</strong><br>
-                                    dictado por {{org_name}} con un total de {{hours}} horas reloj.
-                                </p>
-                            </div>
-                            
-                            <div class="cert-footer">
-                                <div class="cert-signatures">
-                                    <div class="signature">
-                                        <div class="sig-line"></div>
-                                        <span>Secretaría de Extensión</span>
+                            <div class="modal-body p-4 pt-0">
+                                <!-- Abstract Realism Certificate Mockup -->
+                                <div class="md3-certificate-illustration">
+                                    <div class="cert-inner">
+                                        <!-- Watermark Background via CSS abstract shapes -->
+                                        <div class="cert-watermark"></div>
+                                        
+                                        <div class="cert-header">
+                                            <div class="cert-logo-placeholder">
+                                                <strong><i class="fa fa-university mr-2"></i> {{org_name}}</strong>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="cert-body">
+                                            <h1>Certifico que</h1>
+                                            <h2 class="cert-student">{{student_name}}</h2>
+                                            <h3 class="cert-dni">DNI {{student_dni}}</h3>
+                                            
+                                            <p class="cert-text">
+                                                Con fecha {{date}} ha aprobado <strong>'{{course_name}}'</strong><br>
+                                                dictado por {{org_name}} con un total de {{hours}} horas reloj.
+                                            </p>
+                                        </div>
+                                        
+                                        <div class="cert-footer">
+                                            <div class="cert-signatures">
+                                                <div class="signature">
+                                                    <div class="sig-path sig-path-1"></div>
+                                                    <div class="sig-line"></div>
+                                                    <span>Secretaría de Extensión</span>
+                                                </div>
+                                                <div class="signature">
+                                                    <div class="sig-path sig-path-2"></div>
+                                                    <div class="sig-line"></div>
+                                                    <span>Decanato</span>
+                                                </div>
+                                            </div>
+                                            <div class="cert-public-qr">
+                                                <a href="{{public_verify_url}}" target="_blank" title="Verificar en Web Pública (Mock)">
+                                                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data={{public_verify_url}}" alt="QR Validación">
+                                                </a>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="signature">
-                                        <div class="sig-line"></div>
-                                        <span>Decano</span>
-                                    </div>
-                                </div>
-                                <div class="cert-public-qr">
-                                    <a href="{{public_verify_url}}" target="_blank" title="Verificar en Web Pública">
-                                        <!-- Placeholder QR para el enlace público abstracto -->
-                                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data={{public_verify_url}}" alt="QR Validación Pública">
-                                    </a>
                                 </div>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Acciones MD3 -->
-                    <div class="md3-actions-container">
-                        {{#is_pending}}
-                            <!-- Action to Claim -->
-                            <button class="md3-btn md3-btn-primary" type="button" data-toggle="collapse" data-target="#walletCollapse{{cert_id}}" aria-expanded="false" aria-controls="walletCollapse{{cert_id}}">
-                                <i class="fa fa-wallet"></i> Guardar credencial en mi Wallet ID
-                            </button>
-                            
-                            <!-- Collapse Scanner -->
-                            <div class="collapse mt-3" id="walletCollapse{{cert_id}}">
-                                <div class="md3-scanner-card">
-                                    <h4 class="md3-headline-small">Escanea para reclamar tu Identidad Digital</h4>
-                                    <p class="md3-body-medium">Abre tu aplicación de billetera compatible con DID (Lissi, Paradym, DIDRoom) y escanea el siguiente código para descargar tu credencial criptográfica original y firmada.</p>
-                                    
-                                    <div class="scanner-qr-wrapper">
-                                        <img src="{{qr_code}}" alt="QR Code" class="img-fluid">
-                                    </div>
-                                    <p class="mt-2"><small>O utiliza el enlace directo si estás en dispositivo móvil:</small></p>
-                                    <a href="{{invitation_url}}" class="md3-btn md3-btn-outlined"><i class="fa fa-link"></i> Abrir en Billetera</a>
-                                </div>
-                            </div>
-                        {{/is_pending}}
-                        
-                        {{#is_claimed}}
-                            <!-- Actions to Share -->
-                            <div class="md3-share-actions">
-                                <a href="{{linkedin_share_url}}" target="_blank" class="md3-btn md3-btn-linkedin">
-                                    <i class="fa fa-linkedin-square"></i> Compartir como Logro en LinkedIn
-                                </a>
-                                <a href="{{public_verify_url}}" target="_blank" class="md3-btn md3-btn-secondary">
-                                    <i class="fa fa-globe"></i> Ver Página Pública (Mock)
-                                </a>
-                            </div>
-                        {{/is_claimed}}
-                    </div>
                 </div>
+                <!-- End Modal -->
             {{/certificates}}
         </div>
     {{/has_certificates}}
 
     {{^has_certificates}}
         <div class="md3-alert md3-alert-info">
-            <i class="fa fa-info-circle"></i> Aún no has adquirido ninguna credencial. Completá los cursos requeridos para verlas aquí.
+            <i class="fa fa-info-circle mr-2"></i> Aún no has adquirido ninguna credencial. Completá los cursos requeridos para verlas aquí.
         </div>
     {{/has_certificates}}
 </div>

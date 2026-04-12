@@ -52,6 +52,7 @@ if ($credentials) {
             'student_dni' => $user_dni,
             'course_name' => $course ? $course->fullname : 'Unknown Course',
             'date' => userdate($cred->timecreated, get_string('strftimedate', 'core_langconfig')),
+            'exact_time' => userdate($cred->timecreated, '%d/%m/%Y %H:%M'),
             'year' => userdate($cred->timecreated, '%Y'),
             'qr_code' => $cred->qr_code_base64, // The DID Wallet QR code
             'invitation_url' => $cred->invitation_url, // URL for Desktop
@@ -62,7 +63,7 @@ if ($credentials) {
             'linkedin_share_url' => $linkedin_share_url,
             'org_name' => get_config('block_credenciales', 'organization_name') ?: 'Universidad',
             'cert_id' => $cred->id,
-            'hours' => '120' // Static illustration mock for 'horas reloj' like in the example img
+            'hours' => '120' // Static illustration mock for 'horas reloj'
         ];
     }
 }
