@@ -19,9 +19,9 @@ from .config import (
 )
 from .credential_registry import (
     ISSUER_DISPLAY,
-    UNIVERSITY_DEGREE_CLAIMS,
     UNIVERSITY_DEGREE_DISPLAY,
     get_configurations_for_metadata,
+    get_vct_claims,
 )
 from .helpers import add_security_headers
 
@@ -164,11 +164,30 @@ async def vct_metadata_endpoint(vct_id: str):
             content={"error": "vct_not_found", "vct": vct_id},
         )
 
+    # Obtener display en inglés para la sección rendering
+    en_display = next(
+        (d for d in UNIVERSITY_DEGREE_DISPLAY if d.get("locale") == "en-US"),
+        UNIVERSITY_DEGREE_DISPLAY[0],
+    )
+
     vct_metadata = {
         "vct": f"{ISSUER_URL}/{vct_id}",
-        "name": "University Certificate",
-        "description": "Official credential certifying course completion at UTN.",
-        "claims": UNIVERSITY_DEGREE_CLAIMS,
+        "name": en_display.get("name", "University Certificate"),
+        "description": en_display.get(
+            "description",
+            "Official credential certifying course completion at UTN.",
+        ),
+        # Claims en formato SD-JWT VC spec (array con path/label/sd)
+        "claims": get_vct_claims(),
+        # Rendering hints para la card visual (SD-JWT VC §6.4)
+        "rendering": {
+            "simple": {
+                "logo": en_display.get("logo", {}),
+                "background_color": en_display.get("background_color", "#1976d2"),
+                "text_color": en_display.get("text_color", "#FFFFFF"),
+            },
+        },
+        # Display multi-locale (compatibilidad con wallets que lean display)
         "display": UNIVERSITY_DEGREE_DISPLAY,
     }
 

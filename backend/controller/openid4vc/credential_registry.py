@@ -73,6 +73,40 @@ UNIVERSITY_DEGREE_CLAIMS: dict[str, dict[str, Any]] = {
     },
 }
 
+
+def get_vct_claims() -> list[dict[str, Any]]:
+    """
+    Transforma ``UNIVERSITY_DEGREE_CLAIMS`` del formato OID4VCI (mapa) al
+    formato SD-JWT VC Type Metadata (array) definido en
+    draft-ietf-oauth-sd-jwt-vc §6.3.
+
+    OID4VCI (issuer metadata)::
+
+        {"student_name": {"mandatory": true, "display": [{"name": "..."}]}}
+
+    SD-JWT VC Type Metadata (VCT endpoint)::
+
+        [{"path": ["student_name"],
+          "display": [{"lang": "en-US", "label": "..."}],
+          "sd": "allowed"}]
+
+    Así servimos claims desde la misma fuente de verdad
+    en dos formatos spec-compliant sin duplicar datos.
+    """
+    result: list[dict[str, Any]] = []
+    for claim_key, claim_def in UNIVERSITY_DEGREE_CLAIMS.items():
+        display_entries = claim_def.get("display", [])
+        vct_display = [
+            {"lang": "en-US", "label": entry.get("name", claim_key)}
+            for entry in display_entries
+        ]
+        result.append({
+            "path": [claim_key],
+            "display": vct_display,
+            "sd": "allowed",
+        })
+    return result
+
 # ============================================================================
 # CREDENTIAL DISPLAY (definido UNA SOLA VEZ, compartido por todas las configs)
 # ============================================================================
