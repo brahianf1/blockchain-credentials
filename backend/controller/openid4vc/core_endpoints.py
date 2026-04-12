@@ -948,17 +948,16 @@ async def credential_endpoint(
                 detail={"error": "invalid_request", "error_description": "Proof required"},
             )
 
-        # ─── Generar credenciales en AMBOS formatos ───
-        # Cada wallet lee de un lugar diferente de la respuesta:
-        #   • Lissi (Draft 13)   → campo singular "credential" → vc+sd-jwt
-        #   • DIDRoom (Draft 11) → arrays "credentials[0]"    → jwt_vc_json
-        #
-        # Generamos ambos y los ubicamos donde cada wallet los busca.
-        # Todos los wallets (Draft 11 y Draft 13+) recibirán una URL absoluta en el
-        # campo vct de SD-JWT, siguiendo la recomendación rigurosa de IETF SD-JWT VC §6.3.
-        # Lissi (Draft 13) hará matching perfecto con el registry y luego probará HTTP GET a la raíz.
-        # WaltID (Draft 11) realizará fetching en .well-known/vct/.
-        requires_absolute_vct = True
+        # ========================================================================
+        # TODO: revisar de nuevo luego (Heurística de Compatibilidad)
+        # ========================================================================
+        # Mantenimientos de consistencia rigurosa TIPO-VALOR:
+        # Lissi (Móvil) falla al emparejar displays si el catálogo y el payload no coinciden
+        # en ser puramente "UniversityDegree" literal.
+        # WaltID (Backend) aborta el flow si el VCT del issue no es puramente Absolute URL.
+        user_agent = request.headers.get("user-agent", "").lower()
+        is_mobile = any(kw in user_agent for kw in ("dalvik", "cfnetwork", "ios", "android", "lissi", "okhttp", "darwin"))
+        requires_absolute_vct = not is_mobile
 
         formatter_kwargs = dict(
             credential_data=credential_data,

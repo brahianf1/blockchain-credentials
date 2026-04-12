@@ -103,6 +103,28 @@ async def get_credential_issuer_metadata(request: Request):
         "credential_configurations_supported": get_configurations_for_metadata(ISSUER_URL),
     }
 
+    # ========================================================================
+    # TODO: revisar de nuevo luego (Heurística de Compatibilidad)
+    # ========================================================================
+    # Lissi Wallet (Android/iOS) falla al renderizar el display_name si el VCT del 
+    # catálogo es una URL absoluta, ya que asume que no hay metadatos locales y 
+    # falla al intentar descargar remotos. Si lo dejamos como string literal
+    # (ej: "UniversityDegree"), el LINQ interno de Lissi conecta perfectamente
+    # con su display_name local.
+    # Por otro lado, WaltID (Backend Java/Ktor) arroja un fatal 500 error en su
+    # proxy si este campo no es explícitamente una URL resoluble.
+    # Esta negociación de contenido debe revisarse si Lissi corrige el bug visual
+    # o si se implementa una UI de selección de credenciales en Moodle.
+    user_agent = request.headers.get("user-agent", "").lower()
+    # Detectamos móviles por su stack HTTP clásico
+    is_mobile = any(kw in user_agent for kw in ("dalvik", "cfnetwork", "ios", "android", "lissi", "okhttp", "darwin"))
+    
+    if is_mobile:
+        for conf_id, conf in metadata["credential_configurations_supported"].items():
+            if conf.get("format") == "vc+sd-jwt" and "vct" in conf:
+                # Revertimos a literal puro para la API de Lissi
+                conf["vct"] = conf_id
+
     response = JSONResponse(content=metadata)
     return await add_security_headers(response)
 
