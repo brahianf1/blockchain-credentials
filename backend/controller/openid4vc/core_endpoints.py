@@ -989,10 +989,14 @@ async def credential_endpoint(
         import os
 
         async def notify_moodle_webhook(conn_id: str):
-            # Resolvemos el dominio directamente desde la variable de entorno ya existente (Principio DRY)
-            moodle_domain = os.getenv("MOODLE_DOMAIN", "moodle")
-            moodle_url = f"https://{moodle_domain}" if "http" not in moodle_domain else moodle_domain
-            webhook_url = f"{moodle_url}/blocks/credenciales/webhook.php"
+            # Accedemos a Moodle por la red interna de Docker usando el service name 'moodle-app'
+            # y previniendo el error [Errno -3] Temporary failure in name resolution.
+            moodle_internal_url = os.getenv("MOODLE_INTERNAL_URL", "http://moodle-app")
+            webhook_url = f"{moodle_internal_url}/blocks/credenciales/webhook.php"
+            
+            # Recuperamos el dominio público para pasarlo como Host header y engañar a config.php
+            moodle_domain = os.getenv("MOODLE_DOMAIN", "moodle.utnpf.site")
+            
             try:
                 # Quitamos timeout=5.0 y dejamos fluir ya que es tarea en background
                 # o usamos un timeout más holgado ya que no bloquea la UI principal
@@ -1000,6 +1004,7 @@ async def credential_endpoint(
                     await client.post(
                         webhook_url,
                         json={"connection_id": conn_id, "status": "claimed"},
+                        headers={"Host": moodle_domain},
                         timeout=10.0
                     )
                 logger.info(f"✅ Webhook Moodle notificado exitosamente (Claimed) para conn_id: {conn_id}")
