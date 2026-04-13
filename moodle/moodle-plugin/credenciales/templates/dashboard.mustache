@@ -11,55 +11,54 @@
                     <div class="md3-summary-card">
                         <div class="md3-card-header d-flex justify-content-between">
                             <i class="fa fa-university text-muted"></i>
-                            {{#is_pending}}
-                                <span class="md3-badge md3-badge-pending" title="Pendiente"><i class="fa fa-clock-o"></i> Pendiente de Guardar</span>
-                            {{/is_pending}}
-                            {{#is_claimed}}
-                                <span class="md3-badge md3-badge-claimed" title="En Billetera"><i class="fa fa-check-circle"></i> Almacenado en Billetera</span>
-                            {{/is_claimed}}
+                            
+                            <span class="md3-badge md3-badge-pending badge-pending-{{cert_id}} transition-fade" {{^is_pending}}style="display:none;"{{/is_pending}}>
+                                <i class="fa fa-clock-o"></i> Pendiente de Guardar
+                            </span>
+                            
+                            <span class="md3-badge md3-badge-claimed badge-claimed-{{cert_id}} transition-fade" {{^is_claimed}}style="display:none; opacity: 0;"{{/is_claimed}}>
+                                <i class="fa fa-check-circle"></i> Almacenado en Billetera
+                            </span>
                         </div>
                         <div class="md3-card-body mt-3">
                             <h4 class="md3-card-course-title">{{course_name}}</h4>
                             <p class="md3-card-date text-muted mt-2 mb-1"><i class="fa fa-flag-checkered"></i> Curso Aprobado el: <strong>{{exact_completion_time}}</strong></p>
-                            {{#is_claimed}}
-                                <p class="md3-card-date text-success mb-0"><i class="fa fa-shield"></i> Guardado en Billetera el: <strong>{{exact_claimed_time}}</strong></p>
-                            {{/is_claimed}}
+                            
+                            <p class="md3-card-date text-success mb-0 date-claimed-{{cert_id}} transition-fade" {{^is_claimed}}style="display:none; opacity: 0;"{{/is_claimed}}>
+                                <i class="fa fa-shield"></i> Guardado en Billetera el: <strong class="time-text-{{cert_id}}">{{exact_claimed_time}}</strong>
+                            </p>
                         </div>
                         <div class="md3-card-footer mt-4 border-top pt-3">
                             <button type="button" class="btn btn-block md3-btn-outlined mb-2" data-toggle="modal" data-target="#certModal{{cert_id}}">
                                 <i class="fa fa-search-plus"></i> Ver Diploma Ilustrativo
                             </button>
                             
-                            {{#is_pending}}
+                            <div class="pending-actions-{{cert_id}} transition-fade" {{^is_pending}}style="display:none;"{{/is_pending}} data-poll-id="{{cert_id}}">
                                 <button type="button" class="btn btn-block md3-btn-primary" data-toggle="collapse" data-target="#walletCollapse{{cert_id}}">
                                     <i class="fa fa-qrcode"></i> Guardar Credencial en Billetera DID
                                 </button>
                                 <div class="collapse mt-2" id="walletCollapse{{cert_id}}">
                                     <div class="p-4 bg-light rounded text-center border">
-                                        
-                                        <!-- MD3 Microcopy Explainer -->
                                         <div class="alert alert-info text-left small mb-3" style="border-radius: 8px; border-left: 4px solid #17a2b8;">
                                             <i class="fa fa-lightbulb-o mb-1" style="font-size: 1.2rem;"></i><br>
                                             <strong>¿Por qué debo guardar esto?</strong><br>
-                                            Al guardar esta credencial en tu móvil (ej. Paradym o DIDRoom), obtienes <strong>soberanía matemática</strong> sobre este logro. Funciona sin conexión, no requiere que Moodle esté en línea en el futuro y nadie puede revocar tu título sin tu consentimiento.
+                                            Al guardar esta credencial en tu móvil (ej. Paradym o DIDRoom), obtienes <strong>soberanía matemática</strong> sobre este logro. Funciona sin conexión.
                                         </div>
-
                                         <p class="small text-muted mb-2"><strong>1.</strong> Abre tu Billetera DID y escanea este código:</p>
                                         <img src="{{qr_code}}" alt="QR" style="max-width: 150px; background: white; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
-                                        
                                         <div class="mt-3 border-top pt-2">
-                                            <p class="small text-muted mb-1"><strong>2.</strong> O si navegas desde tu celular:</p>
+                                            <p class="small text-muted mb-1"><strong>2.</strong> O navega desde celular:</p>
                                             <a href="{{invitation_url}}" class="btn btn-sm btn-outline-secondary"><i class="fa fa-external-link"></i> Abrir Billetera Automáticamente</a>
                                         </div>
                                     </div>
                                 </div>
-                            {{/is_pending}}
+                            </div>
 
-                            {{#is_claimed}}
+                            <div class="claimed-actions-{{cert_id}} transition-fade" {{^is_claimed}}style="display:none; opacity: 0;"{{/is_claimed}}>
                                 <a href="{{linkedin_share_url}}" target="_blank" class="btn btn-block md3-btn-linkedin mt-2">
                                     <i class="fa fa-linkedin-square"></i> Compartir Logro Profesional
                                 </a>
-                            {{/is_claimed}}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -133,3 +132,60 @@
         </div>
     {{/has_certificates}}
 </div>
+
+{{#has_certificates}}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const pollElements = document.querySelectorAll('[data-poll-id]');
+        if (pollElements.length === 0) return;
+
+        // Poll every 3 seconds
+        setInterval(function() {
+            pollElements.forEach(el => {
+                if (el.style.display === 'none') return; // already claimed
+
+                const certId = el.getAttribute('data-poll-id');
+                fetch('/blocks/credenciales/ajax_status.php?cert_id=' + certId)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'claimed') {
+                            // Hide Pending Actions & Badge
+                            el.style.opacity = '0';
+                            const pendingBadge = document.querySelector('.badge-pending-' + certId);
+                            if(pendingBadge) pendingBadge.style.opacity = '0';
+                            
+                            setTimeout(() => {
+                                el.style.display = 'none';
+                                if(pendingBadge) pendingBadge.style.display = 'none';
+                                
+                                // Show Claimed Info
+                                const claimedActions = document.querySelector('.claimed-actions-' + certId);
+                                const claimedBadge = document.querySelector('.badge-claimed-' + certId);
+                                const dateClaimed = document.querySelector('.date-claimed-' + certId);
+                                const timeText = document.querySelector('.time-text-' + certId);
+                                
+                                if (timeText && data.exact_claimed_time) {
+                                    timeText.textContent = data.exact_claimed_time;
+                                }
+
+                                if (claimedActions) {
+                                    claimedActions.style.display = 'block';
+                                    setTimeout(() => claimedActions.style.opacity = '1', 50);
+                                }
+                                if (claimedBadge) {
+                                    claimedBadge.style.display = 'inline-flex';
+                                    setTimeout(() => claimedBadge.style.opacity = '1', 50);
+                                }
+                                if (dateClaimed) {
+                                    dateClaimed.style.display = 'block';
+                                    setTimeout(() => dateClaimed.style.opacity = '1', 50);
+                                }
+                            }, 300); // Wait for fade out
+                        }
+                    })
+                    .catch(err => console.error('Poller error:', err));
+            });
+        }, 3000);
+    });
+</script>
+{{/has_certificates}}

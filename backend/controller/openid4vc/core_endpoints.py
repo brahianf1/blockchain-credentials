@@ -856,9 +856,12 @@ async def token_endpoint(request: Request):
 # CREDENTIAL ENDPOINT
 # ============================================================================
 
+from fastapi import BackgroundTasks
+
 @core_router.post("/credential")
 async def credential_endpoint(
     request: Request,
+    background_tasks: BackgroundTasks,
     authorization: Optional[str] = Header(None, alias="Authorization")
 ):
     """
@@ -949,13 +952,6 @@ async def credential_endpoint(
                 detail={"error": "invalid_request", "error_description": "Proof required"},
             )
 
-        # ========================================================================
-        # TODO: revisar de nuevo luego (Heurística de Compatibilidad)
-        # ========================================================================
-        # Mantenimientos de consistencia rigurosa TIPO-VALOR:
-        # Lissi (Móvil) falla al emparejar displays si el catálogo y el payload no coinciden
-        # en ser puramente "UniversityDegree" literal.
-        # WaltID (Backend) aborta el flow si el VCT del issue no es puramente Absolute URL.
         user_agent = request.headers.get("user-agent", "").lower()
         is_mobile = any(kw in user_agent for kw in ("dalvik", "cfnetwork", "ios", "android", "lissi", "okhttp", "darwin"))
         requires_absolute_vct = not is_mobile
@@ -972,15 +968,8 @@ async def credential_endpoint(
             requires_absolute_vct=requires_absolute_vct,
         )
 
-        # ─── Resolver el formato exigido EXACTAMENTE por la wallet ───
-        # Paradym y DIDRoom crashean si les devuelves un array híbrido 
-        # (mezcla de strings SD-JWT y diccionarios JWT_VC_JSON).
         resolved_format = resolve_format(json_data)
 
-        # Heurística de retrocompatibilidad estricta para DIDRoom
-        # DIDRoom lee nuestro metadata y pide vc+sd-jwt, pero su frontend (ForkbombEu)
-        # está hardcodeado para leer objetos LdpVc y crashea leyendo propiedades
-        # (ej: 'issuer') si recibe un string SD-JWT. Forzamos jwt_vc_json.
         if holder_did and holder_did.startswith("did:dyne"):
             logger.info("⚠️ Compatibilidad activada: Forzando jwt_vc_json para DIDRoom (did:dyne)")
             resolved_format = "jwt_vc_json"
@@ -994,8 +983,6 @@ async def credential_endpoint(
         )
 
         # ─── Notificar a Moodle vía Webhook (Actualizar status a 'claimed') ───
-        # Usamos asyncio.create_task para no bloquear la respuesta de la wallet
-        import asyncio
         import httpx
         import os
 
@@ -1005,23 +992,27 @@ async def credential_endpoint(
             moodle_url = f"https://{moodle_domain}" if "http" not in moodle_domain else moodle_domain
             webhook_url = f"{moodle_url}/blocks/credenciales/webhook.php"
             try:
+                # Quitamos timeout=5.0 y dejamos fluir ya que es tarea en background
+                # o usamos un timeout más holgado ya que no bloquea la UI principal
                 async with httpx.AsyncClient() as client:
                     await client.post(
                         webhook_url,
                         json={"connection_id": conn_id, "status": "claimed"},
-                        timeout=5.0
+                        timeout=10.0
                     )
                 logger.info(f"✅ Webhook Moodle notificado exitosamente (Claimed) para conn_id: {conn_id}")
             except Exception as w_e:
                 logger.warning(f"⚠️ Webhook Moodle falló: {w_e}")
 
         # Sacar el connection_id (pre-auth_code) de la sesión
-        # Prevenimos si el flujo fue puro authorization_code recuperando desde 'flows'
         conn_id = session.get("pre_authorized_code")
         if not conn_id and session.get("flows"):
             conn_id = session["flows"].get("authorization", {}).get("par_data", {}).get("pre_authorized_code")
+        
         if conn_id:
-            asyncio.create_task(notify_moodle_webhook(conn_id))
+            # Usar background_tasks provisto nativamente por FastAPI
+            background_tasks.add_task(notify_moodle_webhook, conn_id)
+            logger.info("🟢 Tarea asíncrona (Webhook) registrada en BackgroundTasks")
 
         # ─── Construir respuesta con un solo formato ───
         response_data = build_credential_response(
