@@ -69,9 +69,11 @@ async def generate_credential_offer(request_data: Dict[str, Any]) -> Dict[str, A
     # Crear sesión
     session_id = session_manager.create_session(credential_data=request_data, expires_in=600)
     
-    # Generar pre_auth_code
-    timestamp = int(datetime.now().timestamp())
-    pre_auth_code = f"pre_auth_{student_id}_{timestamp}_{hash(student_email) % 10000}"
+    # Generar o usar pre_auth_code (Respetar el enviado por Moodle)
+    pre_auth_code = request_data.get("pre_authorized_code")
+    if not pre_auth_code:
+        timestamp = int(datetime.now().timestamp())
+        pre_auth_code = f"pre_auth_{student_id}_{timestamp}_{hash(student_email) % 10000}"
     session_manager.link_pre_auth_code(session_id, pre_auth_code)
     
     # ================================================================
@@ -1005,9 +1007,14 @@ async def credential_endpoint(
                 logger.warning(f"⚠️ Webhook Moodle falló: {w_e}")
 
         # Sacar el connection_id (pre-auth_code) de la sesión
-        conn_id = session.get("pre_authorized_code")
+        # Lo buscamos primero en credential_data (donde el controller guarda la data original de Moodle)
+        conn_id = session.get("credential_data", {}).get("pre_authorized_code")
+        
+        # Fallback al guardado por los flujos de openid4vc
         if not conn_id and session.get("flows"):
-            conn_id = session["flows"].get("authorization", {}).get("par_data", {}).get("pre_authorized_code")
+            pre_auth_flow = session["flows"].get("pre_authorized")
+            if pre_auth_flow:
+                conn_id = pre_auth_flow.get("code")
         
         if conn_id:
             # Usar background_tasks provisto nativamente por FastAPI

@@ -54,6 +54,7 @@ class StudentCredentialRequest(BaseModel):
     completion_date: str
     grade: str
     instructor_name: str
+    pre_authorized_code: Optional[str] = None
 
 class CredentialResponse(BaseModel):
     connection_id: Optional[str] = None

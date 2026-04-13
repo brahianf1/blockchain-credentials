@@ -31,6 +31,8 @@ if (!$data || !isset($data['connection_id']) || !isset($data['status'])) {
 $connection_id = $data['connection_id'];
 $status = $data['status'];
 
+error_log("WEBHOOK_CREDENCIALES: Recibido payload de Python. connection_id=" . $connection_id . ", status=" . $status);
+
 // Localizar el registro en Moodle
 global $DB;
 $record = $DB->get_record('block_credenciales', array('connection_id' => $connection_id));
