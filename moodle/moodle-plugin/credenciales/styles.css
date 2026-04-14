@@ -101,6 +101,9 @@
     box-shadow: var(--md-elevation-1);
     max-width: 1000px;
     margin: 0 auto;
+    aspect-ratio: 1.414 / 1; /* Formato Analógico A4 Apaisado Exacto */
+    display: flex;
+    flex-direction: column;
 }
 
 .cert-inner {
@@ -110,6 +113,10 @@
     background-color: #fafafa;
     position: relative;
     overflow: hidden;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 /* Abstract UI Watermark (No images, strict CSS MD3 geometric approach) */
