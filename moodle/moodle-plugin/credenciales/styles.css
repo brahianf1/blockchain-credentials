@@ -33,7 +33,7 @@
 
 /* Master-Detail: Summary Cards (Row-Cards) */
 .md3-summary-card {
-    background-color: var(--md-sys-color-surface);
+    background-color: #ffffff; /* Fondo blanco puro para amalgamar con el canvas de Moodle */
     border-radius: 16px;
     border: 1px solid #dee2e6; /* Utilizando el color de borde default de Moodle/Boost */
     padding: 24px;
@@ -188,6 +188,24 @@
     padding: 4px;
     background: #fff;
     box-shadow: var(--md-elevation-1);
+}
+
+/* Compact Responsive logic to prevent vertical scrolling on laptops (Height < 900px) */
+@media (max-height: 900px) {
+    .cert-inner { padding: 24px; }
+    .cert-header { margin-bottom: 16px; }
+    .cert-logo-placeholder { font-size: 22px; }
+    .cert-body h1 { font-size: 26px; margin-bottom: 8px; }
+    .cert-student { font-size: 32px; margin-bottom: 4px; }
+    .cert-dni { margin-bottom: 16px; font-size: 14px; }
+    .cert-text { font-size: 15px; margin-bottom: 24px; }
+    .cert-public-qr img { width: 70px; height: 70px; }
+}
+
+@media (max-height: 700px) {
+    .cert-inner { padding: 16px; }
+    .cert-text { font-size: 14px; margin-bottom: 12px; }
+    .cert-student { font-size: 26px; }
 }
 
 /* Buttons and interactions - Hardened against Moodle CSS Override */
