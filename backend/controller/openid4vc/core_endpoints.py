@@ -1001,13 +1001,18 @@ async def credential_endpoint(
                 # Quitamos timeout=5.0 y dejamos fluir ya que es tarea en background
                 # o usamos un timeout más holgado ya que no bloquea la UI principal
                 async with httpx.AsyncClient() as client:
-                    await client.post(
+                    response = await client.post(
                         webhook_url,
                         json={"connection_id": conn_id, "status": "claimed"},
-                        headers={"Host": moodle_domain},
-                        timeout=10.0
+                        headers={
+                            "Host": moodle_domain,
+                            "X-Forwarded-Proto": "https",
+                            "X-Forwarded-Port": "443"
+                        },
+                        timeout=10.0,
+                        follow_redirects=True
                     )
-                logger.info(f"✅ Webhook Moodle notificado exitosamente (Claimed) para conn_id: {conn_id}")
+                logger.info(f"✅ Webhook sent to {webhook_url}. Status: {response.status_code}, Body: {response.text}")
             except Exception as w_e:
                 logger.warning(f"⚠️ Webhook Moodle falló: {w_e}")
 
