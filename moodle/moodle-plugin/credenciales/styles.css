@@ -35,14 +35,8 @@
 .md3-summary-card {
     background-color: var(--md-sys-color-surface);
     border-radius: 16px;
-    border: 1px solid var(--md-sys-color-outline);
+    border: 1px solid #dee2e6; /* Utilizando el color de borde default de Moodle/Boost */
     padding: 24px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.md3-summary-card:hover {
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
 }
 
 .md3-card-course-title {
@@ -185,46 +179,7 @@
     align-items: flex-end;
 }
 
-.cert-signatures {
-    display: flex;
-    gap: 64px;
-}
-
-.signature {
-    text-align: center;
-    position: relative;
-}
-
-/* Realistic SVG Signatures inline */
-.sig-path {
-    height: 60px;
-    width: 150px;
-    margin: 0 auto;
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center bottom;
-    opacity: 0.8;
-}
-
-/* Base64 encoded SVGs representing abstract ink signatures */
-.sig-path-1 {
-    background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg"><path d="M10,30 Q20,10 30,25 T50,15 T70,30 T90,20" fill="none" stroke="%230b3d91" stroke-width="2" stroke-linecap="round"/></svg>');
-}
-.sig-path-2 {
-    background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg"><path d="M5,25 C15,5 30,35 45,15 S60,35 75,20 S90,30 95,10" fill="none" stroke="%230b3d91" stroke-width="2" stroke-linecap="round"/></svg>');
-}
-
-.sig-line {
-    width: 180px;
-    border-bottom: 1px solid #424242;
-    margin-bottom: 8px;
-}
-
-.signature span {
-    font-size: 14px;
-    color: #616161;
-    font-weight: 500;
-}
+/* Removed old Signature CSS classes as we now use inline SVG directly */
 
 .cert-public-qr img {
     width: 90px;

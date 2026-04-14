@@ -119,17 +119,38 @@
                                         </div>
                                         
                                         <div class="cert-footer">
-                                            <div class="cert-signatures">
-                                                <div class="signature">
-                                                    <div class="sig-path sig-path-1"></div>
-                                                    <div class="sig-line"></div>
-                                                    <span>Secretaría de Extensión</span>
-                                                </div>
-                                                <div class="signature">
-                                                    <div class="sig-path sig-path-2"></div>
-                                                    <div class="sig-line"></div>
-                                                    <span>Decanato</span>
-                                                </div>
+                                            <div class="cert-signatures-svg" style="flex-grow: 1; max-width: 80%; padding-right: 20px;">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 350" width="100%" height="auto">
+                                                  <defs>
+                                                    <style>
+                                                      .linea-guia { stroke: #cbd5e1; stroke-width: 2; stroke-linecap: round; }
+                                                      .texto-guia { fill: #94a3b8; font-family: sans-serif; font-size: 16px; font-weight: 500; letter-spacing: 2px; text-anchor: middle; }
+                                                    </style>
+                                                  </defs>
+
+                                                  <!-- FIRMA 1 (IZQUIERDA) -->
+                                                  <line x1="80" y1="270" x2="520" y2="270" class="linea-guia" />
+                                                  <text x="300" y="300" class="texto-guia">DIRECTOR ACADÉMICO</text>
+
+                                                  <g transform="translate(60, 60) rotate(-5) skewX(-20)" fill="none" stroke="#1e293b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                      <path d="M 80,100 Q 100,68 120,90 T 90,180 Q 60,200 70,150 T 130,130 Q 140,145 150,150 T 170,130 T 180,150 Q 190,100 200,100 T 210,150 T 230,130" />
+                                                      <path d="M 280,80 C 230,60 220,160 260,160 C 300,160 310,90 280,80 C 250,70 270,150 310,140 C 370,120 390,150 430,130 C 460,110 480,140 510,120" />
+                                                      <path d="M 330,90 C 360,70 400,70 420,80" />
+                                                      <path d="M 50,195 Q 280,215 510,185" />
+                                                      <path d="M 525,183 L 527,183" stroke-width="5" />
+                                                  </g>
+
+                                                  <!-- FIRMA 2 (DERECHA) -->
+                                                  <line x1="740" y1="270" x2="1180" y2="270" class="linea-guia" />
+                                                  <text x="960" y="300" class="texto-guia">RECTOR DE LA INSTITUCIÓN</text>
+
+                                                  <g transform="translate(700, 80) rotate(-2) skewX(-10)" fill="none" stroke="#0f172a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                                      <path d="M 50,120 Q 70,100 80,150 Q 90,80 100,70 T 120,160 Q 130,90 140,80 T 160,170 Q 170,120 180,130 T 200,170" />
+                                                      <path d="M 260,170 L 260,70 C 300,60 320,110 270,120 C 330,120 310,200 260,210 C 220,220 210,190 240,170" />
+                                                      <path d="M 240,170 Q 270,140 280,150 T 310,160 Q 330,110 340,110 T 350,160 Q 370,140 380,150 T 410,160 T 440,140 T 470,150" />
+                                                      <path d="M 338,85 L 340,85" stroke-width="3" />
+                                                  </g>
+                                                </svg>
                                             </div>
                                             <div class="cert-public-qr">
                                                 <a href="{{public_verify_url}}" target="_blank" title="Verificar en Web Pública (Mock)">
