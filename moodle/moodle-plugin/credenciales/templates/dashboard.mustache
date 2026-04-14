@@ -160,6 +160,14 @@
                                         </div>
                                     </div>
                                 </div>
+                                <!-- End Illustration -->
+                                
+                                <!-- Floating Download Button -->
+                                <div class="mt-4 text-center w-100">
+                                    <button type="button" class="btn md3-btn-secondary px-4 py-2 shadow-sm" id="downloadBtn{{cert_id}}" onclick="downloadDiplomaAsImage('{{cert_id}}')" style="border-radius: 100px; display: inline-flex; align-items: center; justify-content: center;">
+                                        <i class="fa fa-download mr-2" style="font-size: 1.1rem;"></i> Descargar Diploma
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -237,5 +245,48 @@
             });
         }, 3000);
     });
+
+    // Función pura JS para renderización Vector-to-Raster del Diploma
+    function downloadDiplomaAsImage(certId) {
+        if (typeof html2canvas === 'undefined') {
+            alert('Cargando motor de renderizado gráfico, por favor intenta en un segundo...');
+            return;
+        }
+        
+        const certElement = document.querySelector('#certModal' + certId + ' .md3-certificate-illustration');
+        const btn = document.querySelector('#downloadBtn' + certId);
+        
+        if (!certElement || !btn) return;
+        
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i> Procesando vectores...';
+        btn.disabled = true;
+
+        html2canvas(certElement, {
+            scale: 3, // Calidad de imprenta (Hi-Res)
+            useCORS: true,
+            backgroundColor: null,
+            logging: false
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'Diploma_Universitario_' + certId + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            
+            btn.innerHTML = '<i class="fa fa-check mr-2"></i> Descargado Exitosamente';
+            btn.classList.replace('md3-btn-secondary', 'md3-btn-primary');
+            setTimeout(() => {
+                btn.innerHTML = originalHtml;
+                btn.classList.replace('md3-btn-primary', 'md3-btn-secondary');
+                btn.disabled = false;
+            }, 3000);
+        }).catch(err => {
+            console.error('Render Engine Error:', err);
+            btn.innerHTML = '<i class="fa fa-exclamation-triangle mr-2"></i> Error al generar';
+            setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; }, 3000);
+        });
+    }
 </script>
+<!-- CDN para motor de renderizado Canvas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 {{/has_certificates}}

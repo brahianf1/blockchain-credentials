@@ -79,17 +79,24 @@
     color: #2e7d32;
 }
 
-/* Modal Content override */
-.md3-modal-content {
-    background: transparent;
-    border: none;
-    box-shadow: none;
+/* Modal Content override - Force completely transparent background only for the certificate (modal-xl) */
+.modal-xl .md3-modal-content {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.modal-xl .modal-header, 
+.modal-xl .modal-body {
+    background: transparent !important;
+    padding: 0 !important;
 }
 
 .md3-qr-dialog {
     background: #ffffff !important;
     border: none !important;
     box-shadow: 0 4px 24px rgba(0,0,0,0.15) !important;
+    padding-bottom: 2rem !important; /* Recover some padding for QR dialog */
 }
 
 /* Certificate Illustration (Vector-like Scaling) */
