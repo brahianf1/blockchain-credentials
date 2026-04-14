@@ -27,15 +27,22 @@
     color: var(--md-sys-color-on-surface);
 }
 
-/* Master-Detail: Summary Cards */
+.md3-color-primary {
+    color: var(--md-sys-color-primary) !important;
+}
+
+/* Master-Detail: Summary Cards (Row-Cards) */
 .md3-summary-card {
     background-color: var(--md-sys-color-surface);
-    border-radius: 12px;
+    border-radius: 16px;
     border: 1px solid var(--md-sys-color-outline);
     padding: 24px;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.md3-summary-card:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
 }
 
 .md3-card-course-title {
@@ -51,15 +58,21 @@
     margin: 0;
 }
 
+@media (min-width: 768px) {
+    .border-md-left { border-left: 1px solid #dee2e6 !important; }
+    .border-md-right { border-right: 1px solid #dee2e6 !important; }
+}
+
 /* Tonal Badges */
 .md3-badge {
-    padding: 4px 10px;
+    padding: 6px 12px;
     border-radius: 8px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    white-space: nowrap;
 }
 
 .md3-badge-pending {
@@ -77,6 +90,12 @@
     background: transparent;
     border: none;
     box-shadow: none;
+}
+
+.md3-qr-dialog {
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.15) !important;
 }
 
 /* Certificate Illustration */
@@ -216,47 +235,87 @@
     box-shadow: var(--md-elevation-1);
 }
 
-/* Buttons and interactions */
-.md3-btn-primary {
-    background-color: var(--md-sys-color-primary);
-    color: var(--md-sys-color-on-primary) !important;
+/* Buttons and interactions - Hardened against Moodle CSS Override */
+
+.md3-container .md3-btn-primary,
+.md3-container button.md3-btn-primary,
+.md3-container a.md3-btn-primary,
+.modal .md3-btn-primary {
+    background-color: #005f73 !important;
+    color: #ffffff !important;
     border-radius: 100px;
     font-weight: 500;
-    border: none;
+    border: none !important;
     transition: background-color 0.2s;
-    text-transform: capitalize;
+    text-transform: none;
+    box-shadow: 0 2px 4px rgba(0,95,115,0.2) !important;
 }
 
-.md3-btn-primary:hover {
-    background-color: #004d5b;
+.md3-container .md3-btn-primary:hover,
+.md3-container button.md3-btn-primary:hover,
+.md3-container a.md3-btn-primary:hover,
+.modal .md3-btn-primary:hover {
+    background-color: #004d5b !important;
     color: #ffffff !important;
+    text-decoration: none;
 }
 
-.md3-btn-outlined {
-    background-color: transparent;
-    color: var(--md-sys-color-primary) !important;
-    border: 1px solid var(--md-sys-color-outline);
+.md3-container .md3-btn-secondary,
+.modal .md3-btn-secondary {
+    background-color: #f8f9fa !important;
+    color: #005f73 !important;
     border-radius: 100px;
     font-weight: 500;
-    text-transform: capitalize;
+    border: 1px solid #005f73 !important;
+    transition: all 0.2s;
+    text-transform: none;
 }
 
-.md3-btn-outlined:hover {
-    background-color: var(--md-sys-color-surface-container);
+.md3-container .md3-btn-secondary:hover,
+.modal .md3-btn-secondary:hover {
+    background-color: #ebeeef !important;
+    text-decoration: none;
+}
+
+.md3-container .md3-btn-outlined,
+.md3-container button.md3-btn-outlined,
+.md3-container a.md3-btn-outlined {
+    background-color: transparent !important;
+    color: #005f73 !important;
+    border: 1px solid #6f797a !important;
+    border-radius: 100px;
+    font-weight: 500;
+    text-transform: none;
+    transition: all 0.2s;
+}
+
+.md3-container .md3-btn-outlined:hover,
+.md3-container button.md3-btn-outlined:hover,
+.md3-container a.md3-btn-outlined:hover {
+    background-color: #f0f4f4 !important;
     color: #004d5b !important;
+    border-color: #004d5b !important;
+    text-decoration: none;
 }
 
-.md3-btn-linkedin {
-    background-color: #0a66c2;
+.md3-container .md3-btn-linkedin,
+.md3-container button.md3-btn-linkedin,
+.md3-container a.md3-btn-linkedin {
+    background-color: #0a66c2 !important;
     color: #ffffff !important;
     border-radius: 100px;
     font-weight: 500;
-    text-transform: capitalize;
+    border: none !important;
+    text-transform: none;
+    box-shadow: 0 2px 4px rgba(10,102,194,0.2) !important;
 }
 
-.md3-btn-linkedin:hover {
-    background-color: #004182;
+.md3-container .md3-btn-linkedin:hover,
+.md3-container button.md3-btn-linkedin:hover,
+.md3-container a.md3-btn-linkedin:hover {
+    background-color: #004182 !important;
     color: #ffffff !important;
+    text-decoration: none;
 }
 
 .md3-alert {
@@ -265,10 +324,13 @@
     font-size: 14px;
     font-weight: 500;
     background-color: var(--md-sys-color-surface-container);
+    border-left: 4px solid var(--md-sys-color-primary);
 }
 
-.md3-side-block .md3-surface {
-    background-color: var(--md-sys-color-surface);
+.md3-alert-info {
+    background-color: #e3f2fd !important;
+    border-left-color: #17a2b8 !important;
+    color: #0c5460;
 }
 
 /* MD3 Smoothing Transitions for Real-Time Polling */

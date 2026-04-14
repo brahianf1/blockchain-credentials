@@ -1,75 +1,97 @@
 <div class="container-fluid md3-container pt-4">
     <div class="d-flex align-items-center mb-4">
-        <i class="fa fa-certificate text-primary mr-3" style="font-size: 2rem;"></i>
+        <i class="fa fa-certificate md3-color-primary mr-3" style="font-size: 2rem;"></i>
         <h2 class="md3-page-title m-0">{{#str}}my_certificates, block_credenciales{{/str}}</h2>
     </div>
     
     {{#has_certificates}}
         <div class="row">
             {{#certificates}}
-                <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="md3-summary-card">
-                        <div class="md3-card-header d-flex justify-content-between">
-                            <i class="fa fa-university text-muted"></i>
-                            
-                            <span class="md3-badge md3-badge-pending badge-pending-{{cert_id}} transition-fade" {{^is_pending}}style="display:none;"{{/is_pending}}>
-                                <i class="fa fa-clock-o"></i> Pendiente de Guardar
-                            </span>
-                            
-                            <span class="md3-badge md3-badge-claimed badge-claimed-{{cert_id}} transition-fade" {{^is_claimed}}style="display:none; opacity: 0;"{{/is_claimed}}>
-                                <i class="fa fa-check-circle"></i> Almacenado en Billetera
-                            </span>
-                        </div>
-                        <div class="md3-card-body mt-3">
-                            <h4 class="md3-card-course-title">{{course_name}}</h4>
-                            <p class="md3-card-date text-muted mt-2 mb-1"><i class="fa fa-flag-checkered"></i> Curso Aprobado el: <strong>{{exact_completion_time}}</strong></p>
+                <div class="col-12 mb-4">
+                    <div class="md3-summary-card d-flex flex-column flex-md-row align-items-md-center justify-content-between">
+                        
+                        <!-- Izquierda: Info del curso -->
+                        <div class="md3-card-info flex-grow-1 pr-md-4">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fa fa-university text-muted mr-2" style="font-size: 1.5rem;"></i>
+                                <h4 class="md3-card-course-title m-0">{{course_name}}</h4>
+                            </div>
+                            <p class="md3-card-date text-muted mb-1"><i class="fa fa-flag-checkered"></i> Curso Aprobado el: <strong>{{exact_completion_time}}</strong></p>
                             
                             <p class="md3-card-date text-success mb-0 date-claimed-{{cert_id}} transition-fade" {{^is_claimed}}style="display:none; opacity: 0;"{{/is_claimed}}>
                                 <i class="fa fa-shield"></i> Guardado en Billetera el: <strong class="time-text-{{cert_id}}">{{exact_claimed_time}}</strong>
                             </p>
                         </div>
-                        <div class="md3-card-footer mt-4 border-top pt-3">
-                            <button type="button" class="btn btn-block md3-btn-outlined mb-2" data-toggle="modal" data-target="#certModal{{cert_id}}">
-                                <i class="fa fa-search-plus"></i> Ver Diploma Ilustrativo
-                            </button>
-                            
+
+                        <!-- Centro: Status Badges -->
+                        <div class="md3-card-status my-3 my-md-0 px-md-4 border-md-left border-md-right text-md-center">
+                            <span class="md3-badge md3-badge-pending badge-pending-{{cert_id}} transition-fade" {{^is_pending}}style="display:none;"{{/is_pending}}>
+                                <i class="fa fa-clock-o"></i> Pendiente Billetera
+                            </span>
+                            <span class="md3-badge md3-badge-claimed badge-claimed-{{cert_id}} transition-fade" {{^is_claimed}}style="display:none; opacity: 0;"{{/is_claimed}}>
+                                <i class="fa fa-check-circle"></i> Credencial Guardada
+                            </span>
+                        </div>
+
+                        <!-- Derecha: Actions -->
+                        <div class="md3-card-actions pl-md-4 mt-2 mt-md-0" style="min-width: 250px;">
                             <div class="pending-actions-{{cert_id}} transition-fade" {{^is_pending}}style="display:none;"{{/is_pending}} data-poll-id="{{cert_id}}">
-                                <button type="button" class="btn btn-block md3-btn-primary" data-toggle="collapse" data-target="#walletCollapse{{cert_id}}">
-                                    <i class="fa fa-qrcode"></i> Guardar Credencial en Billetera DID
+                                <button type="button" class="btn btn-block md3-btn-primary" data-toggle="modal" data-target="#qrModal{{cert_id}}">
+                                    <i class="fa fa-qrcode"></i> Guardar en Billetera
                                 </button>
-                                <div class="collapse mt-2" id="walletCollapse{{cert_id}}">
-                                    <div class="p-4 bg-light rounded text-center border">
-                                        <div class="alert alert-info text-left small mb-3" style="border-radius: 8px; border-left: 4px solid #17a2b8;">
-                                            <i class="fa fa-lightbulb-o mb-1" style="font-size: 1.2rem;"></i><br>
-                                            <strong>¿Por qué debo guardar esto?</strong><br>
-                                            Al guardar esta credencial en tu móvil (ej. Paradym o DIDRoom), obtienes <strong>soberanía matemática</strong> sobre este logro. Funciona sin conexión.
-                                        </div>
-                                        <p class="small text-muted mb-2"><strong>1.</strong> Abre tu Billetera DID y escanea este código:</p>
-                                        <img src="{{qr_code}}" alt="QR" style="max-width: 150px; background: white; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
-                                        <div class="mt-3 border-top pt-2">
-                                            <p class="small text-muted mb-1"><strong>2.</strong> O navega desde celular:</p>
-                                            <a href="{{invitation_url}}" class="btn btn-sm btn-outline-secondary"><i class="fa fa-external-link"></i> Abrir Billetera Automáticamente</a>
-                                        </div>
-                                    </div>
-                                </div>
+                                <p class="text-muted small mt-2 mb-0 text-center font-italic"><i class="fa fa-lock"></i> Requisito para ver diploma</p>
                             </div>
 
                             <div class="claimed-actions-{{cert_id}} transition-fade" {{^is_claimed}}style="display:none; opacity: 0;"{{/is_claimed}}>
+                                <button type="button" class="btn btn-block md3-btn-outlined mb-2" data-toggle="modal" data-target="#certModal{{cert_id}}">
+                                    <i class="fa fa-search-plus"></i> Ver Diploma Ilustrativo
+                                </button>
+                                
                                 <a href="{{linkedin_share_url}}" target="_blank" class="btn btn-block md3-btn-linkedin mt-2">
-                                    <i class="fa fa-linkedin-square"></i> Compartir Logro Profesional
+                                    <i class="fa fa-linkedin-square"></i> Compartir Logro
                                 </a>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Modal for the Certificate Full Illustration -->
+                <!-- Modal for QR Scan (MD3 Dialog) -->
+                <div class="modal fade" id="qrModal{{cert_id}}" tabindex="-1" role="dialog" aria-hidden="true" data-backdrop="static">
+                    <div class="modal-dialog modal-dialog-centered" role="document" style="max-width: 400px;">
+                        <div class="modal-content md3-modal-content md3-qr-dialog bg-white shadow" style="border-radius: 16px; overflow: hidden;">
+                            <div class="modal-header border-0 pb-0">
+                                <h5 class="modal-title font-weight-bold text-dark" style="font-size: 1.1rem;"><i class="fa fa-mobile md3-color-primary mr-2"></i> Escanea el Código QR</h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body text-center p-4">
+                                <div class="alert md3-alert-info text-left small mb-4">
+                                    <i class="fa fa-lightbulb-o mb-1" style="font-size: 1.2rem;"></i><br>
+                                    <strong>Paso Único:</strong> Abre la app de Billetera en tu celular (ej. DIDRoom o Paradym) y apunta la cámara a este código para asegurar tu certificado de por vida.
+                                </div>
+                                
+                                <div class="qr-container bg-white p-3 rounded d-inline-block border shadow-sm mb-4">
+                                    <img src="{{qr_code}}" alt="QR Code" style="width: 200px; height: 200px; display: block; image-rendering: -webkit-optimize-contrast;">
+                                </div>
+                                
+                                <div class="border-top pt-3 text-left">
+                                    <p class="text-muted small mb-2"><strong>O alternativamente</strong>, si navegas desde un celular:</p>
+                                    <a href="{{invitation_url}}" class="btn btn-block md3-btn-secondary"><i class="fa fa-external-link"></i> Abrir App Billetera Automáticamente</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- End QR Modal -->
+
+                <!-- Modal for the Certificate Full Illustration (MD3 Dialog) -->
                 <div class="modal fade" id="certModal{{cert_id}}" tabindex="-1" role="dialog" aria-hidden="true">
                     <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
                         <div class="modal-content md3-modal-content">
                             <div class="modal-header border-0 pb-0">
-                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                    <span aria-hidden="true">&times;</span>
+                                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close" style="opacity:0.8; text-shadow:none;">
+                                    <span aria-hidden="true"><i class="fa fa-times-circle" style="font-size: 2rem;"></i></span>
                                 </button>
                             </div>
                             <div class="modal-body p-4 pt-0">
@@ -149,6 +171,13 @@
                     .then(response => response.json())
                     .then(data => {
                         if (data.status === 'claimed') {
+                            // Automatically close QR Modal if open
+                            if (typeof window.jQuery !== 'undefined') {
+                                jQuery('#qrModal' + certId).modal('hide');
+                                // Ensure modal backdrop is forcefully removed in case of race condition
+                                setTimeout(() => { jQuery('.modal-backdrop').remove(); jQuery('body').removeClass('modal-open'); }, 350);
+                            }
+
                             // Hide Pending Actions & Badge
                             el.style.opacity = '0';
                             const pendingBadge = document.querySelector('.badge-pending-' + certId);
