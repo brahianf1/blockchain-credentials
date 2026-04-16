@@ -1,7 +1,7 @@
 # Controller Python - Integración Moodle + ACA-Py + Fabric
 fastapi
 uvicorn[standard]
-pydantic
+pydantic[email]
 httpx
 python-multipart
 
