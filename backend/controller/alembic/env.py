@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+# Ensure the controller root (/app) is importable when Alembic runs.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from logging.config import fileConfig
 
 from alembic import context
