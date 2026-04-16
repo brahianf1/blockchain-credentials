@@ -3,6 +3,8 @@ volumes:
     driver: local
   moodle_data:
     driver: local
+  portal_db_data:
+    driver: local
   orderer.example.com:
   peer0.org1.example.com:
   peer0.org2.example.com:
@@ -105,6 +107,12 @@ services:
       - FABRIC_NETWORK_PATH=/crypto-config
       - OPENID_PRIVATE_KEY_PATH=/run/secrets/openid_private_key
       - OPENID_PUBLIC_KEY_PATH=/run/secrets/openid_public_key
+      # Portal de Credenciales
+      - PORTAL_DB_URL=postgresql://${PORTAL_DB_USER}:${PORTAL_DB_PASSWORD}@portal-db:5432/${PORTAL_DB_NAME}
+      - MOODLE_DB_READONLY_URL=postgresql://${MOODLE_DB_READONLY_USER}:${MOODLE_DB_READONLY_PASSWORD}@moodle-db:5432/${MOODLE_DB_NAME}
+      - PORTAL_JWT_SECRET=${PORTAL_JWT_SECRET}
+      - MOODLE_PORTAL_JWT_SECRET=${MOODLE_PORTAL_JWT_SECRET}
+      - PORTAL_FRONTEND_URL=${PORTAL_FRONTEND_URL}
     volumes:
       - ${CRYPTO_CONFIG_PATH}:/crypto-config:ro
       - ${OPENID_PRIVATE_KEY_PATH}:/run/secrets/openid_private_key:ro
@@ -112,6 +120,8 @@ services:
     depends_on:
       acapy-agent:
         condition: service_healthy
+      portal-db:
+        condition: service_started
     networks:
       - moodle_network
       - fabric_network
@@ -173,13 +183,28 @@ services:
       POSTGRES_INITDB_ARGS: '--encoding=UTF8 --lc-collate=C --lc-ctype=C'
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./scripts/moodle-db-init:/docker-entrypoint-initdb.d:ro
     networks:
       - moodle_network
     restart: unless-stopped
-    # Exponer el puerto de la BD de forma configurable para depuración.
-    # En producción, considera no exponerlo a internet.
     ports:
       - "${MOODLE_DB_PORT_EXT}:5432"
+
+  # ===================================================================
+  # Base de datos del Portal de Credenciales
+  # ===================================================================
+  portal-db:
+    image: postgres:15-alpine
+    container_name: portal-db
+    environment:
+      POSTGRES_DB: ${PORTAL_DB_NAME}
+      POSTGRES_USER: ${PORTAL_DB_USER}
+      POSTGRES_PASSWORD: ${PORTAL_DB_PASSWORD}
+    volumes:
+      - portal_db_data:/var/lib/postgresql/data
+    networks:
+      - moodle_network
+    restart: unless-stopped
 
   # ===================================================================
   # Servicios de Hyperledger Fabric

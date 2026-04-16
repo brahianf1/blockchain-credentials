@@ -19,11 +19,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar código del controller
 COPY controller/ .
 
+# Hacer ejecutable el script de inicio
+RUN chmod +x start.sh
+
 # Crear directorio para configuraciones
 RUN mkdir -p /crypto-config
 
 # Exponer puerto
 EXPOSE 3000
 
-# Comando para ejecutar la aplicación
-CMD ["python", "app.py"]
+# Ejecutar migraciones y luego la aplicación
+CMD ["./start.sh"]

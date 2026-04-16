@@ -27,6 +27,11 @@ base58>=2.1.1
 structlog
 colorama
 
-# Base de datos (opcional para persistencia)
+# Base de datos
 sqlalchemy
 alembic
+psycopg2-binary
+
+# Autenticación portal
+passlib[bcrypt]
+bcrypt>=4.0.0

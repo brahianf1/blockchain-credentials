@@ -9,6 +9,8 @@ class block_credenciales extends block_base {
     public function get_content() {
         global $DB, $USER, $COURSE, $OUTPUT, $PAGE;
 
+        require_once(__DIR__ . '/lib.php');
+
         if ($this->content !== null) {
             return $this->content;
         }
@@ -57,7 +59,8 @@ class block_credenciales extends block_base {
                 'org_name' => $org_name,
                 'brand_color' => $brand_color,
                 'is_modal' => ($view_mode === 'modal'),
-                'dashboard_url' => new moodle_url('/blocks/credenciales/my_certificates.php')
+                'dashboard_url' => new moodle_url('/blocks/credenciales/my_certificates.php'),
+                'portal_url' => block_credenciales_get_portal_url($USER),
             ];
             
             // Renderizar plantilla principal

@@ -116,6 +116,12 @@ if OPENID4VC_AVAILABLE:
 # Incluir router QR
 app.include_router(qr_router)
 
+# Portal del alumno — rutas autenticadas y públicas
+from portal.router import portal_router, portal_public_router
+
+app.include_router(portal_router)
+app.include_router(portal_public_router)
+
 # Inicializar clientes
 try:
     fabric_client = FabricClient()
@@ -514,6 +520,13 @@ async def debug_last_offer():
         "session_id": latest_offer.get("session_id"),
         "instructions": "Copia el 'intent_url' y pégalo en DIDRoom web"
     }
+
+@app.on_event("startup")
+async def startup_portal_db():
+    """Ensure portal tables exist (belt-and-suspenders with Alembic)."""
+    from portal.database import portal_engine, Base
+    Base.metadata.create_all(bind=portal_engine)
+
 
 if __name__ == "__main__":
     import uvicorn

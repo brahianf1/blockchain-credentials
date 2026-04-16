@@ -38,4 +38,26 @@ if ($ADMIN->fulltree) {
         get_string('logs_heading', 'block_credenciales'),
         '<a href="' . $CFG->wwwroot . '/blocks/credenciales/logs.php" class="btn btn-secondary">' . get_string('view_logs', 'block_credenciales') . '</a>'
     ));
+
+    // Portal Integration
+    $settings->add(new admin_setting_heading(
+        'block_credenciales/portal_heading',
+        get_string('portal_heading', 'block_credenciales'),
+        get_string('portal_heading_desc', 'block_credenciales')
+    ));
+
+    $settings->add(new admin_setting_configpasswordunmask(
+        'block_credenciales/portal_jwt_secret',
+        get_string('portal_jwt_secret', 'block_credenciales'),
+        get_string('portal_jwt_secret_desc', 'block_credenciales'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'block_credenciales/portal_url',
+        get_string('portal_url', 'block_credenciales'),
+        get_string('portal_url_desc', 'block_credenciales'),
+        'https://portal-credenciales.utnpf.site',
+        PARAM_URL
+    ));
 }

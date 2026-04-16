@@ -312,15 +312,14 @@ class FabricClient:
     
     def _generate_credential_hash(self, credential_data: Dict[str, Any]) -> str:
         """Generar hash único de la credencial"""
-        # Combinar datos principales para crear hash único
-        data_to_hash = (
-            f"{credential_data['student_id']}"
-            f"{credential_data['course_id']}"
-            f"{credential_data['completion_date']}"
-            f"{credential_data['grade']}"
+        from utils.hashing import compute_credential_hash
+
+        return compute_credential_hash(
+            student_id=str(credential_data["student_id"]),
+            course_id=str(credential_data["course_id"]),
+            completion_date=str(credential_data["completion_date"]),
+            grade=str(credential_data["grade"]),
         )
-        
-        return hashlib.sha256(data_to_hash.encode()).hexdigest()
     
     async def disconnect(self):
         """Desconectar del cliente"""

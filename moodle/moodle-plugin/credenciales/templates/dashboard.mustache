@@ -46,10 +46,16 @@
                                 <button type="button" class="btn btn-block md3-btn-outlined mb-2" data-toggle="modal" data-target="#certModal{{cert_id}}">
                                     <i class="fa fa-search-plus"></i> Ver Diploma Ilustrativo
                                 </button>
-                                
+
                                 <a href="{{linkedin_share_url}}" target="_blank" class="btn btn-block md3-btn-linkedin mt-2">
                                     <i class="fa fa-linkedin-square"></i> Compartir Logro
                                 </a>
+
+                                {{#portal_url}}
+                                <a href="{{portal_url}}" target="_blank" class="btn btn-block btn-outline-success mt-2">
+                                    <i class="fa fa-external-link"></i> Ir al Portal
+                                </a>
+                                {{/portal_url}}
                             </div>
                         </div>
                     </div>
