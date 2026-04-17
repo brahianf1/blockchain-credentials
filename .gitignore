@@ -1,5 +1,3 @@
-# Crear archivo .gitignore
-@"
 # Archivos sensibles (se regeneran automáticamente)
 crypto-config/*/users/*/msp/keystore/
 crypto-config/*/users/*/msp/signcerts/
@@ -38,4 +36,9 @@ Thumbs.db
 
 # Notas de desarrollo
 backend/notas.md
-"@ | Out-File -FilePath ".gitignore" -Encoding UTF8
+
+# Configuraciones locales automatizadas
+.claude/
+
+# Proyecto frontend anidado pero independiente
+microcredenciales-frontend/
