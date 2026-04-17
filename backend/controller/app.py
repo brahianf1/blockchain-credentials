@@ -43,6 +43,7 @@ ACAPY_ADMIN_URL = os.getenv("ACAPY_ADMIN_URL", "http://acapy-agent:8020")
 ACAPY_PUBLIC_URL = os.getenv("ACAPY_PUBLIC_URL", "http://localhost:8021")
 CONTROLLER_PORT = int(os.getenv("CONTROLLER_PORT", "3000"))
 UNIVERSITY_NAME = os.getenv("UNIVERSITY_NAME", "Universidad Tecnológica Nacional")
+PORTAL_URL = os.getenv("PORTAL_URL")
 
 # Modelos Pydantic
 class StudentCredentialRequest(BaseModel):
@@ -70,7 +71,10 @@ app = FastAPI(title="Controller Credenciales", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        PORTAL_URL,
+        "http://localhost:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
