@@ -69,12 +69,19 @@ class CredentialResponse(BaseModel):
 # Inicializar FastAPI
 app = FastAPI(title="Controller Credenciales", version="2.0.0")
 
+# Determinar orígenes de CORS resolviendo problemas por variables vacías o con slashes
+allowed_origins = [
+    "http://localhost:5173",
+]
+
+if PORTAL_URL:
+    clean_url = PORTAL_URL.rstrip('/')
+    if clean_url not in allowed_origins:
+        allowed_origins.append(clean_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        PORTAL_URL,
-        "http://localhost:5173",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
