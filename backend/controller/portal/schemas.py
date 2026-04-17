@@ -16,7 +16,7 @@ class LoginRequest(BaseModel):
 
 
 class SetPasswordRequest(BaseModel):
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., min_length=8, max_length=128, pattern=r"^(?=.*[A-Z])(?=.*\d).+$", description="Mínimo 8 caracteres, al menos 1 mayúscula y 1 número.")
 
 
 # ── Response Models ──

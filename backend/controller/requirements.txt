@@ -33,5 +33,4 @@ alembic
 psycopg2-binary
 
 # Autenticación portal
-passlib[bcrypt]
 bcrypt>=4.0.0
