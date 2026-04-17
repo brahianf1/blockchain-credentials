@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 # ── Request Models ──
@@ -16,7 +16,16 @@ class LoginRequest(BaseModel):
 
 
 class SetPasswordRequest(BaseModel):
-    password: str = Field(..., min_length=8, max_length=128, pattern=r"^(?=.*[A-Z])(?=.*\d).+$", description="Mínimo 8 caracteres, al menos 1 mayúscula y 1 número.")
+    password: str = Field(..., min_length=8, max_length=128, description="Mínimo 8 caracteres, al menos 1 mayúscula y 1 número.")
+
+    @field_validator('password')
+    @classmethod
+    def validate_password_complexity(cls, v: str) -> str:
+        if not any(char.isupper() for char in v):
+            raise ValueError('La contraseña debe contener al menos una letra mayúscula')
+        if not any(char.isdigit() for char in v):
+            raise ValueError('La contraseña debe contener al menos un número')
+        return v
 
 
 # ── Response Models ──
