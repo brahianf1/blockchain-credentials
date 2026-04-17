@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-Controller Python - Integración Moodle + ACA-Py + Fabric
-Sistema REAL de Emisión de Credenciales W3C Verificables
+Controller Python - Integración Moodle + ACA-Py + Indy (VON Network)
+Sistema REAL de Emisión de Credenciales W3C Verificables.
 
-PROHIBIDO USAR SIMULACIONES - Solo implementación real con wallets funcionales
+El anclaje público de credenciales se realiza en Hyperledger Indy a
+través del agente ACA-Py. Cualquier interacción con blockchain pasa
+por el módulo ``blockchain`` (puerto/adaptador) para mantener el resto
+del sistema agnóstico al ledger subyacente.
 """
 
 import asyncio
@@ -20,7 +23,6 @@ from pydantic import BaseModel, Field
 import httpx
 import structlog
 
-from fabric_client import FabricClient
 from qr_generator import QRGenerator
 from storage import qr_storage
 from qr_endpoints import router as qr_router
@@ -138,13 +140,6 @@ from portal.router import portal_router, portal_public_router
 
 app.include_router(portal_router)
 app.include_router(portal_public_router)
-
-# Inicializar clientes
-try:
-    fabric_client = FabricClient()
-except Exception:
-    fabric_client = None
-    logger.warning("⚠️ FabricClient no disponible")
 
 qr_generator = QRGenerator()
 
@@ -274,15 +269,7 @@ async def request_credential_didcomm(credential_request: StudentCredentialReques
     try:
         logger.info(f"📨 [LEGACY] Solicitud DIDComm para: {credential_request.student_name}")
 
-        # 1. Registrar en Hyperledger Fabric
-        if fabric_client:
-            try:
-                if hasattr(fabric_client, 'register_student'):
-                    await fabric_client.register_student(credential_request.student_id)
-            except Exception as e:
-                logger.error(f"⚠️ Error registrando en Fabric: {e}")
-
-        # 2. Crear invitación de conexión en ACA-Py
+        # Crear invitación de conexión en ACA-Py
         async with httpx.AsyncClient() as client:
             invitation_response = await client.post(
                 f"{ACAPY_ADMIN_URL}/connections/create-invitation",
@@ -296,10 +283,10 @@ async def request_credential_didcomm(credential_request: StudentCredentialReques
             connection_id = invitation_data["connection_id"]
             invitation_url = invitation_data["invitation_url"]
 
-            # 3. Guardar datos para emisión posterior
+            # Guardar datos para emisión posterior
             await store_pending_credential(connection_id, credential_request)
 
-            # 4. Generar QR
+            # Generar QR
             qr_code_base64 = qr_generator.generate_qr(invitation_url)
 
             return CredentialResponse(
@@ -323,15 +310,7 @@ async def request_credential_openid4vc(credential_request: StudentCredentialRequ
         if not OPENID4VC_AVAILABLE:
             raise HTTPException(status_code=501, detail="OpenID4VC no disponible")
 
-        # 1. Registrar en Hyperledger Fabric (igual que legacy)
-        if fabric_client:
-            try:
-                if hasattr(fabric_client, 'register_student'):
-                    await fabric_client.register_student(credential_request.student_id)
-            except Exception as e:
-                logger.error(f"⚠️ Error registrando en Fabric: {e}")
-
-        # 2. Generar oferta OpenID4VC
+        # Generar oferta OpenID4VC
         request_dict = credential_request.dict()
         
         # Usar función importada (modular o legacy)

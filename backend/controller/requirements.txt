@@ -1,11 +1,11 @@
-# Controller Python - Integración Moodle + ACA-Py + Fabric
+# Controller Python - Integración Moodle + ACA-Py + Indy (VON Network)
 fastapi
 uvicorn[standard]
 pydantic[email]
 httpx
 python-multipart
 
-# Fabric SDK y criptografía (usando requests para APIs REST)
+# Criptografía (firma de credenciales W3C / OpenID4VC)
 cryptography
 ecdsa
 grpcio
@@ -18,7 +18,7 @@ python-dotenv
 requests
 aiofiles
 
-# OpenID4VC dependencies (nuevas para compatibilidad con Lissi)
+# OpenID4VC dependencies (compatibilidad con wallets Lissi/WaltID/DIDRoom/EUDI)
 PyJWT>=2.8.0
 jwcrypto>=1.5.0
 base58>=2.1.1

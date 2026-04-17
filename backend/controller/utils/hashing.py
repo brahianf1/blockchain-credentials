@@ -7,11 +7,12 @@ def compute_credential_hash(
     completion_date: str,
     grade: str,
 ) -> str:
-    """Compute the SHA-256 hash that identifies a credential on the Fabric ledger.
+    """Compute the canonical SHA-256 hash that identifies a credential.
 
-    This is the single source of truth for the hash formula, used by both
-    ``fabric_client.py`` (when registering credentials) and the portal API
-    (when displaying/verifying credentials).
+    This is the single source of truth for the credential hash used by
+    both the student portal API (for display and lookup) and the future
+    ledger anchoring pipeline (which will register the same hash on
+    Hyperledger Indy via ACA-Py).
     """
     data = f"{student_id}{course_id}{completion_date}{grade}"
     return hashlib.sha256(data.encode()).hexdigest()
