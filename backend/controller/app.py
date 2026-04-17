@@ -43,7 +43,7 @@ ACAPY_ADMIN_URL = os.getenv("ACAPY_ADMIN_URL", "http://acapy-agent:8020")
 ACAPY_PUBLIC_URL = os.getenv("ACAPY_PUBLIC_URL", "http://localhost:8021")
 CONTROLLER_PORT = int(os.getenv("CONTROLLER_PORT", "3000"))
 UNIVERSITY_NAME = os.getenv("UNIVERSITY_NAME", "Universidad Tecnológica Nacional")
-PORTAL_URL = os.getenv("PORTAL_URL")
+PORTAL_URL = os.getenv("PORTAL_FRONTEND_URL", os.getenv("PORTAL_URL"))
 
 # Modelos Pydantic
 class StudentCredentialRequest(BaseModel):
@@ -71,13 +71,19 @@ app = FastAPI(title="Controller Credenciales", version="2.0.0")
 
 # Determinar orígenes de CORS resolviendo problemas por variables vacías o con slashes
 allowed_origins = [
-    "http://localhost:5173",
+    "http://localhost:5173",  # Mantenido únicamente para tu dev local
 ]
 
 if PORTAL_URL:
-    clean_url = PORTAL_URL.rstrip('/')
+    # Sanitización exhaustiva: remueve espacios, comillas simples/dobles y slashes finales
+    clean_url = PORTAL_URL.strip().strip("'").strip('"').rstrip('/')
     if clean_url not in allowed_origins:
         allowed_origins.append(clean_url)
+    logger.info(f"🛡️ CORS: PORTAL_URL cargado y sanitizado -> '{clean_url}'")
+else:
+    logger.warning("⚠️ CRÍTICO: La variable de entorno PORTAL_URL no está seteada o está vacía. El frontend de producción será bloqueado por CORS.")
+
+logger.info(f"🛡️ CORS Allowed Origins totales: {allowed_origins}")
 
 app.add_middleware(
     CORSMiddleware,
