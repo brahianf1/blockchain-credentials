@@ -101,10 +101,15 @@ services:
       - ACAPY_PUBLIC_URL=https://${ACAPY_DOMAIN} # El endpoint público del agente
       - OPENID_PRIVATE_KEY_PATH=/run/secrets/openid_private_key
       - OPENID_PUBLIC_KEY_PATH=/run/secrets/openid_public_key
-      # Capa de blockchain (ver backend/controller/blockchain/factory.py)
+      # Capa de blockchain (ver backend/controller/blockchain/config.py)
       - BLOCKCHAIN_DRIVER=${BLOCKCHAIN_DRIVER:-indy}
       - BLOCKCHAIN_NETWORK_NAME=${BLOCKCHAIN_NETWORK_NAME:-VON Network (Hyperledger Indy)}
       - BLOCKCHAIN_EXPLORER_URL=${BLOCKCHAIN_EXPLORER_URL:-https://ledger.utnpf.site}
+      - BLOCKCHAIN_SCHEMA_NAME=${BLOCKCHAIN_SCHEMA_NAME:-UniversityDegree}
+      - BLOCKCHAIN_SCHEMA_VERSION=${BLOCKCHAIN_SCHEMA_VERSION:-1.0}
+      - BLOCKCHAIN_CRED_DEF_TAG=${BLOCKCHAIN_CRED_DEF_TAG:-default}
+      - BLOCKCHAIN_SUPPORT_REVOCATION=${BLOCKCHAIN_SUPPORT_REVOCATION:-false}
+      - ADMIN_BOOTSTRAP_TOKEN=${ADMIN_BOOTSTRAP_TOKEN}
       # Portal de Credenciales
       - PORTAL_DB_URL=postgresql://${PORTAL_DB_USER}:${PORTAL_DB_PASSWORD}@portal-db:5432/${PORTAL_DB_NAME}
       - MOODLE_DB_READONLY_URL=postgresql://${MOODLE_DB_READONLY_USER}:${MOODLE_DB_READONLY_PASSWORD}@moodle-db:5432/${MOODLE_DB_NAME}
