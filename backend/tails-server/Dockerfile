@@ -21,17 +21,15 @@
 # Why we patch the upstream setup.py at build time:
 #   The v1.1.0 setup.py declares ``packages=["tails_server"]`` instead
 #   of calling ``setuptools.find_packages()``. That makes ``pip install``
-#   omit every subpackage (``tails_server.config``, etc.) from the
-#   resulting wheel, and the service crashes at import time with:
-#       ModuleNotFoundError: No module named 'tails_server.config'
+#   omit every subpackage (``tails_server.config``, …) from the wheel,
+#   and the service crashes at import with ``ModuleNotFoundError``.
 #
-#   Rather than bypass ``pip install`` (which would also drop the
-#   ``tails-server`` console script defined in ``entry_points``), we
-#   apply a deterministic, root-cause fix with ``sed``: we turn the
-#   hard-coded package list into ``find_packages()``. This mirrors the
-#   correction a pull request against upstream would introduce, so once
-#   upstream fixes the bug in a future release the ``sed`` becomes a
-#   no-op and the build keeps working.
+#   ``patch_setup.py`` rewrites ``setup.py`` deterministically to call
+#   ``find_packages()``. We prefer this one-shot, root-cause fix over
+#   bypassing ``pip install`` (which would also drop the ``tails-server``
+#   console script defined in ``entry_points.console_scripts``). Once
+#   upstream fixes the bug upstream, the patch helper will simply be a
+#   no-op on the new source.
 
 ARG TAILS_SERVER_REPO=https://github.com/bcgov/indy-tails-server.git
 ARG TAILS_SERVER_REF=v1.1.0
@@ -57,6 +55,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy the patch helper into a location outside the future clone WORKDIR
+# so ``git clone ... .`` below finds its target directory empty.
+COPY patch_setup.py /usr/local/share/patch_setup.py
+
 # Isolated virtualenv so the artefact copied to the runtime stage is a
 # single, self-contained directory tree (binaries, shared libs and
 # installed packages).
@@ -65,9 +67,8 @@ ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 WORKDIR /build
 
-# Everything happens inside a single ``set -eux`` shell so every command
-# is echoed and the build stops at the first failure with a visible
-# error. The six-step structure makes the Dokploy log easy to scan.
+# Six-step build wrapped in ``set -eux`` so every command is echoed and
+# any failure aborts the build with a visible error frame.
 RUN set -eux; \
     echo "=== [1/6] Cloning upstream ==="; \
     git clone --branch "${TAILS_SERVER_REF}" --depth 1 "${TAILS_SERVER_REPO}" .; \
@@ -76,11 +77,7 @@ RUN set -eux; \
     cat setup.py; \
     \
     echo "=== [3/6] Patching setup.py to use find_packages() ==="; \
-    sed -i \
-        -e 's/^from setuptools import setup$/from setuptools import setup, find_packages/' \
-        -e "s/packages=\['tails_server'\]/packages=find_packages()/" \
-        -e 's/packages=\["tails_server"\]/packages=find_packages()/' \
-        setup.py; \
+    python /usr/local/share/patch_setup.py setup.py; \
     \
     echo "=== [4/6] Patched setup.py ==="; \
     cat setup.py; \
@@ -131,8 +128,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
         sys.exit(0 if r.status < 500 else 1)" || exit 1
 
 # ``tails-server`` is the console script registered by upstream's
-# ``entry_points``. Invoking it directly (instead of ``python -m ...``)
-# avoids the missing ``__main__.py`` in the v1.1.0 package layout.
+# ``entry_points.console_scripts``. Invoking it directly avoids the
+# missing ``__main__.py`` in the v1.1.0 package layout.
 ENTRYPOINT ["tails-server"]
 CMD ["--host", "0.0.0.0", \
      "--port", "6543", \

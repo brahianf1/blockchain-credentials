@@ -1,5 +1,4 @@
-# The build context is tiny on purpose: we fetch the tails-server source
-# code from upstream inside the Dockerfile, so nothing local needs to be
-# copied into the image.
+# Small build context on purpose: only what the Dockerfile needs.
 *
 !Dockerfile
+!patch_setup.py
