@@ -106,3 +106,52 @@ class PublicVerificationResponse(BaseModel):
     completion_date: Optional[str] = None
     issuer: Optional[str] = None
     blockchain: Optional[BlockchainEvidence] = None
+
+
+# ── Blockchain registry (public + admin) ──
+
+class LedgerArtifactView(BaseModel):
+    """Verifier-facing view of a ledger artifact (schema, cred_def, …)."""
+
+    kind: str
+    artifact_id: str
+    name: Optional[str] = None
+    version: Optional[str] = None
+    tag: Optional[str] = None
+    issuer_did: Optional[str] = None
+    schema_id: Optional[str] = None
+    supports_revocation: bool = False
+    seq_no: Optional[int] = None
+    explorer_url: Optional[str] = None
+
+
+class BlockchainRegistryResponse(BaseModel):
+    """Snapshot of the institutional registry anchored on the ledger."""
+
+    network: str
+    issuer_did: Optional[str] = None
+    explorer_url: Optional[str] = None
+    schema: Optional[LedgerArtifactView] = None
+    cred_def: Optional[LedgerArtifactView] = None
+    total_anchored_credentials: int = 0
+
+
+class BootstrapArtifactReport(BaseModel):
+    """Outcome for a single artifact processed by the bootstrap."""
+
+    kind: str
+    artifact_id: str
+    outcome: str
+    seq_no: Optional[int] = None
+
+
+class BootstrapResponse(BaseModel):
+    """Response body for ``POST /api/admin/blockchain/bootstrap``."""
+
+    issuer_did: str
+    network: str
+    schema_id: str
+    cred_def_id: str
+    supports_revocation: bool
+    schema: BootstrapArtifactReport
+    cred_def: BootstrapArtifactReport

@@ -135,11 +135,12 @@ if OPENID4VC_AVAILABLE:
 # Incluir router QR
 app.include_router(qr_router)
 
-# Portal del alumno — rutas autenticadas y públicas
-from portal.router import portal_router, portal_public_router
+# Portal del alumno — rutas autenticadas, públicas y de administración
+from portal.router import portal_admin_router, portal_public_router, portal_router
 
 app.include_router(portal_router)
 app.include_router(portal_public_router)
+app.include_router(portal_admin_router)
 
 qr_generator = QRGenerator()
 

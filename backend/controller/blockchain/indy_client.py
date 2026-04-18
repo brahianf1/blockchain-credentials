@@ -1,53 +1,57 @@
-"""Hyperledger Indy ledger client backed by ACA-Py's admin API.
+"""Hyperledger Indy ledger client backed by ACA-Py and the portal DB.
 
-Phase 0 scope: expose real ledger health and the issuing DID that
-ACA-Py has posted on the VON Network. The ``resolve_anchor`` method
-returns :class:`AnchorStatus.PENDING_ANCHORING` for every credential
-because the anchoring pipeline (schema / cred_def / revocation
-registry entries) is wired up in a later phase.
+Responsibilities:
+    * Report the operational health of the ledger via ACA-Py's admin API.
+    * Resolve per-credential anchors and institutional registry artifacts
+      stored in the portal database (populated by the Fase 1 bootstrap
+      and by the Fase 2 issuance pipeline).
 
-Design choices:
-    * HTTP is used directly via ``httpx`` instead of pulling a heavier
-      dependency — the admin surface we need is minimal and stable.
-    * Every outbound call is bounded by an explicit timeout so a slow
-      ACA-Py cannot cascade into slow API responses to users.
-    * Failures are logged at ``WARNING`` and converted to an
-      ``UNAVAILABLE`` status; exceptions never bubble up so the rest
-      of the app keeps working with degraded blockchain evidence.
+Failures are bounded by per-call timeouts and downgraded to
+``UNAVAILABLE`` so the rest of the application keeps working with
+partial blockchain evidence.
 """
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Callable, Optional
+from urllib.parse import quote, urlencode
 
 import httpx
+from sqlalchemy.orm import Session
 
 from blockchain.base import (
+    AnchorStatus,
     CredentialAnchor,
     LedgerClient,
     LedgerHealth,
     LedgerStatus,
 )
+from blockchain.repository import ArtifactKind, LedgerRepository
 
 logger = logging.getLogger(__name__)
 
 
 class IndyLedgerClient(LedgerClient):
-    """Ledger client that talks to an ACA-Py admin endpoint over HTTP."""
+    """Ledger client that combines ACA-Py health checks with DB-backed evidence."""
 
     DEFAULT_NETWORK_NAME = "VON Network (Hyperledger Indy)"
     DEFAULT_TIMEOUT_SECONDS = 5.0
 
     def __init__(
         self,
+        *,
         admin_url: str,
+        repository: LedgerRepository,
+        session_factory: Callable[[], Session],
         network_name: str = DEFAULT_NETWORK_NAME,
         explorer_url: Optional[str] = None,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
         self._admin_url = admin_url.rstrip("/")
+        self._repository = repository
+        self._session_factory = session_factory
         self._network_name = network_name
-        self._explorer_url = explorer_url
+        self._explorer_url = explorer_url.rstrip("/") if explorer_url else None
         self._timeout = httpx.Timeout(timeout_seconds)
 
     # ------------------------------------------------------------------
@@ -84,18 +88,103 @@ class IndyLedgerClient(LedgerClient):
         status = await self.get_status()
         if status.health == LedgerHealth.UNAVAILABLE:
             return CredentialAnchor.unavailable(self._network_name)
-        return CredentialAnchor.pending(
+
+        anchor = self._lookup_anchor(credential_hash)
+        if anchor is not None:
+            return self._anchor_from_db(anchor, fallback_issuer_did=status.issuer_did)
+
+        registry = self._lookup_registry(issuer_did=status.issuer_did)
+        return CredentialAnchor(
+            status=AnchorStatus.PENDING_ANCHORING,
             network=self._network_name,
             issuer_did=status.issuer_did,
+            schema_id=registry.get("schema_id"),
+            cred_def_id=registry.get("cred_def_id"),
             explorer_url=self._explorer_url,
         )
 
     # ------------------------------------------------------------------
-    # Helpers
+    # DB helpers (synchronous, scoped to a short-lived session)
+    # ------------------------------------------------------------------
+    def _lookup_anchor(self, credential_hash: str):
+        with self._session_scope() as db:
+            return self._repository.get_anchor(db, credential_hash)
+
+    def _lookup_registry(self, *, issuer_did: Optional[str]) -> dict:
+        with self._session_scope() as db:
+            schema = self._repository.find_artifact(
+                db,
+                kind=ArtifactKind.SCHEMA,
+                issuer_did=issuer_did,
+            )
+            cred_def = self._repository.find_artifact(
+                db,
+                kind=ArtifactKind.CRED_DEF,
+                issuer_did=issuer_did,
+            )
+        return {
+            "schema_id": schema.artifact_id if schema else None,
+            "cred_def_id": cred_def.artifact_id if cred_def else None,
+        }
+
+    def _anchor_from_db(self, anchor, *, fallback_issuer_did: Optional[str]):
+        status = (
+            AnchorStatus.REVOKED if anchor.revoked else AnchorStatus.ANCHORED
+        )
+        return CredentialAnchor(
+            status=status,
+            network=self._network_name,
+            issuer_did=anchor.issuer_did or fallback_issuer_did,
+            schema_id=anchor.schema_id,
+            cred_def_id=anchor.cred_def_id,
+            rev_reg_id=anchor.rev_reg_id,
+            cred_rev_id=anchor.cred_rev_id,
+            txn_id=anchor.txn_id,
+            seq_no=anchor.seq_no,
+            ledger_timestamp=(
+                anchor.ledger_timestamp.isoformat()
+                if anchor.ledger_timestamp
+                else None
+            ),
+            explorer_url=self._build_explorer_url(seq_no=anchor.seq_no),
+        )
+
+    def _build_explorer_url(self, *, seq_no: Optional[int] = None) -> Optional[str]:
+        if not self._explorer_url:
+            return None
+        if seq_no is None:
+            return self._explorer_url
+        query = urlencode({"query": str(seq_no)})
+        return f"{self._explorer_url}/browse/domain?{query}"
+
+    def _session_scope(self):
+        class _Scope:
+            def __init__(self, factory: Callable[[], Session]) -> None:
+                self._factory = factory
+                self._session: Optional[Session] = None
+
+            def __enter__(self) -> Session:
+                self._session = self._factory()
+                return self._session
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                assert self._session is not None
+                try:
+                    self._session.rollback()
+                finally:
+                    self._session.close()
+
+        return _Scope(self._session_factory)
+
+    # ------------------------------------------------------------------
+    # Misc
     # ------------------------------------------------------------------
     @staticmethod
     def _normalize_did(did: Optional[str]) -> Optional[str]:
-        """Prefix a bare Indy DID with the ``did:sov:`` method when needed."""
         if not did:
             return None
         return did if did.startswith("did:") else f"did:sov:{did}"
+
+    @staticmethod
+    def _escape_for_explorer(value: str) -> str:
+        return quote(value, safe="")
