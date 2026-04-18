@@ -10,6 +10,7 @@ from blockchain.anoncreds_registry import (
     AnonCredsRegistryError,
     CredDefRecord,
     IssuerIdentity,
+    RevRegRecord,
     SchemaRecord,
 )
 from blockchain.base import (
@@ -63,6 +64,7 @@ __all__ = [
     "LedgerHealth",
     "LedgerRepository",
     "LedgerStatus",
+    "RevRegRecord",
     "SchemaRecord",
     "get_anoncreds_registry",
     "get_bootstrap_service",

@@ -75,6 +75,8 @@ async def bootstrap_blockchain(
             schema_attributes=settings.schema_attributes,
             cred_def_tag=settings.cred_def_tag,
             supports_revocation=settings.supports_revocation,
+            rev_reg_max_cred_num=settings.rev_reg_max_cred_num,
+            rev_reg_issuance_type=settings.rev_reg_issuance_type,
         )
     except Exception as exc:
         logger.exception("Blockchain bootstrap failed")
@@ -101,6 +103,15 @@ def blockchain_status(
 def _bootstrap_response(
     *, result: BootstrapResult, network: str
 ) -> BootstrapResponse:
+    rev_reg_report: Optional[BootstrapArtifactReport] = None
+    if result.rev_reg is not None:
+        rev_reg_report = BootstrapArtifactReport(
+            kind=result.rev_reg.kind,
+            artifact_id=result.rev_reg.artifact_id,
+            outcome=result.rev_reg.outcome.value,
+            seq_no=result.rev_reg.seq_no,
+        )
+
     return BootstrapResponse(
         issuer_did=normalize_did_sov(result.issuer_did) or result.issuer_did,
         network=network,
@@ -119,4 +130,8 @@ def _bootstrap_response(
             outcome=result.cred_def.outcome.value,
             seq_no=result.cred_def.seq_no,
         ),
+        rev_reg=rev_reg_report,
+        rev_reg_id=result.rev_reg_id,
+        rev_reg_max_cred_num=result.rev_reg_max_cred_num,
+        rev_reg_issuance_type=result.rev_reg_issuance_type,
     )

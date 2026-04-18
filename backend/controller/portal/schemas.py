@@ -111,7 +111,7 @@ class PublicVerificationResponse(BaseModel):
 # ── Blockchain registry (public + admin) ──
 
 class LedgerArtifactView(BaseModel):
-    """Verifier-facing view of a ledger artifact (schema, cred_def, …)."""
+    """Verifier-facing view of a ledger artifact (schema, cred_def, rev_reg_def)."""
 
     kind: str
     artifact_id: str
@@ -125,6 +125,20 @@ class LedgerArtifactView(BaseModel):
     explorer_url: Optional[str] = None
 
 
+class RevRegView(BaseModel):
+    """Public view of the institutional revocation registry."""
+
+    kind: str = "rev_reg_def"
+    rev_reg_id: str
+    cred_def_id: Optional[str] = None
+    issuer_did: Optional[str] = None
+    tag: Optional[str] = None
+    max_cred_num: Optional[int] = None
+    issuance_type: Optional[str] = None
+    tails_location: Optional[str] = None
+    explorer_url: Optional[str] = None
+
+
 class BlockchainRegistryResponse(BaseModel):
     """Snapshot of the institutional registry anchored on the ledger."""
 
@@ -133,6 +147,7 @@ class BlockchainRegistryResponse(BaseModel):
     explorer_url: Optional[str] = None
     schema: Optional[LedgerArtifactView] = None
     cred_def: Optional[LedgerArtifactView] = None
+    rev_reg: Optional[RevRegView] = None
     total_anchored_credentials: int = 0
 
 
@@ -155,3 +170,7 @@ class BootstrapResponse(BaseModel):
     supports_revocation: bool
     schema: BootstrapArtifactReport
     cred_def: BootstrapArtifactReport
+    rev_reg: Optional[BootstrapArtifactReport] = None
+    rev_reg_id: Optional[str] = None
+    rev_reg_max_cred_num: Optional[int] = None
+    rev_reg_issuance_type: Optional[str] = None

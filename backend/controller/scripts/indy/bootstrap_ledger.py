@@ -3,8 +3,8 @@
 
 Thin command-line entry point around
 :class:`blockchain.LedgerBootstrapService`. Running it multiple times is
-safe: existing schemas and credential definitions are reused and only
-missing artifacts are registered on the ledger.
+safe: existing schemas, credential definitions and revocation registries
+are reused and only missing artifacts are registered on the ledger.
 
 Usage
 -----
@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import sys
+from typing import Any, Dict
 
 from blockchain import BootstrapResult, get_bootstrap_service, get_settings
 
@@ -32,8 +33,17 @@ def _configure_logging() -> None:
     )
 
 
+def _artifact_summary_to_dict(summary) -> Dict[str, Any]:
+    return {
+        "kind": summary.kind,
+        "artifact_id": summary.artifact_id,
+        "outcome": summary.outcome.value,
+        "seq_no": summary.seq_no,
+    }
+
+
 def _result_to_json(result: BootstrapResult, network: str) -> str:
-    payload = {
+    payload: Dict[str, Any] = {
         "issuer_did": (
             result.issuer_did
             if result.issuer_did.startswith("did:")
@@ -43,19 +53,14 @@ def _result_to_json(result: BootstrapResult, network: str) -> str:
         "schema_id": result.schema_id,
         "cred_def_id": result.cred_def_id,
         "supports_revocation": result.supports_revocation,
-        "schema": {
-            "kind": result.schema.kind,
-            "artifact_id": result.schema.artifact_id,
-            "outcome": result.schema.outcome.value,
-            "seq_no": result.schema.seq_no,
-        },
-        "cred_def": {
-            "kind": result.cred_def.kind,
-            "artifact_id": result.cred_def.artifact_id,
-            "outcome": result.cred_def.outcome.value,
-            "seq_no": result.cred_def.seq_no,
-        },
+        "schema": _artifact_summary_to_dict(result.schema),
+        "cred_def": _artifact_summary_to_dict(result.cred_def),
     }
+    if result.rev_reg is not None:
+        payload["rev_reg_id"] = result.rev_reg_id
+        payload["rev_reg_max_cred_num"] = result.rev_reg_max_cred_num
+        payload["rev_reg_issuance_type"] = result.rev_reg_issuance_type
+        payload["rev_reg"] = _artifact_summary_to_dict(result.rev_reg)
     return json.dumps(payload, indent=2, ensure_ascii=False)
 
 
@@ -64,12 +69,15 @@ async def _run() -> int:
     service = get_bootstrap_service()
 
     logging.getLogger(__name__).info(
-        "Running bootstrap against ACA-Py at %s (schema=%s v%s, tag=%s, revocation=%s)",
+        "Running bootstrap against ACA-Py at %s "
+        "(schema=%s v%s, tag=%s, revocation=%s, rev_reg_max=%s, issuance=%s)",
         settings.acapy_admin_url,
         settings.schema_name,
         settings.schema_version,
         settings.cred_def_tag,
         settings.supports_revocation,
+        settings.rev_reg_max_cred_num,
+        settings.rev_reg_issuance_type,
     )
 
     result = await service.bootstrap(
@@ -78,6 +86,8 @@ async def _run() -> int:
         schema_attributes=settings.schema_attributes,
         cred_def_tag=settings.cred_def_tag,
         supports_revocation=settings.supports_revocation,
+        rev_reg_max_cred_num=settings.rev_reg_max_cred_num,
+        rev_reg_issuance_type=settings.rev_reg_issuance_type,
     )
 
     print(_result_to_json(result=result, network=settings.network_name))

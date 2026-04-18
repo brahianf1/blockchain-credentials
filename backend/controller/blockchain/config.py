@@ -33,6 +33,12 @@ DEFAULT_SCHEMA_ATTRIBUTES: Tuple[str, ...] = (
 )
 
 
+# Valid values accepted by ACA-Py for the rev_reg_def ``issuance_type``.
+ISSUANCE_ON_DEMAND = "ISSUANCE_ON_DEMAND"
+ISSUANCE_BY_DEFAULT = "ISSUANCE_BY_DEFAULT"
+_VALID_ISSUANCE_TYPES = frozenset({ISSUANCE_ON_DEMAND, ISSUANCE_BY_DEFAULT})
+
+
 @dataclass(frozen=True)
 class BlockchainSettings:
     """Static configuration for the blockchain subsystem."""
@@ -45,12 +51,30 @@ class BlockchainSettings:
     schema_version: str
     cred_def_tag: str
     supports_revocation: bool
+    rev_reg_max_cred_num: int
+    rev_reg_issuance_type: str
+    tails_server_url: str
     admin_bootstrap_token: str
     schema_attributes: Tuple[str, ...] = DEFAULT_SCHEMA_ATTRIBUTES
 
 
 def _as_bool(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _as_int(value: str, *, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_issuance_type(value: str) -> str:
+    """Coerce ``value`` to a supported issuance type, defaulting safely."""
+    candidate = (value or "").strip().upper()
+    if candidate in _VALID_ISSUANCE_TYPES:
+        return candidate
+    return ISSUANCE_ON_DEMAND
 
 
 def get_settings() -> BlockchainSettings:
@@ -75,5 +99,12 @@ def get_settings() -> BlockchainSettings:
         supports_revocation=_as_bool(
             os.getenv("BLOCKCHAIN_SUPPORT_REVOCATION", "false")
         ),
+        rev_reg_max_cred_num=_as_int(
+            os.getenv("BLOCKCHAIN_REV_REG_MAX_CRED_NUM", "1000"), default=1000
+        ),
+        rev_reg_issuance_type=_normalize_issuance_type(
+            os.getenv("BLOCKCHAIN_REV_REG_ISSUANCE_TYPE", ISSUANCE_ON_DEMAND)
+        ),
+        tails_server_url=os.getenv("TAILS_SERVER_URL", "").rstrip("/"),
         admin_bootstrap_token=os.getenv("ADMIN_BOOTSTRAP_TOKEN", ""),
     )
