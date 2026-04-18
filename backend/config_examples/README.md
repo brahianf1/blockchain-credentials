@@ -72,6 +72,7 @@ Genera el par ECDSA P-256 (`openid_private_key.pem`, `openid_public_key.pem`) us
 ## Herramientas Adicionales
 
 - **Limpieza total de VON Network:** `./cleanup-von.sh` destruye la red Indy y sus volúmenes para permitir redespliegues limpios.
+- **Reparar Traefik del VON Browser:** `./fix-von-traefik.sh` recrea el contenedor `von-webserver` con las labels Traefik corregidas (resolver TLS `letsencrypt`, router HTTP con redirect, red `dokploy-network`) sin perder el estado del ledger. Usalo si `https://ledger.utnpf.site` devuelve error SSL (p. ej. Cloudflare 526).
 
 ---
 

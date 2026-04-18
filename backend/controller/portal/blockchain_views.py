@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Optional
 
 from blockchain import LedgerRepository, get_settings
+from blockchain.did_utils import to_sov_did
 from blockchain.repository import ArtifactKind, ArtifactRecord
 from portal.database import PortalSessionLocal
 from portal.schemas import BlockchainRegistryResponse, LedgerArtifactView
@@ -80,6 +81,5 @@ def build_artifact_explorer_url(
 
 
 def normalize_did_sov(did: Optional[str]) -> Optional[str]:
-    if not did:
-        return None
-    return did if did.startswith("did:") else f"did:sov:{did}"
+    """Delegator kept for clarity at call sites; see :func:`to_sov_did`."""
+    return to_sov_did(did)

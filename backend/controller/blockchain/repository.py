@@ -16,6 +16,7 @@ from typing import Iterable, List, Optional
 
 from sqlalchemy.orm import Session
 
+from blockchain.did_utils import to_raw_did
 from portal.models import CredentialAnchor, LedgerArtifact
 
 
@@ -109,7 +110,10 @@ class LedgerRepository:
     ) -> Optional[ArtifactRecord]:
         query = db.query(LedgerArtifact).filter(LedgerArtifact.kind == kind)
         if issuer_did is not None:
-            query = query.filter(LedgerArtifact.issuer_did == issuer_did)
+            # Accept either raw or did:sov: form; rows are persisted raw.
+            query = query.filter(
+                LedgerArtifact.issuer_did == to_raw_did(issuer_did)
+            )
         if name is not None:
             query = query.filter(LedgerArtifact.name == name)
         if version is not None:
@@ -149,6 +153,7 @@ class LedgerRepository:
         ledger_timestamp: Optional[datetime] = None,
         extra: Optional[str] = None,
     ) -> ArtifactRecord:
+        normalized_issuer = to_raw_did(issuer_did)
         row = (
             db.query(LedgerArtifact)
             .filter(
@@ -164,7 +169,7 @@ class LedgerRepository:
                 name=name,
                 version=version,
                 tag=tag,
-                issuer_did=issuer_did,
+                issuer_did=normalized_issuer,
                 schema_id=schema_id,
                 supports_revocation=supports_revocation,
                 txn_id=txn_id,
@@ -178,7 +183,7 @@ class LedgerRepository:
             row.version = version if version is not None else row.version
             row.tag = tag if tag is not None else row.tag
             row.issuer_did = (
-                issuer_did if issuer_did is not None else row.issuer_did
+                normalized_issuer if normalized_issuer is not None else row.issuer_did
             )
             row.schema_id = (
                 schema_id if schema_id is not None else row.schema_id
@@ -225,6 +230,7 @@ class LedgerRepository:
         seq_no: Optional[int] = None,
         ledger_timestamp: Optional[datetime] = None,
     ) -> AnchorRecord:
+        normalized_issuer = to_raw_did(issuer_did)
         row = (
             db.query(CredentialAnchor)
             .filter(CredentialAnchor.credential_hash == credential_hash)
@@ -236,7 +242,7 @@ class LedgerRepository:
                 moodle_credential_id=moodle_credential_id,
                 moodle_user_id=moodle_user_id,
                 moodle_course_id=moodle_course_id,
-                issuer_did=issuer_did,
+                issuer_did=normalized_issuer,
                 schema_id=schema_id,
                 cred_def_id=cred_def_id,
                 rev_reg_id=rev_reg_id,
@@ -251,7 +257,7 @@ class LedgerRepository:
                 ("moodle_credential_id", moodle_credential_id),
                 ("moodle_user_id", moodle_user_id),
                 ("moodle_course_id", moodle_course_id),
-                ("issuer_did", issuer_did),
+                ("issuer_did", normalized_issuer),
                 ("schema_id", schema_id),
                 ("cred_def_id", cred_def_id),
                 ("rev_reg_id", rev_reg_id),
