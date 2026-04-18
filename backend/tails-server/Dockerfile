@@ -18,18 +18,20 @@
 #   linux/aarch64. Python 3.10 still exposes the header and is in LTS
 #   support until October 2026.
 #
-# Why we side-step ``pip install .`` for the package itself:
+# Why we patch the upstream setup.py at build time:
 #   The v1.1.0 setup.py declares ``packages=["tails_server"]`` instead
-#   of ``find_packages()``. The resulting wheel ships only the root
-#   module; subpackages (``tails_server.config``, ``tails_server.utils``,
-#   …) are missing and the service crashes at import time with
-#   ``ModuleNotFoundError: No module named 'tails_server.config'``.
+#   of calling ``setuptools.find_packages()``. That makes ``pip install``
+#   omit every subpackage (``tails_server.config``, etc.) from the
+#   resulting wheel, and the service crashes at import time with:
+#       ModuleNotFoundError: No module named 'tails_server.config'
 #
-#   We therefore split the job: pip installs the transitive
-#   dependencies (aiohttp, yarl, base58, indy_vdr, …) from
-#   ``requirements.txt``, and the ``tails_server`` package itself is
-#   copied verbatim from the source tree into site-packages. A runtime
-#   import check at build time fails fast if upstream ever drifts.
+#   Rather than bypass ``pip install`` (which would also drop the
+#   ``tails-server`` console script defined in ``entry_points``), we
+#   apply a deterministic, root-cause fix with ``sed``: we turn the
+#   hard-coded package list into ``find_packages()``. This mirrors the
+#   correction a pull request against upstream would introduce, so once
+#   upstream fixes the bug in a future release the ``sed`` becomes a
+#   no-op and the build keeps working.
 
 ARG TAILS_SERVER_REPO=https://github.com/bcgov/indy-tails-server.git
 ARG TAILS_SERVER_REF=v1.1.0
@@ -55,34 +57,42 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a virtual environment so every Python artifact lives under a
-# single well-known path. This makes the multi-stage copy below
-# deterministic and avoids hard-coding a site-packages layout that may
-# differ between pip versions.
+# Isolated virtualenv so the artefact copied to the runtime stage is a
+# single, self-contained directory tree (binaries, shared libs and
+# installed packages).
 RUN python -m venv "${VIRTUAL_ENV}"
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 WORKDIR /build
 
-# Everything in a single shell with ``set -eux`` so the build log
-# surfaces exactly which line fails if anything goes wrong.
+# Everything happens inside a single ``set -eux`` shell so every command
+# is echoed and the build stops at the first failure with a visible
+# error. The six-step structure makes the Dokploy log easy to scan.
 RUN set -eux; \
-    echo "=== [1/5] Cloning upstream ==="; \
+    echo "=== [1/6] Cloning upstream ==="; \
     git clone --branch "${TAILS_SERVER_REF}" --depth 1 "${TAILS_SERVER_REPO}" .; \
-    echo "=== [2/5] Source tree layout ==="; \
-    ls -la; \
-    ls -la tails_server/; \
-    echo "=== [3/5] Installing runtime dependencies from requirements.txt ==="; \
-    pip install --no-cache-dir -r requirements.txt; \
-    echo "=== [4/5] Copying tails_server source tree into site-packages ==="; \
-    SITE_PACKAGES="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"; \
-    echo "Target site-packages: ${SITE_PACKAGES}"; \
-    rm -rf "${SITE_PACKAGES}/tails_server"; \
-    cp -r tails_server "${SITE_PACKAGES}/tails_server"; \
-    ls -la "${SITE_PACKAGES}/tails_server/"; \
-    echo "=== [5/5] Runtime import check ==="; \
-    python -c "from tails_server.config.defaults import DEFAULT_WEB_HOST, DEFAULT_WEB_PORT, CHUNK_SIZE; print('tails_server import OK')"; \
-    python -c "import tails_server.__main__; print('tails_server.__main__ import OK')"
+    \
+    echo "=== [2/6] Original setup.py ==="; \
+    cat setup.py; \
+    \
+    echo "=== [3/6] Patching setup.py to use find_packages() ==="; \
+    sed -i \
+        -e 's/^from setuptools import setup$/from setuptools import setup, find_packages/' \
+        -e "s/packages=\['tails_server'\]/packages=find_packages()/" \
+        -e 's/packages=\["tails_server"\]/packages=find_packages()/' \
+        setup.py; \
+    \
+    echo "=== [4/6] Patched setup.py ==="; \
+    cat setup.py; \
+    \
+    echo "=== [5/6] Installing package and dependencies via pip ==="; \
+    pip install --no-cache-dir .; \
+    \
+    echo "=== [6/6] Verifying package imports and CLI entry point ==="; \
+    python -c "from tails_server.config.defaults import DEFAULT_WEB_HOST, DEFAULT_WEB_PORT, CHUNK_SIZE; print('tails_server.config OK')"; \
+    python -c "from tails_server import start; print('tails_server.start OK')"; \
+    ls -la "${VIRTUAL_ENV}/bin/" | grep -i tail; \
+    tails-server --help > /dev/null && echo 'tails-server CLI OK'
 
 
 ###############################################################################
@@ -95,8 +105,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     VIRTUAL_ENV=/opt/venv \
     PATH=/opt/venv/bin:$PATH
 
-# Bring in the self-contained virtualenv with both deps and the
-# tails_server package already placed under its site-packages.
+# Bring in the self-contained virtualenv (deps, package and console
+# entry point). Nothing else from the builder stage leaks in.
 COPY --from=builder /opt/venv /opt/venv
 
 # Unprivileged user for the runtime process. The storage directory is
@@ -120,7 +130,10 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
         r = urllib.request.urlopen('http://127.0.0.1:6543/', timeout=3); \
         sys.exit(0 if r.status < 500 else 1)" || exit 1
 
-ENTRYPOINT ["python", "-m", "tails_server"]
+# ``tails-server`` is the console script registered by upstream's
+# ``entry_points``. Invoking it directly (instead of ``python -m ...``)
+# avoids the missing ``__main__.py`` in the v1.1.0 package layout.
+ENTRYPOINT ["tails-server"]
 CMD ["--host", "0.0.0.0", \
      "--port", "6543", \
      "--log-level", "INFO", \
