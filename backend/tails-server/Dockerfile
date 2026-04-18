@@ -19,18 +19,29 @@
 #   support until October 2026.
 #
 # Why we run prepare_package.py before pip install:
-#   Upstream's setup.py already calls ``find_packages()``, but
-#   ``tails_server/config`` is a PEP 420 namespace package (no
-#   __init__.py). ``find_packages()`` only finds *regular* packages,
-#   so the resulting wheel omits the subpackage and the service crashes
-#   at import time with:
-#       ModuleNotFoundError: No module named 'tails_server.config'
+#   Upstream's setup.py has two unrelated packaging defects:
 #
-#   ``prepare_package.py`` creates the missing ``__init__.py`` files in
-#   every subdirectory of ``tails_server`` so ``find_packages()`` picks
-#   them all up. This is strictly additive: existing ``__init__.py``
-#   files are never touched, and the script is a no-op once upstream
-#   fixes the layout in a future release.
+#   1. ``tails_server/config`` is a PEP 420 namespace package (no
+#      ``__init__.py``). ``find_packages()`` only detects *regular*
+#      packages, so the resulting wheel omits the subpackage and the
+#      service crashes at import time with:
+#          ModuleNotFoundError: No module named 'tails_server.config'
+#
+#   2. The upstream ``setup.py`` declares ``include_package_data=True``
+#      but ships no ``MANIFEST.in`` and ``package_data`` only lists
+#      ``requirements.txt``. As a result, data files such as
+#      ``tails_server/config/default_logging_config.ini`` are silently
+#      dropped from the wheel and the service crashes at startup with:
+#          tails_server.logging.BadLogConfigError
+#
+#   ``prepare_package.py`` fixes both:
+#     * Creates empty ``__init__.py`` files in every subdirectory so
+#       ``find_packages()`` picks them up.
+#     * Writes ``MANIFEST.in`` at the project root with a conservative
+#       ``recursive-include`` rule so data files end up in the wheel.
+#
+#   Both operations are strictly additive and idempotent: once upstream
+#   fixes these issues in a future release the helper becomes a no-op.
 
 ARG TAILS_SERVER_REPO=https://github.com/bcgov/indy-tails-server.git
 ARG TAILS_SERVER_REF=v1.1.0
@@ -87,9 +98,15 @@ RUN set -eux; \
     echo "=== [5/6] Installing package and dependencies via pip ==="; \
     pip install --no-cache-dir .; \
     \
-    echo "=== [6/6] Verifying package imports and CLI entry point ==="; \
+    echo "=== [6/6] Verifying package imports, data files and CLI ==="; \
     python -c "from tails_server.config.defaults import DEFAULT_WEB_HOST, DEFAULT_WEB_PORT, CHUNK_SIZE; print('tails_server.config OK')"; \
     python -c "from tails_server import start; print('tails_server.start OK')"; \
+    python -c "\
+import importlib.resources, sys, pathlib; \
+pkg = importlib.resources.files('tails_server.config'); \
+required = ['default_logging_config.ini']; \
+missing = [name for name in required if not (pkg / name).is_file()]; \
+sys.exit(f'ERROR: missing bundled data files: {missing}') if missing else print('tails_server.config data files OK')"; \
     ls -la "${VIRTUAL_ENV}/bin/" | grep -i tail; \
     echo "--- Inspecting upstream bin/tails-server shebang ---"; \
     head -5 "${VIRTUAL_ENV}/bin/tails-server"; \
