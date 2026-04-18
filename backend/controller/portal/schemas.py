@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
+
+from blockchain.base import AnchorStatus
 
 
 # ── Request Models ──
@@ -48,13 +50,34 @@ class AuthResponse(BaseModel):
     student: StudentInfo
 
 
+class BlockchainEvidence(BaseModel):
+    """Public, verifier-facing snapshot of on-ledger credential evidence.
+
+    Fields beyond ``network`` and ``status`` are populated progressively
+    as the anchoring pipeline matures; clients must drive their UI from
+    ``status`` rather than from the presence of optional fields.
+    """
+
+    network: str
+    status: AnchorStatus
+    issuer_did: Optional[str] = None
+    schema_id: Optional[str] = None
+    cred_def_id: Optional[str] = None
+    rev_reg_id: Optional[str] = None
+    cred_rev_id: Optional[str] = None
+    txn_id: Optional[str] = None
+    seq_no: Optional[int] = None
+    ledger_timestamp: Optional[str] = None
+    explorer_url: Optional[str] = None
+
+
 class CredentialSummary(BaseModel):
     id: int
     course_name: str
     course_id: int
     status: str
     completion_date: Optional[str] = None
-    fabric_hash: Optional[str] = None
+    credential_hash: Optional[str] = None
     created_at: Optional[str] = None
 
 
@@ -64,8 +87,7 @@ class CredentialDetail(CredentialSummary):
     grade: Optional[str] = None
     invitation_url: Optional[str] = None
     qr_code_base64: Optional[str] = None
-    fabric_verified: Optional[bool] = None
-    fabric_asset_id: Optional[str] = None
+    blockchain: Optional[BlockchainEvidence] = None
     claimed_at: Optional[str] = None
 
 
@@ -83,4 +105,4 @@ class PublicVerificationResponse(BaseModel):
     course_name: Optional[str] = None
     completion_date: Optional[str] = None
     issuer: Optional[str] = None
-    blockchain_confirmed: bool = False
+    blockchain: Optional[BlockchainEvidence] = None

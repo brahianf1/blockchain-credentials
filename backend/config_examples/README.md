@@ -1,77 +1,86 @@
-# Guía Definitiva de Despliegue Multi-Arquitectura (ARM & x86_64)
+# Guía de Despliegue (Fase de Bootstrap del Servidor)
 
 ## Introducción al Ecosistema
 
-Este proyecto constituye un ecosistema integral de Identidad Descentralizada (Self-Sovereign Identity o SSI) diseñado para la emisión y verificación de Credenciales Criptográficas institucionales (ejemplo: diplomas y certificaciones universitarias). La arquitectura completa interconecta una plataforma LMS (Moodle), un middleware orquestador de identidad (Controlador Python Modular), un Agente Criptográfico (ACA-Py) y un registro Blockchain inmutable.
+Este proyecto es un sistema de Identidad Descentralizada (SSI) para la emisión y verificación de microcredenciales académicas. La arquitectura interconecta:
 
-**¿Para qué sirven estos scripts?**
-Antes de poder levantar y conectar las aplicaciones de emisión mediante plataformas como Dokploy, el servidor requiere de una "Capa Base de Confianza". Los scripts contenidos en este directorio son los responsables de realizar la configuración de bajo nivel o *Bootstrapping* del servidor. Su ejecución produce dependencias vitales del ecosistema:
-1.  **La Red Blockchain (Ledger):** Construye y despliega el registro público descentralizado local (VON Network) donde las identidades institucionales serán ancladas públicamente.
-2.  **El Material Criptográfico:** Descarga las herramientas de Hyperledger y genera los certificados de seguridad (MSP) y llaves bajo curvas elípticas (ECDSA P-256) que los servicios utilizarán para firmar digitalmente los documentos W3C/OpenID4VC.
+1. **Moodle (LMS)** — fuente de verdad académica y disparador de emisiones.
+2. **Controller Python (FastAPI)** — orquestador: recibe webhooks de Moodle, firma credenciales OpenID4VC y conversa con ACA-Py.
+3. **ACA-Py** — agente Aries que administra el DID del emisor, firma credenciales AnonCreds y habla con el ledger Indy.
+4. **VON Network (Hyperledger Indy)** — blockchain pública del sistema. Provee un ledger inmutable y un explorador web oficial.
+5. **Portal Frontend (React + Vite)** — SPA pública para alumnos y verificación de terceros.
 
-Esta etapa preparatoria es la piedra angular del despliegue; sin ella, los sistemas superiores carecerían de anclaje criptográfico válido.
+Los scripts de este directorio configuran la **capa base de confianza** del servidor antes de desplegar la aplicación vía Dokploy. Su ejecución produce:
 
-## Soporte Universal de Arquitectura (ARM & x86)
+1. **La red blockchain (Ledger Indy):** red local VON Network con 4 nodos validadores y un browser web.
+2. **Las claves criptográficas:** par ECDSA P-256 para que el controller firme credenciales W3C / OpenID4VC.
 
-Los scripts aquí presentes son **Arquitecturalmente Agnósticos (Multi-Arch)**:
-* Si ejecutas estos scripts en servidores **Intel/AMD (x86_64)**, los binarios e imágenes de Docker nativas se descargarán automáticamente y el uso de CPU será sumamente eficiente (Nativo).
-* Si utilizas servidores **ARM64** (ej. Oracle Ampere, AWS Graviton), Docker emulará la red VON (VON Network) utilizando QEMU `binfmt`, mientras que la generación de criptografía de Fabric descargará automáticamente los binarios para ARM de forma nativa. Esto permite desarrollar y testear sin importar el proveedor de infraestructura subyacente.
+---
+
+## Soporte Multi-Arquitectura (ARM & x86_64)
+
+Los scripts son agnósticos a la arquitectura del host:
+
+- En **x86_64** (Intel/AMD) las imágenes Docker se descargan nativas.
+- En **ARM64** (Oracle Ampere, AWS Graviton) la red VON se ejecuta con emulación QEMU `binfmt` cuando alguna imagen no ofrece build ARM.
 
 ---
 
 ## Prerrequisitos
 
-Tu VPS (nuevo o migrado) debe contar con:
-- Docker y Docker Compose
-- Herramientas básicas de Linux: `curl`, `jq`, `unzip`, `openssl` (los scripts intentarán instalar lo que falte automáticamente).
-- El emulador QEMU si usas ARM (`qemu-user-static`, `binfmt-support` integrados en Docker).
+El VPS debe contar con:
+
+- Docker y Docker Compose.
+- Herramientas básicas de Linux: `curl`, `jq`, `unzip`, `openssl` (los scripts intentan instalar lo que falte).
+- QEMU (si usás ARM64): `qemu-user-static`, `binfmt-support` (integrados por Docker moderno).
 
 ---
 
-## FASE 1: Inicialización del Servidor (Orden Estricto)
+## FASE 1 — Inicialización del Servidor (orden estricto)
 
-Para garantizar un entorno estable a prueba de fallos de red (Hairpin NAT, etc.), ejecuta los siguientes scripts en desde tu consola del VPS:
+### 1. Levantar el Ledger Indy (VON Network)
 
-### 1. Levantar el Ledger Local (VON Network)
 **Script:** `./setup-von-network.sh`
 
-*   **Comportamiento Multi-Arch:** Delega la construcción y/o emulación directamente a Docker (`./manage build`).
-*   **Seguridad de Red:** Se ancla de manera inteligente a la **IP Privada/Interna** de la máquina (`hostname -I`) para evadir los bloqueos de Firewall y problemas de NAT Hairpin de los proveedores de nube (ej. Oracle).
-*   **Resultados Críticos:** Al finalizar, inyectará en pantalla la **URL del Genesis** y generará automáticamente la **SEED de 32 caracteres** requerida por ACA-Py.
-> IMPORTANTE: Copia `ACAPY_GENESIS_URL` y `ACAPY_DID_SEED` generados por este script; los necesitarás para la Fase 2.
+- Detecta IP interna del VPS (`hostname -I`) para evitar problemas de Hairpin NAT.
+- Clona y construye VON Network, arranca los 4 nodos Indy + webserver.
+- Registra el DID del emisor (ACA-Py) con rol `ENDORSER`.
+- Al finalizar imprime `ACAPY_GENESIS_URL` y la `ACAPY_DID_SEED` generada; copialos para la Fase 2.
 
-### 2. Generar Cripto-Material de Hyperledger Fabric
-**Script:** `./generate_crypto.sh`
+### 2. Generar claves OpenID4VC
 
-*   **Comportamiento Multi-Arch:** Descarga dinámicamente usando `install-fabric.sh`, la cual detecta si el host es ARM64 o AMD64 y baja los binarios criptográficos correctos.
-*   **Comportamiento Falla-Seguro:** Crea automáticamente el directorio maestro en `/srv/dokploy-data/blockchain-secrets` antes de operar. Genera los MSP y `.yaml` para Org1, Org2 y el Orderer.
-
-### 3. Generar Claves OpenID4VC (Controlador Python)
 **Script:** `./generate_openid_keys.sh`
 
-*   **Propósito:** Genera el par de llaves ECDSA P-256 (`openid_private_key.pem`, `openid_public_key.pem`) universales, necesarias para emitir credenciales estandarizadas por la W3C.
-*   **Destino Seguro:** Todo queda resguardado físicamente en `/srv/dokploy-data/blockchain-secrets` en el *Host*.
+Genera el par ECDSA P-256 (`openid_private_key.pem`, `openid_public_key.pem`) usado por el controller para firmar credenciales. Los archivos quedan en `/srv/dokploy-data/blockchain-secrets`.
 
 ---
 
-## FASE 2: Despliegue en Dokploy
+## FASE 2 — Despliegue en Dokploy
 
-Una vez que la Terminal (SSH) haya terminado de ejecutar exitosamente la Fase 1, cierra la consola y dirígete al panel web de Dokploy:
-
-1. Crea la App del repositorio apuntando al archivo `docker-compose.yml`.
-2. Dirígete a la pestaña de Variables de Entorno.
-3. Asegúrate de inyectar las siguientes variables vitales basándote en los datos que te entregó la Fase 1:
-   * `ACAPY_GENESIS_URL=http://von-webserver:8000/genesis`
-   * `ACAPY_DID_SEED=<tu-seed-de-32-caracteres>`
-   * `OPENID_PRIVATE_KEY_PATH=/srv/dokploy-data/blockchain-secrets/openid_private_key.pem`
-   * `OPENID_PUBLIC_KEY_PATH=/srv/dokploy-data/blockchain-secrets/openid_public_key.pem`
-   * `CRYPTO_CONFIG_PATH=/srv/dokploy-data/blockchain-secrets`
-4. Presiona **Deploy**.
-
-Exceptuando a VON Network, todos los sistemas pesados (Moodle, ACA-Py, Postgres, y el Controller) son imágenes Multi-Arch modernas que se ejecutarán de manera nativa en tu entorno.
+1. Crear la App en Dokploy apuntando al repositorio y al `docker-compose.yml` raíz.
+2. Cargar en la pestaña de variables de entorno (ver `.env.example` para la lista completa), como mínimo:
+   - `ACAPY_GENESIS_URL=http://von-webserver:8000/genesis`
+   - `ACAPY_DID_SEED=<32-caracteres>`
+   - `OPENID_PRIVATE_KEY_PATH=/srv/dokploy-data/blockchain-secrets/openid_private_key.pem`
+   - `OPENID_PUBLIC_KEY_PATH=/srv/dokploy-data/blockchain-secrets/openid_public_key.pem`
+   - `BLOCKCHAIN_DRIVER=indy`
+   - `BLOCKCHAIN_EXPLORER_URL=https://ledger.utnpf.site`
+3. Presionar **Deploy**.
 
 ---
 
 ## Herramientas Adicionales
 
-*   **Limpieza Total:** `./cleanup-von.sh` destruirá la red Indy y los volúmenes, permitiendo redesplegar el Sandbox de forma limpia en caso de errores en la red blockchain.
+- **Limpieza total de VON Network:** `./cleanup-von.sh` destruye la red Indy y sus volúmenes para permitir redespliegues limpios.
+
+---
+
+## Nota sobre Hyperledger Fabric
+
+Versiones previas del proyecto contemplaban Hyperledger Fabric como ledger adicional. La integración actual **usa Indy como único ledger público** por las siguientes razones:
+
+- VON Network ya provee un browser web accesible públicamente (`ledger.utnpf.site`), que funciona como explorador oficial.
+- ACA-Py emite credenciales AnonCreds con revocación, lo que genera transacciones reales verificables sobre Indy por cada emisión.
+- Mantener dos ledgers duplicaba complejidad operativa sin aportar diferencial técnico para el caso de uso.
+
+El directorio `hyperledger-fabric/` del repositorio conserva los samples originales a modo de referencia, pero **ya no se utilizan en tiempo de ejecución** ni forman parte del `docker-compose.yml`. Los scripts `generate_crypto.sh` y cualquier otro artefacto de crypto-material Fabric están obsoletos y fueron eliminados.
