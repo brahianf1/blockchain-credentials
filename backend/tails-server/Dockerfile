@@ -91,7 +91,11 @@ RUN set -eux; \
     python -c "from tails_server.config.defaults import DEFAULT_WEB_HOST, DEFAULT_WEB_PORT, CHUNK_SIZE; print('tails_server.config OK')"; \
     python -c "from tails_server import start; print('tails_server.start OK')"; \
     ls -la "${VIRTUAL_ENV}/bin/" | grep -i tail; \
-    tails-server --help > /dev/null && echo 'tails-server CLI OK'
+    echo "--- Inspecting upstream bin/tails-server shebang ---"; \
+    head -5 "${VIRTUAL_ENV}/bin/tails-server"; \
+    echo "--- Invoking via explicit python interpreter ---"; \
+    python "${VIRTUAL_ENV}/bin/tails-server" --help > /dev/null; \
+    echo 'tails-server CLI OK'
 
 
 ###############################################################################
@@ -129,10 +133,16 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
         r = urllib.request.urlopen('http://127.0.0.1:6543/', timeout=3); \
         sys.exit(0 if r.status < 500 else 1)" || exit 1
 
-# ``tails-server`` is installed by upstream as a shebang script via
-# ``setup(scripts=[\"bin/tails-server\"])``. Invoking it directly avoids
-# the missing ``__main__.py`` in the package layout.
-ENTRYPOINT ["tails-server"]
+# The upstream ``setup(scripts=["bin/tails-server"])`` copies the script
+# verbatim into ``${VIRTUAL_ENV}/bin/tails-server`` without rewriting
+# its shebang (unlike ``entry_points.console_scripts``, which generates
+# wrapper scripts pointing at the installed interpreter). On
+# python:3.10-slim-bookworm the upstream shebang may target a Python
+# path that does not exist, producing ``/bin/sh: tails-server: not
+# found`` at runtime. Invoking the venv Python explicitly with the
+# script as argument avoids the issue entirely and is the portable
+# pattern for containerised Python CLIs.
+ENTRYPOINT ["python", "/opt/venv/bin/tails-server"]
 CMD ["--host", "0.0.0.0", \
      "--port", "6543", \
      "--log-level", "INFO", \
