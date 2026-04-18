@@ -1,4 +1,4 @@
 # Small build context on purpose: only what the Dockerfile needs.
 *
 !Dockerfile
-!patch_setup.py
+!prepare_package.py
