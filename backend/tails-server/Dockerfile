@@ -3,12 +3,21 @@
 # Hyperledger Indy Tails Server — multi-architecture build.
 #
 # Runs natively on linux/amd64 and linux/arm64 because
-# ``python:3.11-slim-bookworm`` is itself a multi-arch image. No QEMU
+# ``python:3.10-slim-bookworm`` is itself a multi-arch image. No QEMU
 # emulation is involved on either target.
 #
 # The upstream project (https://github.com/bcgov/indy-tails-server) is
 # vendored at build time at a pinned tag so we do not depend on a
 # third-party pre-built image whose ARM64 support is inconsistent.
+#
+# Why Python 3.10 and not 3.11+:
+#   The tails-server v1.1.0 requirements pull in an old yarl release
+#   whose C extension includes ``longintrepr.h``. That header was
+#   removed from Python's public headers in 3.11, so yarl fails to
+#   compile from source on 3.11 when no pre-built wheel exists for the
+#   target arch (e.g. linux/aarch64). Python 3.10 still exposes the
+#   header and is in LTS support, giving us a clean compile on both
+#   amd64 and arm64 without pinning internal dependency versions.
 
 ARG TAILS_SERVER_REPO=https://github.com/bcgov/indy-tails-server.git
 ARG TAILS_SERVER_REF=v1.1.0
@@ -17,7 +26,7 @@ ARG TAILS_SERVER_REF=v1.1.0
 ###############################################################################
 # Stage 1 — Build: fetch the upstream code and install Python deps
 ###############################################################################
-FROM python:3.11-slim-bookworm AS builder
+FROM python:3.10-slim-bookworm AS builder
 
 ARG TAILS_SERVER_REPO
 ARG TAILS_SERVER_REF
@@ -41,7 +50,7 @@ RUN git clone --branch "${TAILS_SERVER_REF}" --depth 1 "${TAILS_SERVER_REPO}" . 
 ###############################################################################
 # Stage 2 — Runtime: minimal image with only the installed Python package
 ###############################################################################
-FROM python:3.11-slim-bookworm AS runtime
+FROM python:3.10-slim-bookworm AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -64,9 +73,8 @@ WORKDIR /tails-files
 VOLUME ["/tails-files"]
 EXPOSE 6543
 
-# Health check: the tails server answers 404 with a body on GET / when
-# healthy, which is treated as "service is up". We consider any response
-# with status < 500 as healthy.
+# Health check: the tails server answers with a body on GET / when
+# healthy. We treat any response with status < 500 as service-up.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request, sys; \
         r = urllib.request.urlopen('http://127.0.0.1:6543/', timeout=3); \
