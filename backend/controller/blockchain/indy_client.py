@@ -26,6 +26,7 @@ from blockchain.base import (
     LedgerHealth,
     LedgerStatus,
 )
+from blockchain.did_utils import to_sov_did
 from blockchain.repository import ArtifactKind, LedgerRepository
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ class IndyLedgerClient(LedgerClient):
             return LedgerStatus(
                 name=self._network_name,
                 health=LedgerHealth.HEALTHY,
-                issuer_did=self._normalize_did(did_payload.get("did")),
+                issuer_did=to_sov_did(did_payload.get("did")),
                 endpoint=(did_payload.get("metadata") or {}).get("endpoint"),
                 explorer_url=self._explorer_url,
             )
@@ -134,7 +135,7 @@ class IndyLedgerClient(LedgerClient):
         return CredentialAnchor(
             status=status,
             network=self._network_name,
-            issuer_did=anchor.issuer_did or fallback_issuer_did,
+            issuer_did=to_sov_did(anchor.issuer_did) or fallback_issuer_did,
             schema_id=anchor.schema_id,
             cred_def_id=anchor.cred_def_id,
             rev_reg_id=anchor.rev_reg_id,
@@ -179,12 +180,6 @@ class IndyLedgerClient(LedgerClient):
     # ------------------------------------------------------------------
     # Misc
     # ------------------------------------------------------------------
-    @staticmethod
-    def _normalize_did(did: Optional[str]) -> Optional[str]:
-        if not did:
-            return None
-        return did if did.startswith("did:") else f"did:sov:{did}"
-
     @staticmethod
     def _escape_for_explorer(value: str) -> str:
         return quote(value, safe="")

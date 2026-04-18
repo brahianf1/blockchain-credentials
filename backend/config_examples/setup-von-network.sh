@@ -288,7 +288,7 @@ docker rm "$WEBSERVER_CONTAINER"
 
 # Recrear con configuración completa
 print_message "Recreando contenedor con:"
-print_message "  - Traefik habilitado"
+print_message "  - Traefik habilitado (HTTP + HTTPS, Let's Encrypt, redirect-to-https)"
 print_message "  - Registro de DIDs habilitado (REGISTER_NEW_DIDS=True)"
 print_message "  - Seed del Trust Anchor configurada"
 print_message "  - Mapeo de puertos correcto: 9000:${WEBSERVER_PORT}"
@@ -305,11 +305,16 @@ docker run -d \
   $VOLUME_MOUNTS \
   --restart unless-stopped \
   --label "traefik.enable=true" \
+  --label "traefik.docker.network=dokploy-network" \
+  --label "traefik.http.services.von-network.loadbalancer.server.port=${WEBSERVER_PORT}" \
+  --label "traefik.http.routers.von-network-web.rule=Host(\`ledger.utnpf.site\`)" \
+  --label "traefik.http.routers.von-network-web.entrypoints=web" \
+  --label "traefik.http.routers.von-network-web.middlewares=redirect-to-https@file" \
+  --label "traefik.http.routers.von-network-web.service=von-network" \
   --label "traefik.http.routers.von-network.rule=Host(\`ledger.utnpf.site\`)" \
   --label "traefik.http.routers.von-network.entrypoints=websecure" \
-  --label "traefik.http.routers.von-network.tls.certresolver=myresolver" \
-  --label "traefik.http.services.von-network.loadbalancer.server.port=${WEBSERVER_PORT}" \
-  --label "traefik.docker.network=dokploy-network" \
+  --label "traefik.http.routers.von-network.tls.certresolver=letsencrypt" \
+  --label "traefik.http.routers.von-network.service=von-network" \
   "$VON_IMAGE" \
   bash -c "cd /home/indy && python -m server.server"
 
