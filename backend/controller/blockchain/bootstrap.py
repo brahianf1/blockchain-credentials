@@ -1,22 +1,23 @@
 """Idempotent bootstrap of the institutional AnonCreds registry.
 
 This service is the single entry point that guarantees the issuer has a
-SCHEMA and a CRED_DEF published on Hyperledger Indy. Running it a second
-time is a no-op: existing artifacts are reused and persisted in the
-portal database for fast local lookups.
+SCHEMA, a CRED_DEF and — optionally — a REV_REG_DEF published on
+Hyperledger Indy. Running it a second time is a no-op: existing
+artifacts are reused and only the missing ones are registered.
 
 The design intentionally keeps the three concerns separate:
-    * :class:`AnonCredsRegistry` talks to ACA-Py (side effects on ledger).
-    * :class:`LedgerRepository` persists artifact metadata (side effects on DB).
-    * :class:`LedgerBootstrapService` orchestrates both and is the thing
-      controllers, CLI scripts and background jobs should depend on.
+
+* :class:`AnonCredsRegistry` talks to ACA-Py (side effects on ledger).
+* :class:`LedgerRepository` persists artifact metadata (side effects on DB).
+* :class:`LedgerBootstrapService` orchestrates both and is the thing
+  controllers, CLI scripts and background jobs should depend on.
 """
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Optional, Sequence
+from typing import Callable, Optional, Sequence, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -24,6 +25,7 @@ from blockchain.anoncreds_registry import (
     AnonCredsRegistry,
     CredDefRecord,
     IssuerIdentity,
+    RevRegRecord,
     SchemaRecord,
 )
 from blockchain.repository import (
@@ -60,10 +62,15 @@ class BootstrapResult:
     supports_revocation: bool
     schema_id: str
     cred_def_id: str
+    rev_reg: Optional[ArtifactSummary] = None
+    rev_reg_id: Optional[str] = None
+    rev_reg_max_cred_num: Optional[int] = None
+    rev_reg_issuance_type: Optional[str] = None
 
 
 class LedgerBootstrapService:
-    """Ensures the issuer has a SCHEMA and a CRED_DEF on the ledger.
+    """Ensures the issuer has a SCHEMA, CRED_DEF and (optional) REV_REG_DEF
+    registered on the ledger.
 
     Dependencies are injected to keep the service easy to test and
     reuse. ``session_factory`` is any zero-arg callable returning a new
@@ -89,14 +96,18 @@ class LedgerBootstrapService:
         schema_attributes: Sequence[str],
         cred_def_tag: str,
         supports_revocation: bool,
+        rev_reg_max_cred_num: int = 1000,
+        rev_reg_issuance_type: str = "ISSUANCE_ON_DEMAND",
     ) -> BootstrapResult:
         issuer = await self._registry.get_issuer()
         logger.info(
-            "Bootstrapping AnonCreds registry for issuer %s (schema=%s v%s tag=%s)",
+            "Bootstrapping AnonCreds registry for issuer %s "
+            "(schema=%s v%s, tag=%s, revocation=%s)",
             issuer.did,
             schema_name,
             schema_version,
             cred_def_tag,
+            supports_revocation,
         )
 
         schema_record, schema_outcome = await self._ensure_schema(
@@ -112,6 +123,27 @@ class LedgerBootstrapService:
             tag=cred_def_tag,
             supports_revocation=supports_revocation,
         )
+
+        rev_reg_summary: Optional[ArtifactSummary] = None
+        rev_reg_id: Optional[str] = None
+        rev_reg_max: Optional[int] = None
+        rev_reg_issuance: Optional[str] = None
+
+        if supports_revocation:
+            rev_reg_record, rev_reg_outcome = await self._ensure_rev_reg(
+                issuer=issuer,
+                cred_def_record=cred_def_record,
+                max_cred_num=rev_reg_max_cred_num,
+                issuance_type=rev_reg_issuance_type,
+            )
+            rev_reg_id = rev_reg_record.rev_reg_id
+            rev_reg_max = rev_reg_record.max_cred_num
+            rev_reg_issuance = rev_reg_record.issuance_type
+            rev_reg_summary = ArtifactSummary(
+                kind=ArtifactKind.REV_REG_DEF,
+                artifact_id=rev_reg_record.rev_reg_id,
+                outcome=rev_reg_outcome,
+            )
 
         return BootstrapResult(
             issuer_did=issuer.did,
@@ -130,10 +162,14 @@ class LedgerBootstrapService:
             supports_revocation=cred_def_record.supports_revocation,
             schema_id=schema_record.schema_id,
             cred_def_id=cred_def_record.cred_def_id,
+            rev_reg=rev_reg_summary,
+            rev_reg_id=rev_reg_id,
+            rev_reg_max_cred_num=rev_reg_max,
+            rev_reg_issuance_type=rev_reg_issuance,
         )
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Schemas
     # ------------------------------------------------------------------
     async def _ensure_schema(
         self,
@@ -142,8 +178,7 @@ class LedgerBootstrapService:
         schema_name: str,
         schema_version: str,
         attributes: Sequence[str],
-    ) -> tuple[SchemaRecord, ArtifactOutcome]:
-        # Fast path: already cached in our DB.
+    ) -> Tuple[SchemaRecord, ArtifactOutcome]:
         cached = self._find_cached_schema(
             issuer_did=issuer.did,
             name=schema_name,
@@ -154,8 +189,6 @@ class LedgerBootstrapService:
             if schema_record is not None:
                 return schema_record, ArtifactOutcome.REUSED
 
-        # Fall back to the ledger; the schema might exist even if our
-        # cache is empty (fresh DB against a pre-existing ledger).
         existing = await self._registry.find_schema(
             issuer_did=issuer.did,
             name=schema_name,
@@ -173,6 +206,9 @@ class LedgerBootstrapService:
         self._persist_schema(issuer=issuer, schema=created)
         return created, ArtifactOutcome.CREATED
 
+    # ------------------------------------------------------------------
+    # Credential definitions
+    # ------------------------------------------------------------------
     async def _ensure_cred_def(
         self,
         *,
@@ -180,8 +216,7 @@ class LedgerBootstrapService:
         schema_record: SchemaRecord,
         tag: str,
         supports_revocation: bool,
-    ) -> tuple[CredDefRecord, ArtifactOutcome]:
-        # Fast path: already cached in our DB.
+    ) -> Tuple[CredDefRecord, ArtifactOutcome]:
         cached = self._find_cached_cred_def(
             issuer_did=issuer.did,
             schema_id=schema_record.schema_id,
@@ -190,6 +225,11 @@ class LedgerBootstrapService:
         if cached is not None:
             cred_def_record = await self._registry.get_cred_def(cached.artifact_id)
             if cred_def_record is not None:
+                self._guard_revocation_match(
+                    existing=cred_def_record,
+                    requested_supports_revocation=supports_revocation,
+                    tag=tag,
+                )
                 return (
                     CredDefRecord(
                         cred_def_id=cred_def_record.cred_def_id,
@@ -209,6 +249,11 @@ class LedgerBootstrapService:
             tag=tag,
         )
         if existing is not None:
+            self._guard_revocation_match(
+                existing=existing,
+                requested_supports_revocation=supports_revocation,
+                tag=tag,
+            )
             self._persist_cred_def(issuer=issuer, cred_def=existing)
             return existing, ArtifactOutcome.REUSED
 
@@ -220,6 +265,101 @@ class LedgerBootstrapService:
         self._persist_cred_def(issuer=issuer, cred_def=created)
         return created, ArtifactOutcome.CREATED
 
+    @staticmethod
+    def _guard_revocation_match(
+        *,
+        existing: CredDefRecord,
+        requested_supports_revocation: bool,
+        tag: str,
+    ) -> None:
+        """Abort with a clear error if the caller asks for revocation but the
+        existing cred_def was published without it (or vice versa).
+
+        ``cred_def`` objects are immutable in Indy: once published they
+        cannot be upgraded in place. The only remediation is to publish
+        a new cred_def under a different tag, so we bail early with
+        actionable guidance.
+        """
+        if existing.supports_revocation == requested_supports_revocation:
+            return
+        expected = "revocable" if requested_supports_revocation else "non-revocable"
+        actual = "revocable" if existing.supports_revocation else "non-revocable"
+        raise ValueError(
+            f"Existing credential definition '{existing.cred_def_id}' is {actual}, "
+            f"but bootstrap was asked for a {expected} one. Cred defs are "
+            "immutable on Indy: pick a different BLOCKCHAIN_CRED_DEF_TAG "
+            f"(current value: '{tag}') and re-run the bootstrap to publish a "
+            "new cred_def without losing the existing one."
+        )
+
+    # ------------------------------------------------------------------
+    # Revocation registries
+    # ------------------------------------------------------------------
+    async def _ensure_rev_reg(
+        self,
+        *,
+        issuer: IssuerIdentity,
+        cred_def_record: CredDefRecord,
+        max_cred_num: int,
+        issuance_type: str,
+    ) -> Tuple[RevRegRecord, ArtifactOutcome]:
+        cached = self._find_cached_rev_reg(
+            issuer_did=issuer.did,
+            cred_def_id=cred_def_record.cred_def_id,
+        )
+        if cached is not None:
+            rev_reg_record = await self._registry.get_rev_reg(cached.artifact_id)
+            if rev_reg_record is not None:
+                return rev_reg_record, ArtifactOutcome.REUSED
+
+        existing = await self._registry.find_active_rev_reg(
+            cred_def_id=cred_def_record.cred_def_id
+        )
+        if existing is not None:
+            self._persist_rev_reg(
+                issuer=issuer,
+                cred_def=cred_def_record,
+                rev_reg=existing,
+            )
+            return existing, ArtifactOutcome.REUSED
+
+        logger.info(
+            "Creating rev_reg for cred_def %s (max_cred_num=%d, issuance=%s)",
+            cred_def_record.cred_def_id,
+            max_cred_num,
+            issuance_type,
+        )
+        created = await self._registry.create_rev_reg(
+            cred_def_id=cred_def_record.cred_def_id,
+            max_cred_num=max_cred_num,
+            issuance_type=issuance_type,
+        )
+
+        # Push tails file to the tails server so verifiers can later fetch
+        # it when validating non-revocation proofs.
+        logger.info("Uploading tails file for %s", created.rev_reg_id)
+        await self._registry.upload_tails_file(created.rev_reg_id)
+
+        # Anchor the rev_reg_def on the ledger (1 tx) and then publish
+        # the initial rev_reg_entry / accumulator (another tx).
+        logger.info("Publishing rev_reg_def on ledger: %s", created.rev_reg_id)
+        await self._registry.publish_rev_reg_def(created.rev_reg_id)
+
+        logger.info("Publishing initial rev_reg_entry: %s", created.rev_reg_id)
+        await self._registry.publish_rev_reg_entry(created.rev_reg_id)
+
+        # Re-read so we capture the state ACA-Py assigned after publish.
+        final = await self._registry.get_rev_reg(created.rev_reg_id) or created
+        self._persist_rev_reg(
+            issuer=issuer,
+            cred_def=cred_def_record,
+            rev_reg=final,
+        )
+        return final, ArtifactOutcome.CREATED
+
+    # ------------------------------------------------------------------
+    # Cached lookups
+    # ------------------------------------------------------------------
     def _find_cached_schema(
         self,
         *,
@@ -252,6 +392,23 @@ class LedgerBootstrapService:
                 tag=tag,
             )
 
+    def _find_cached_rev_reg(
+        self,
+        *,
+        issuer_did: str,
+        cred_def_id: str,
+    ) -> Optional[ArtifactRecord]:
+        with self._session_scope() as db:
+            return self._repository.find_artifact(
+                db,
+                kind=ArtifactKind.REV_REG_DEF,
+                issuer_did=issuer_did,
+                schema_id=cred_def_id,
+            )
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
     def _persist_schema(
         self, *, issuer: IssuerIdentity, schema: SchemaRecord
     ) -> None:
@@ -281,6 +438,32 @@ class LedgerBootstrapService:
                 seq_no=cred_def.schema_seq_no,
             )
 
+    def _persist_rev_reg(
+        self,
+        *,
+        issuer: IssuerIdentity,
+        cred_def: CredDefRecord,
+        rev_reg: RevRegRecord,
+    ) -> None:
+        """Persist the rev_reg_def reference so lookups are fast."""
+        with self._session_scope() as db:
+            self._repository.upsert_artifact(
+                db,
+                kind=ArtifactKind.REV_REG_DEF,
+                artifact_id=rev_reg.rev_reg_id,
+                name=rev_reg.issuance_type,
+                version=str(rev_reg.max_cred_num) if rev_reg.max_cred_num else None,
+                tag=cred_def.tag,
+                issuer_did=issuer.did,
+                # Reuse ``schema_id`` column as the parent cred_def reference so
+                # the generic artifact table stays flexible without new columns.
+                schema_id=cred_def.cred_def_id,
+                supports_revocation=True,
+            )
+
+    # ------------------------------------------------------------------
+    # Session handling
+    # ------------------------------------------------------------------
     def _session_scope(self):
         """Yield a managed session that commits on success and rolls back on error."""
 

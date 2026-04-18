@@ -5,6 +5,8 @@ volumes:
     driver: local
   portal_db_data:
     driver: local
+  tails_data:
+    driver: local
 
 networks:
   moodle_network:
@@ -64,6 +66,15 @@ services:
       - --auto-accept-requests
       - --auto-accept-invites
       - --auto-ping-connection
+      # Tails file server (requerido para revocación AnonCreds). La URL pública
+      # se incrusta en cada rev_reg_def y es la que usan verifiers y wallets.
+      - --tails-server-base-url
+      - ${TAILS_SERVER_URL}
+      - --tails-server-upload-url
+      - http://tails-server:6543
+    depends_on:
+      tails-server:
+        condition: service_started
     networks:
       - acapy_network
       - dokploy-network
@@ -85,6 +96,33 @@ services:
       - "traefik.http.routers.acapy-admin.entrypoints=websecure"
       - "traefik.http.routers.acapy-admin.tls.certresolver=myresolver"
       - "traefik.http.services.acapy-admin.loadbalancer.server.port=8020"
+
+  # ===================================================================
+  # Tails Server (hosting de tails files para revocación AnonCreds)
+  # ===================================================================
+  tails-server:
+    build:
+      context: ./backend/tails-server
+      dockerfile: Dockerfile
+    container_name: tails-server
+    volumes:
+      - tails_data:/tails-files
+    networks:
+      - acapy_network
+      - dokploy-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.services.tails-server.loadbalancer.server.port=6543"
+      - "traefik.http.routers.tails-server-web.rule=Host(`${TAILS_SERVER_DOMAIN}`)"
+      - "traefik.http.routers.tails-server-web.entrypoints=web"
+      - "traefik.http.routers.tails-server-web.middlewares=redirect-to-https@file"
+      - "traefik.http.routers.tails-server-web.service=tails-server"
+      - "traefik.http.routers.tails-server.rule=Host(`${TAILS_SERVER_DOMAIN}`)"
+      - "traefik.http.routers.tails-server.entrypoints=websecure"
+      - "traefik.http.routers.tails-server.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.tails-server.service=tails-server"
 
   # ===================================================================
   # Controller Python
@@ -109,6 +147,9 @@ services:
       - BLOCKCHAIN_SCHEMA_VERSION=${BLOCKCHAIN_SCHEMA_VERSION:-1.0}
       - BLOCKCHAIN_CRED_DEF_TAG=${BLOCKCHAIN_CRED_DEF_TAG:-default}
       - BLOCKCHAIN_SUPPORT_REVOCATION=${BLOCKCHAIN_SUPPORT_REVOCATION:-false}
+      - BLOCKCHAIN_REV_REG_MAX_CRED_NUM=${BLOCKCHAIN_REV_REG_MAX_CRED_NUM:-1000}
+      - BLOCKCHAIN_REV_REG_ISSUANCE_TYPE=${BLOCKCHAIN_REV_REG_ISSUANCE_TYPE:-ISSUANCE_ON_DEMAND}
+      - TAILS_SERVER_URL=${TAILS_SERVER_URL}
       - ADMIN_BOOTSTRAP_TOKEN=${ADMIN_BOOTSTRAP_TOKEN}
       # Portal de Credenciales
       - PORTAL_DB_URL=postgresql://${PORTAL_DB_USER}:${PORTAL_DB_PASSWORD}@portal-db:5432/${PORTAL_DB_NAME}
