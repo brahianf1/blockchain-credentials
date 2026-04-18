@@ -18,18 +18,19 @@
 #   linux/aarch64. Python 3.10 still exposes the header and is in LTS
 #   support until October 2026.
 #
-# Why we patch the upstream setup.py at build time:
-#   The v1.1.0 setup.py declares ``packages=["tails_server"]`` instead
-#   of calling ``setuptools.find_packages()``. That makes ``pip install``
-#   omit every subpackage (``tails_server.config``, …) from the wheel,
-#   and the service crashes at import with ``ModuleNotFoundError``.
+# Why we run prepare_package.py before pip install:
+#   Upstream's setup.py already calls ``find_packages()``, but
+#   ``tails_server/config`` is a PEP 420 namespace package (no
+#   __init__.py). ``find_packages()`` only finds *regular* packages,
+#   so the resulting wheel omits the subpackage and the service crashes
+#   at import time with:
+#       ModuleNotFoundError: No module named 'tails_server.config'
 #
-#   ``patch_setup.py`` rewrites ``setup.py`` deterministically to call
-#   ``find_packages()``. We prefer this one-shot, root-cause fix over
-#   bypassing ``pip install`` (which would also drop the ``tails-server``
-#   console script defined in ``entry_points.console_scripts``). Once
-#   upstream fixes the bug upstream, the patch helper will simply be a
-#   no-op on the new source.
+#   ``prepare_package.py`` creates the missing ``__init__.py`` files in
+#   every subdirectory of ``tails_server`` so ``find_packages()`` picks
+#   them all up. This is strictly additive: existing ``__init__.py``
+#   files are never touched, and the script is a no-op once upstream
+#   fixes the layout in a future release.
 
 ARG TAILS_SERVER_REPO=https://github.com/bcgov/indy-tails-server.git
 ARG TAILS_SERVER_REF=v1.1.0
@@ -55,9 +56,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the patch helper into a location outside the future clone WORKDIR
-# so ``git clone ... .`` below finds its target directory empty.
-COPY patch_setup.py /usr/local/share/patch_setup.py
+# Copy the helper into a location outside the future clone WORKDIR so
+# ``git clone ... .`` below finds its target directory empty.
+COPY prepare_package.py /usr/local/share/prepare_package.py
 
 # Isolated virtualenv so the artefact copied to the runtime stage is a
 # single, self-contained directory tree (binaries, shared libs and
@@ -73,14 +74,15 @@ RUN set -eux; \
     echo "=== [1/6] Cloning upstream ==="; \
     git clone --branch "${TAILS_SERVER_REF}" --depth 1 "${TAILS_SERVER_REPO}" .; \
     \
-    echo "=== [2/6] Original setup.py ==="; \
-    cat setup.py; \
+    echo "=== [2/6] Source tree layout (before preparation) ==="; \
+    ls -la tails_server/; \
+    ls -la tails_server/config/ || echo "(no config/ directory at all)"; \
     \
-    echo "=== [3/6] Patching setup.py to use find_packages() ==="; \
-    python /usr/local/share/patch_setup.py setup.py; \
+    echo "=== [3/6] Ensuring every subpackage has __init__.py ==="; \
+    python /usr/local/share/prepare_package.py tails_server; \
     \
-    echo "=== [4/6] Patched setup.py ==="; \
-    cat setup.py; \
+    echo "=== [4/6] Source tree layout (after preparation) ==="; \
+    ls -la tails_server/config/ || echo "(no config/ directory at all)"; \
     \
     echo "=== [5/6] Installing package and dependencies via pip ==="; \
     pip install --no-cache-dir .; \
@@ -127,9 +129,9 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
         r = urllib.request.urlopen('http://127.0.0.1:6543/', timeout=3); \
         sys.exit(0 if r.status < 500 else 1)" || exit 1
 
-# ``tails-server`` is the console script registered by upstream's
-# ``entry_points.console_scripts``. Invoking it directly avoids the
-# missing ``__main__.py`` in the v1.1.0 package layout.
+# ``tails-server`` is installed by upstream as a shebang script via
+# ``setup(scripts=[\"bin/tails-server\"])``. Invoking it directly avoids
+# the missing ``__main__.py`` in the package layout.
 ENTRYPOINT ["tails-server"]
 CMD ["--host", "0.0.0.0", \
      "--port", "6543", \
