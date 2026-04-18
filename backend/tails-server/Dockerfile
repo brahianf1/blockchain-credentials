@@ -44,7 +44,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 RUN git clone --branch "${TAILS_SERVER_REF}" --depth 1 "${TAILS_SERVER_REPO}" . \
-    && pip install --prefix=/install --no-cache-dir .
+    && pip install --prefix=/install --no-cache-dir . \
+    # ``indy-tails-server`` v1.1.0 ships a setup.py that declares
+    # ``packages=["tails_server"]`` instead of ``find_packages()``, so
+    # subpackages such as ``tails_server.config`` and ``tails_server.utils``
+    # never make it into the resulting wheel. ``pip install .`` then yields
+    # a broken install where ``from .config.defaults import ...`` raises
+    # ``ModuleNotFoundError``. To avoid patching upstream we keep pip's
+    # resolution of transitive dependencies (aiohttp, yarl, base58, etc.)
+    # but overwrite the ``tails_server`` package on disk with the full
+    # source tree. A final pair of asserts fails the build early if the
+    # upstream layout drifts in a way we did not anticipate.
+    && rm -rf /install/lib/python3.10/site-packages/tails_server \
+    && cp -r tails_server /install/lib/python3.10/site-packages/tails_server \
+    && test -d /install/lib/python3.10/site-packages/tails_server/config \
+    && test -f /install/lib/python3.10/site-packages/tails_server/__main__.py
 
 
 ###############################################################################
