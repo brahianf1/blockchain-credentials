@@ -121,7 +121,7 @@ services:
       - "traefik.http.routers.tails-server-web.service=tails-server"
       - "traefik.http.routers.tails-server.rule=Host(`${TAILS_SERVER_DOMAIN}`)"
       - "traefik.http.routers.tails-server.entrypoints=websecure"
-      - "traefik.http.routers.tails-server.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.tails-server.tls.certresolver=myresolver"
       - "traefik.http.routers.tails-server.service=tails-server"
 
   # ===================================================================
