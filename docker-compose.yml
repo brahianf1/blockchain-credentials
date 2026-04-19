@@ -90,11 +90,11 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.acapy-public.rule=Host(`${ACAPY_DOMAIN}`)"
       - "traefik.http.routers.acapy-public.entrypoints=websecure"
-      - "traefik.http.routers.acapy-public.tls.certresolver=myresolver"
+      - "traefik.http.routers.acapy-public.tls.certresolver=letsencrypt"
       - "traefik.http.services.acapy-public.loadbalancer.server.port=8021"
       - "traefik.http.routers.acapy-admin.rule=Host(`${ACAPY_ADMIN_DOMAIN}`)"
       - "traefik.http.routers.acapy-admin.entrypoints=websecure"
-      - "traefik.http.routers.acapy-admin.tls.certresolver=myresolver"
+      - "traefik.http.routers.acapy-admin.tls.certresolver=letsencrypt"
       - "traefik.http.services.acapy-admin.loadbalancer.server.port=8020"
 
   # ===================================================================
@@ -121,7 +121,7 @@ services:
       - "traefik.http.routers.tails-server-web.service=tails-server"
       - "traefik.http.routers.tails-server.rule=Host(`${TAILS_SERVER_DOMAIN}`)"
       - "traefik.http.routers.tails-server.entrypoints=websecure"
-      - "traefik.http.routers.tails-server.tls.certresolver=myresolver"
+      - "traefik.http.routers.tails-server.tls.certresolver=letsencrypt"
       - "traefik.http.routers.tails-server.service=tails-server"
 
   # ===================================================================
@@ -174,7 +174,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.controller.rule=Host(`${CONTROLLER_DOMAIN}`)"
       - "traefik.http.routers.controller.entrypoints=websecure"
-      - "traefik.http.routers.controller.tls.certresolver=myresolver" # Dokploy gestiona esto
+      - "traefik.http.routers.controller.tls.certresolver=letsencrypt" # Dokploy gestiona esto
       - "traefik.http.services.controller.loadbalancer.server.port=3000"
 
   # ===================================================================
@@ -209,7 +209,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.moodle.rule=Host(`${MOODLE_DOMAIN}`)"
       - "traefik.http.routers.moodle.entrypoints=websecure"
-      - "traefik.http.routers.moodle.tls.certresolver=myresolver" # Dokploy gestiona esto
+      - "traefik.http.routers.moodle.tls.certresolver=letsencrypt" # Dokploy gestiona esto
       - "traefik.http.services.moodle.loadbalancer.server.port=80"
 
   # ===================================================================
