@@ -111,18 +111,7 @@ services:
       - acapy_network
       - dokploy-network
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=dokploy-network"
-      - "traefik.http.services.tails-server.loadbalancer.server.port=6543"
-      - "traefik.http.routers.tails-server-web.rule=Host(`${TAILS_SERVER_DOMAIN}`)"
-      - "traefik.http.routers.tails-server-web.entrypoints=web"
-      - "traefik.http.routers.tails-server-web.middlewares=redirect-to-https@file"
-      - "traefik.http.routers.tails-server-web.service=tails-server"
-      - "traefik.http.routers.tails-server.rule=Host(`${TAILS_SERVER_DOMAIN}`)"
-      - "traefik.http.routers.tails-server.entrypoints=websecure"
-      - "traefik.http.routers.tails-server.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.tails-server.service=tails-server"
+
 
   # ===================================================================
   # Controller Python
