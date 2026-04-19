@@ -146,14 +146,7 @@ EXPOSE 6543
 # Health check: the tails server answers with a 404 on GET / when
 # healthy. We treat any response with status < 500 as service-up.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request, urllib.error, sys; \
-        try: \
-            urllib.request.urlopen('http://127.0.0.1:6543/', timeout=3); \
-            sys.exit(0); \
-        except urllib.error.HTTPError as e: \
-            sys.exit(0 if e.code < 500 else 1); \
-        except Exception: \
-            sys.exit(1)" || exit 1
+    CMD ["python", "-c", "import urllib.request, urllib.error, sys\ntry:\n    urllib.request.urlopen('http://127.0.0.1:6543/', timeout=3)\n    sys.exit(0)\nexcept urllib.error.HTTPError as e:\n    sys.exit(0 if e.code < 500 else 1)\nexcept Exception:\n    sys.exit(1)"]
 
 # The upstream ``setup(scripts=["bin/tails-server"])`` copies the script
 # verbatim into ``${VIRTUAL_ENV}/bin/tails-server`` without rewriting
