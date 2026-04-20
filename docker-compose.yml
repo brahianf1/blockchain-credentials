@@ -29,9 +29,9 @@ services:
       - BESU_RPC_HTTP_ENABLED=true
       - BESU_RPC_HTTP_HOST=0.0.0.0
       - BESU_RPC_HTTP_PORT=8545
-      - BESU_RPC_HTTP_CORS_ORIGINS="*"
+      - BESU_RPC_HTTP_CORS_ORIGINS="all"
       - BESU_RPC_HTTP_API=ETH,NET,CLIQUE,DEBUG,MINER,PERM,ADMIN,TXPOOL,WEB3
-      - BESU_HOST_ALLOWLIST="*"
+      - BESU_HOST_ALLOWLIST=besu-node,localhost,127.0.0.1,${BESU_RPC_DOMAIN}
       - BESU_DATA_PATH=/opt/besu/data
     volumes:
       - besu_data:/opt/besu/data
@@ -43,7 +43,7 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.besu.rule=Host(`rpc.utnpf.site`)" 
+      - "traefik.http.routers.besu.rule=Host(`${BESU_RPC_DOMAIN}`)" 
       - "traefik.http.routers.besu.entrypoints=websecure"
       - "traefik.http.routers.besu.tls.certresolver=letsencrypt"
       - "traefik.http.services.besu.loadbalancer.server.port=8545"
