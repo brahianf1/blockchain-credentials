@@ -32,7 +32,7 @@ class BesuWeb3Client:
         self.admin_account = None
 
         # Al usar modo Dev, Besu inyecta esta clave pre-cargada con Ether infinito (miner account)
-        self.dev_private_key = "0x8f2a55949038a9610f50fb23b5883af3b4ca139ced43cb39566270e5b8d5a16d" # Default Dev Miner Key in Besu
+        self.dev_private_key = "0x8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63" # Default Dev Miner Key in Besu
 
     def _ensure_connection(self):
         if not self.w3.is_connected():
