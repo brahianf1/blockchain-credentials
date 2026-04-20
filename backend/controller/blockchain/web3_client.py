@@ -43,6 +43,14 @@ class BesuWeb3Client:
             try:
                 self.admin_account = Account.from_key(self.dev_private_key)
                 self.w3.eth.default_account = self.admin_account.address
+                
+                # Check balance
+                balance_wei = self.w3.eth.get_balance(self.admin_account.address)
+                balance_eth = self.w3.from_wei(balance_wei, 'ether')
+                logger.info(f"💵 Cuenta Dev iniciada. Saldo disponible: {balance_eth} ETH")
+                
+                if balance_eth == 0:
+                    logger.error("❌ CRÍTICO: La cuenta DEV tiene 0 ETH. El volumen 'besu_data' está corrupto o heredó una red vieja.")
             except Exception as e:
                 logger.error(f"❌ Error importando clave Dev de Besu: {e}")
 
