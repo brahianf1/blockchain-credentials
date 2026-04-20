@@ -9,10 +9,8 @@ from web3 import Web3
 from web3.middleware import ExtraDataToPOAMiddleware
 from eth_account import Account
 import structlog
-from solcx import compile_standard, install_solc
 
 logger = structlog.get_logger()
-
 class BesuWeb3Client:
     """
     Cliente Web3 asíncrono-seguro para Hyperledger Besu.
@@ -55,25 +53,15 @@ class BesuWeb3Client:
             return
 
         try:
-            logger.info("⚙️ Compilando contrato CredentialRegistry.sol (Besu EVM)...")
-            install_solc("0.8.0")
+            logger.info("⚙️ Cargando contrato CredentialRegistry.sol (Besu EVM)...")
             
-            # Leer el archivo .sol (Ruta relativa desde controller)
-            contract_path = os.path.join(os.path.dirname(__file__), "../../contracts/CredentialRegistry.sol")
+            # Leer el archivo JSON pre-compilado (Ruta relativa desde controller)
+            contract_path = os.path.join(os.path.dirname(__file__), "../../contracts/CredentialRegistry.json")
             with open(contract_path, "r") as f:
-                contract_source = f.read()
+                contract_data = json.load(f)
 
-            compiled_sol = compile_standard(
-                {
-                    "language": "Solidity",
-                    "sources": {"CredentialRegistry.sol": {"content": contract_source}},
-                    "settings": {"outputSelection": {"*": {"*": ["abi", "metadata", "evm.bytecode", "evm.sourceMap"]}}},
-                },
-                solc_version="0.8.0",
-            )
-
-            bytecode = compiled_sol["contracts"]["CredentialRegistry.sol"]["CredentialRegistry"]["evm"]["bytecode"]["object"]
-            self.contract_abi = compiled_sol["contracts"]["CredentialRegistry.sol"]["CredentialRegistry"]["abi"]
+            bytecode = contract_data["bytecode"]
+            self.contract_abi = contract_data["abi"]
 
             RegistryContract = self.w3.eth.contract(abi=self.contract_abi, bytecode=bytecode)
             
