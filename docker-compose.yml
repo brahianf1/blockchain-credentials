@@ -35,6 +35,7 @@ services:
       - BESU_DATA_PATH=/opt/besu/data
       - BESU_MINER_ENABLED=true
       - BESU_MINER_COINBASE=0xfe3b557e8fb62b89f4916b721be55ceb828dbd73
+      - BESU_SYNC_MIN_PEERS=0
     volumes:
       - besu_data:/opt/besu/data
     ports:
