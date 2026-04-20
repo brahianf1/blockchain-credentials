@@ -80,6 +80,7 @@ class BesuWeb3Client:
             tx = RegistryContract.constructor().build_transaction({
                 "chainId": self.w3.eth.chain_id,
                 "gasPrice": self.w3.eth.gas_price,
+                "gas": 5000000,
                 "from": self.admin_account.address,
                 "nonce": nonce,
             })
