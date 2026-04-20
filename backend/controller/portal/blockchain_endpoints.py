@@ -1,28 +1,23 @@
-"""Public, read-only blockchain endpoints.
-
-All information exposed here is already anchored on the public Indy
-ledger (schemas, credential definitions, issuer DID), so no
-authentication is required.
-"""
-from __future__ import annotations
-
-from fastapi import APIRouter, Depends
-
-from blockchain import LedgerRepository, get_ledger_repository
-from portal.blockchain_views import build_registry_view
+"""Public, read-only blockchain endpoints (Mocked)."""
+from fastapi import APIRouter
 from portal.schemas import BlockchainRegistryResponse
 
 blockchain_public_router = APIRouter(
     prefix="/public/blockchain", tags=["Public Blockchain"]
 )
 
-
 @blockchain_public_router.get(
     "/registry",
     response_model=BlockchainRegistryResponse,
 )
-def public_registry(
-    repository: LedgerRepository = Depends(get_ledger_repository),
-) -> BlockchainRegistryResponse:
-    """Return the institutional AnonCreds registry as seen by verifiers."""
-    return build_registry_view(repository=repository)
+def public_registry() -> dict:
+    """Return the institutional mocked registry as seen by verifiers."""
+    return {
+        "issuer_did": "did:solidity:smartcontract",
+        "network": "besu-evm",
+        "explorer_url": "https://explorer.utnpf.site",
+        "schema": None,
+        "cred_def": None,
+        "rev_reg": None,
+        "total_anchored_credentials": 0,
+    }
