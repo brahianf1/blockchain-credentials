@@ -984,54 +984,58 @@ async def credential_endpoint(
             f"| Formato Único: {format_name}"
         )
 
-        # ─── Notificar a Moodle vía Webhook (Actualizar status a 'claimed') ───
+        # ─── Anclaje Web3 y Notificación a Moodle ───
         import httpx
         import os
+        from blockchain.web3_client import besu_client
 
-        async def notify_moodle_webhook(conn_id: str):
-            # Accedemos a Moodle por la red interna de Docker usando el service name 'moodle-app'
-            # y previniendo el error [Errno -3] Temporary failure in name resolution.
+        async def anchor_and_notify(conn_id: str, cred_str: str, c_name: str):
+            logger.info("⚙️ Iniciando Job en Background: Blockchain Anchor + Webhook")
+            
+            # PASO 1: Anclar el JWT a Besu (Smart Contract)
+            # En la vida real, The Blockchain nunca falla :-)
+            tx_hash = await besu_client.anchor_credential_hash(cred_str, c_name)
+            
+            # PASO 2: Mandar Webhook al LMS
             moodle_internal_url = os.getenv("MOODLE_INTERNAL_URL", "http://moodle-app")
             webhook_url = f"{moodle_internal_url}/blocks/credenciales/webhook.php"
-            
-            # Recuperamos el dominio público para pasarlo como Host header y engañar a config.php
             moodle_domain = os.getenv("MOODLE_DOMAIN", "moodle.utnpf.site")
             
+            payload = {"connection_id": conn_id, "status": "claimed"}
+            if tx_hash:
+                payload["tx_hash"] = tx_hash
+                logger.info(f"🪙 Adjuntando Hash de Transacción On-Chain al Webhook: {tx_hash}")
+
             try:
-                # Quitamos timeout=5.0 y dejamos fluir ya que es tarea en background
-                # o usamos un timeout más holgado ya que no bloquea la UI principal
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
                         webhook_url,
-                        json={"connection_id": conn_id, "status": "claimed"},
-                        headers={
-                            "Host": moodle_domain,
-                            "X-Forwarded-Proto": "https",
-                            "X-Forwarded-Port": "443"
-                        },
+                        json=payload,
+                        headers={"Host": moodle_domain, "X-Forwarded-Proto": "https", "X-Forwarded-Port": "443"},
                         timeout=10.0,
                         follow_redirects=True
                     )
-                logger.info(f"✅ Webhook sent to {webhook_url}. Status: {response.status_code}, Body: {response.text}")
+                logger.info(f"✅ Webhook enviado a Moodle. Status: {response.status_code}")
             except Exception as w_e:
-                logger.warning(f"⚠️ Webhook Moodle falló: {w_e}")
+                logger.warning(f"⚠️ Alerta: El Webhook de Moodle falló: {w_e}")
 
         # Sacar el connection_id (pre-auth_code) de la sesión
-        # Lo buscamos primero en credential_data (donde el controller guarda la data original de Moodle)
         conn_id = session.get("credential_data", {}).get("pre_authorized_code")
-        
-        # Fallback al guardado por los flujos de openid4vc
         if not conn_id and session.get("flows"):
             pre_auth_flow = session["flows"].get("pre_authorized")
             if pre_auth_flow:
                 conn_id = pre_auth_flow.get("code")
         
-        if conn_id:
-            # Usar background_tasks provisto nativamente por FastAPI
-            background_tasks.add_task(notify_moodle_webhook, conn_id)
-            logger.info("🟢 Tarea asíncrona (Webhook) registrada en BackgroundTasks")
+        c_name = credential_data.get("course_name", "Curso Desconocido")
+        
+        # Como es dict en algunos casos (ej w3c json), nos aseguramos de pasarlo como string para el hasheo
+        cred_str = credential if isinstance(credential, str) else json.dumps(credential)
 
-        # ─── Construir respuesta con un solo formato ───
+        if conn_id:
+            background_tasks.add_task(anchor_and_notify, conn_id, cred_str, c_name)
+            logger.info("🟢 Job 'Anchor on-chain & Notify Moodle' registrado en BackgroundTasks.")
+        
+        # ─── Construir respuesta para la Wallet ───
         response_data = build_credential_response(
             credential, format_name
         )

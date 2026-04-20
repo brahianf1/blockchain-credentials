@@ -34,3 +34,7 @@ psycopg2-binary
 
 # Autenticación portal
 bcrypt>=4.0.0
+
+# Blockchain EVM (Smart Contracts)
+web3>=6.11.0
+py-solc-x>=2.0.2

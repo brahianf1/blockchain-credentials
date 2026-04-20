@@ -1,4 +1,0 @@
-# Small build context on purpose: only what the Dockerfile needs.
-*
-!Dockerfile
-!prepare_package.py

@@ -144,166 +144,11 @@ app.include_router(portal_admin_router)
 
 qr_generator = QRGenerator()
 
-# FUNCIONES AUXILIARES
-
-async def store_pending_credential(connection_id: str, credential_data: StudentCredentialRequest):
-    """Almacenar datos de credencial pendiente (En producción: BD)"""
-    import tempfile
-    temp_file = f"/tmp/pending_credential_{connection_id}.json"
-    with open(temp_file, 'w') as f:
-        json.dump(credential_data.dict(), f)
-
-async def get_pending_credential(connection_id: str) -> Optional[Dict[str, Any]]:
-    """Obtener datos de credencial pendiente"""
-    try:
-        temp_file = f"/tmp/pending_credential_{connection_id}.json"
-        with open(temp_file, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return None
-
-async def clear_pending_credential(connection_id: str):
-    """Limpiar datos de credencial pendiente"""
-    try:
-        temp_file = f"/tmp/pending_credential_{connection_id}.json"
-        os.remove(temp_file)
-    except Exception:
-        pass
-
-async def get_credential_definition_id() -> Optional[str]:
-    """Obtener ID de Credential Definition"""
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{ACAPY_ADMIN_URL}/credential-definitions/created")
-            if response.status_code == 200:
-                cred_defs = response.json()
-                if cred_defs.get("credential_definition_ids"):
-                    return cred_defs["credential_definition_ids"][0]
-        return None
-    except Exception:
-        return None
-
-async def issue_credential(connection_id: str, credential_data: Optional[Dict[str, Any]] = None):
-    """
-    Emitir credencial una vez establecida la conexión
-    Se llama automáticamente cuando la conexión esté activa
-    """
-    try:
-        logger.info(f"🎓 Emitiendo credencial para conexión: {connection_id}")
-
-        # Obtener datos de credencial pendiente
-        credential_data = await get_pending_credential(connection_id)
-        if not credential_data:
-            raise HTTPException(status_code=404, detail="No hay credencial pendiente para esta conexión")
-
-        # Obtener Credential Definition ID (en producción, almacenar en BD)
-        cred_def_id = await get_credential_definition_id()
-        if not cred_def_id:
-            raise HTTPException(status_code=500, detail="Credential Definition no encontrado")
-
-        # Preparar atributos de la credencial
-        credential_attributes = [
-            {"name": "student_id", "value": credential_data["student_id"]},
-            {"name": "student_name", "value": credential_data["student_name"]},
-            {"name": "student_email", "value": credential_data["student_email"]},
-            {"name": "course_id", "value": credential_data["course_id"]},
-            {"name": "course_name", "value": credential_data["course_name"]},
-            {"name": "completion_date", "value": credential_data["completion_date"]},
-            {"name": "grade", "value": credential_data["grade"]},
-            {"name": "instructor_name", "value": credential_data["instructor_name"]},
-            {"name": "issue_date", "value": datetime.utcnow().isoformat()},
-            {"name": "university_name", "value": UNIVERSITY_NAME}
-        ]
-
-        # Emitir credencial vía ACA-Py
-        async with httpx.AsyncClient() as client:
-            offer_body = {
-                "connection_id": connection_id,
-                "credential_definition_id": cred_def_id,
-                "credential_preview": {
-                    "@type": "issue-credential/2.0/credential-preview",
-                    "attributes": credential_attributes
-                },
-                "auto_issue": True,
-                "auto_remove": False,
-                "comment": f"Credencial de finalización: {credential_data['course_name']}"
-            }
-
-            offer_response = await client.post(
-                f"{ACAPY_ADMIN_URL}/issue-credential-2.0/send-offer",
-                json=offer_body
-            )
-
-            if offer_response.status_code != 200:
-                raise HTTPException(status_code=500, detail="Error emitiendo credencial")
-
-            offer_data = offer_response.json()
-            logger.info(f"✅ Credencial emitida: {offer_data['cred_ex_id']}")
-
-            # Limpiar datos pendientes
-            await clear_pending_credential(connection_id)
-
-            return {
-                "status": "credential_issued",
-                "credential_exchange_id": offer_data["cred_ex_id"],
-                "message": "Credencial emitida exitosamente"
-            }
-
-    except Exception as e:
-        logger.error(f"❌ Error emitiendo credencial: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-async def issue_credential_background(connection_id: str):
-    """Emitir credencial en background"""
-    try:
-        await asyncio.sleep(2)  # Esperar un poco para que conexión se estabilice
-        await issue_credential(connection_id, None)
-    except Exception as e:
-        logger.error(f"Error en emisión background: {e}")
-
 # FUNCIONES DE SOLICITUD DE CREDENCIAL
-
-async def request_credential_didcomm(credential_request: StudentCredentialRequest) -> CredentialResponse:
-    """
-    [LEGACY] Retorna invitación de conexión DIDComm (ACA-Py)
-    """
-    try:
-        logger.info(f"📨 [LEGACY] Solicitud DIDComm para: {credential_request.student_name}")
-
-        # Crear invitación de conexión en ACA-Py
-        async with httpx.AsyncClient() as client:
-            invitation_response = await client.post(
-                f"{ACAPY_ADMIN_URL}/connections/create-invitation",
-                json={"alias": f"student-{credential_request.student_id}"}
-            )
-
-            if invitation_response.status_code != 200:
-                raise HTTPException(status_code=500, detail="Error creando invitación ACA-Py")
-
-            invitation_data = invitation_response.json()
-            connection_id = invitation_data["connection_id"]
-            invitation_url = invitation_data["invitation_url"]
-
-            # Guardar datos para emisión posterior
-            await store_pending_credential(connection_id, credential_request)
-
-            # Generar QR
-            qr_code_base64 = qr_generator.generate_qr(invitation_url)
-
-            return CredentialResponse(
-                connection_id=connection_id,
-                invitation_url=invitation_url,
-                qr_code_base64=qr_code_base64,
-                instructions="Escanea con tu wallet Identity (DIDComm)"
-            )
-
-    except Exception as e:
-        logger.error(f"❌ Error en request_credential_didcomm: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 async def request_credential_openid4vc(credential_request: StudentCredentialRequest) -> CredentialResponse:
     """
-    [MODERN] Retorna oferta OpenID4VC (Lissi/Walt.id/EUDI/DIDRoom)
+    [MODERN] Retorna oferta OpenID4VC (DIDRoom/Walt.id/EUDI)
     """
     try:
         logger.info(f"📨 [MODERN] Solicitud OpenID4VC para: {credential_request.student_name}")
@@ -313,8 +158,6 @@ async def request_credential_openid4vc(credential_request: StudentCredentialRequ
 
         # Generar oferta OpenID4VC
         request_dict = credential_request.dict()
-        
-        # Usar función importada (modular o legacy)
         offer_result = await generate_openid_offer(request_dict)
 
         # Generar instrucciones legibles
@@ -323,7 +166,7 @@ async def request_credential_openid4vc(credential_request: StudentCredentialRequ
         if flows:
             instructions_text = f"Escanea con wallet compatible OpenID4VC. Soporta: {', '.join(flows)}"
         else:
-            instructions_text = "Escanea con wallet compatible OpenID4VC (WaltID, DIDRoom, Lissi, etc.)"
+            instructions_text = "Escanea con wallet compatible OpenID4VC (DIDRoom, Lissi, etc.)"
         
         return CredentialResponse(
             qr_code_base64=offer_result["qr_code_base64"],
@@ -340,47 +183,15 @@ async def request_credential_openid4vc(credential_request: StudentCredentialRequ
 @app.post("/request-credential", response_model=CredentialResponse)
 async def request_credential(credential_request: StudentCredentialRequest):
     """
-    Endpoint principal: Por defecto usa OpenID4VC (Moderno)
+    Endpoint principal: Exclusivamente OpenID4VC (Moderno - SD-JWT)
     """
-    if OPENID4VC_AVAILABLE:
-        return await request_credential_openid4vc(credential_request)
-    else:
-        logger.warning("⚠️ OpenID4VC no disponible, usando fallback a DIDComm")
-        return await request_credential_didcomm(credential_request)
+    return await request_credential_openid4vc(credential_request)
 
-# WEBHOOKS de ACA-Py (para automatización)
-
-@app.post("/webhooks/connections")
-async def webhook_connections(data: dict):
-    """Webhook para eventos de conexión"""
-    logger.info(f"🔔 Webhook conexión: {data.get('state', 'unknown')}")
-
-    if data.get("state") == "active":
-        connection_id = data.get("connection_id")
-        if connection_id:
-            logger.info(f"✅ Conexión activa, emitiendo credencial: {connection_id}")
-            asyncio.create_task(issue_credential_background(connection_id))
-
-    return {"status": "received"}
-
-@app.post("/webhooks/issue_credential")
-async def webhook_issue_credential(data: dict):
-    """Webhook para eventos de emisión de credencial"""
-    state = data.get("state", "unknown")
-    cred_ex_id = data.get("credential_exchange_id", "unknown")
-
-    logger.info(f"🎓 Webhook credencial [{cred_ex_id}]: {state}")
-
-    if state == "credential_acked":
-        logger.info(f"✅ Credencial confirmada por el estudiante: {cred_ex_id}")
-
-    return {"status": "received"}
-
-# ENDPOINT COMPATIBILIDAD MOODLE (mantener API anterior)
+# ENDPOINT COMPATIBILIDAD MOODLE
 
 @app.post("/api/credenciales")
 async def legacy_credential_endpoint(data: dict):
-    """Endpoint de compatibilidad con Moodle (API anterior)"""
+    """Endpoint de compatibilidad con Moodle (Actualizado a OpenID4VCI)"""
     try:
         credential_request = StudentCredentialRequest(
             student_id=str(data.get("usuarioId", "unknown")),
@@ -393,19 +204,19 @@ async def legacy_credential_endpoint(data: dict):
             instructor_name=data.get("instructor", "Instructor")
         )
 
-        # USAR LEGACY EXPLICITAMENTE
-        result = await request_credential_didcomm(credential_request)
+        # Procesamiento OpenID4VCI (Besu + SD-JWT)
+        result = await request_credential_openid4vc(credential_request)
 
         return {
             "success": True,
-            "message": "Credencial procesada exitosamente",
+            "message": "Credencial SD-JWT procesada y anclada exitosamente",
             "qr_code": result.qr_code_base64,
             "invitation_url": result.invitation_url,
-            "connection_id": result.connection_id
+            "connection_id": "oid4vci-stateless" # Compatibility field
         }
 
     except Exception as e:
-        logger.error(f"Error en endpoint legacy: {e}")
+        logger.error(f"Error en endpoint portal/moodle: {e}")
         return {
             "success": False,
             "message": str(e)

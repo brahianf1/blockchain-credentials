@@ -5,112 +5,48 @@ volumes:
     driver: local
   portal_db_data:
     driver: local
-  tails_data:
+  besu_data:
     driver: local
 
 networks:
   moodle_network:
     driver: bridge
-  acapy_network:
+  besu_network:
     driver: bridge
   # Red para el proxy inverso de Dokploy (Traefik)
   dokploy-network:
     external: true
-  # Red creada por VON Network (externa)
-  von_von:
-    external: true
 
 services:
   # ===================================================================
-  # Servicio ACA-Py Agent (Hyperledger Indy / VON Network)
+  # Nodo Hyperledger Besu (Blockchain EVM - Smart Contracts)
   # ===================================================================
-  acapy-agent:
-    build:
-      context: ./backend/acapy
-      dockerfile: Dockerfile.acapy
-    container_name: acapy-agent
+  besu-node:
+    image: hyperledger/besu:latest
+    container_name: besu-node
     environment:
-      - GENESIS_URL=${ACAPY_GENESIS_URL}
-      - ACAPY_DID_SEED=${ACAPY_DID_SEED}
-      - ACAPY_ENDPOINT=https://${ACAPY_DOMAIN}
-      - ACAPY_WALLET_NAME=${ACAPY_WALLET_NAME}
-      - ACAPY_WALLET_KEY=${ACAPY_WALLET_KEY}
-    entrypoint: aca-py
-    command:
-      - start
-      - --auto-provision
-      - --seed
-      - ${ACAPY_DID_SEED}
-      - --admin
-      - "0.0.0.0"
-      - "8020"
-      - --admin-insecure-mode
-      - --endpoint
-      - ${ACAPY_ENDPOINT}
-      - --inbound-transport
-      - http
-      - "0.0.0.0"
-      - "8021"
-      - --outbound-transport
-      - http
-      - --genesis-url
-      - ${ACAPY_GENESIS_URL}
-      - --wallet-type
-      - askar
-      - --wallet-name
-      - ${ACAPY_WALLET_NAME}
-      - --wallet-key
-      - ${ACAPY_WALLET_KEY}
-      - --log-level
-      - INFO
-      - --auto-accept-requests
-      - --auto-accept-invites
-      - --auto-ping-connection
-      # Tails file server (requerido para revocación AnonCreds). La URL pública
-      # se incrusta en cada rev_reg_def y es la que usan verifiers y wallets.
-      - --tails-server-base-url
-      - ${TAILS_SERVER_URL}
-      - --tails-server-upload-url
-      - http://tails-server:6543
-    depends_on:
-      tails-server:
-        condition: service_started
+      - BESU_NETWORK=dev
+      - BESU_RPC_HTTP_ENABLED=true
+      - BESU_RPC_HTTP_HOST=0.0.0.0
+      - BESU_RPC_HTTP_PORT=8545
+      - BESU_RPC_HTTP_CORS_ORIGINS="*"
+      - BESU_RPC_HTTP_API=ETH,NET,CLIQUE,DEBUG,MINER,NET,PERM,ADMIN,EEA,TXPOOL,WEB3
+      - BESU_HOST_ALLOWLIST="*"
+      - BESU_DATA_PATH=/opt/besu/data
+    volumes:
+      - besu_data:/opt/besu/data
+    ports:
+      - "8545:8545"
     networks:
-      - acapy_network
+      - besu_network
       - dokploy-network
-      - von_von  # Conectar a la red de VON Network externa
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8020/status/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.acapy-public.rule=Host(`${ACAPY_DOMAIN}`)"
-      - "traefik.http.routers.acapy-public.entrypoints=websecure"
-      - "traefik.http.routers.acapy-public.tls.certresolver=letsencrypt"
-      - "traefik.http.services.acapy-public.loadbalancer.server.port=8021"
-      - "traefik.http.routers.acapy-admin.rule=Host(`${ACAPY_ADMIN_DOMAIN}`)"
-      - "traefik.http.routers.acapy-admin.entrypoints=websecure"
-      - "traefik.http.routers.acapy-admin.tls.certresolver=letsencrypt"
-      - "traefik.http.services.acapy-admin.loadbalancer.server.port=8020"
-
-  # ===================================================================
-  # Tails Server (hosting de tails files para revocación AnonCreds)
-  # ===================================================================
-  tails-server:
-    build:
-      context: ./backend/tails-server
-      dockerfile: Dockerfile
-    container_name: tails-server
-    volumes:
-      - tails_data:/tails-files
-    networks:
-      - acapy_network
-      - dokploy-network
-    restart: unless-stopped
+      - "traefik.http.routers.besu.rule=Host(`rpc.utnpf.site`)" 
+      - "traefik.http.routers.besu.entrypoints=websecure"
+      - "traefik.http.routers.besu.tls.certresolver=letsencrypt"
+      - "traefik.http.services.besu.loadbalancer.server.port=8545"
 
 
   # ===================================================================
@@ -124,21 +60,10 @@ services:
     # El puerto se expone a través de Traefik
     environment:
       - ISSUER_URL=${ISSUER_URL}
-      - ACAPY_ADMIN_URL=http://acapy-agent:8020
-      - ACAPY_PUBLIC_URL=https://${ACAPY_DOMAIN} # El endpoint público del agente
       - OPENID_PRIVATE_KEY_PATH=/run/secrets/openid_private_key
       - OPENID_PUBLIC_KEY_PATH=/run/secrets/openid_public_key
-      # Capa de blockchain (ver backend/controller/blockchain/config.py)
-      - BLOCKCHAIN_DRIVER=${BLOCKCHAIN_DRIVER:-indy}
-      - BLOCKCHAIN_NETWORK_NAME=${BLOCKCHAIN_NETWORK_NAME:-VON Network (Hyperledger Indy)}
-      - BLOCKCHAIN_EXPLORER_URL=${BLOCKCHAIN_EXPLORER_URL:-https://ledger.utnpf.site}
-      - BLOCKCHAIN_SCHEMA_NAME=${BLOCKCHAIN_SCHEMA_NAME:-UniversityDegree}
-      - BLOCKCHAIN_SCHEMA_VERSION=${BLOCKCHAIN_SCHEMA_VERSION:-1.0}
-      - BLOCKCHAIN_CRED_DEF_TAG=${BLOCKCHAIN_CRED_DEF_TAG:-default}
-      - BLOCKCHAIN_SUPPORT_REVOCATION=${BLOCKCHAIN_SUPPORT_REVOCATION:-false}
-      - BLOCKCHAIN_REV_REG_MAX_CRED_NUM=${BLOCKCHAIN_REV_REG_MAX_CRED_NUM:-1000}
-      - BLOCKCHAIN_REV_REG_ISSUANCE_TYPE=${BLOCKCHAIN_REV_REG_ISSUANCE_TYPE:-ISSUANCE_ON_DEMAND}
-      - TAILS_SERVER_URL=${TAILS_SERVER_URL}
+      # Capa de Blockchain Web3 (Besu EVM)
+      - BESU_RPC_URL=http://besu-node:8545
       - ADMIN_BOOTSTRAP_TOKEN=${ADMIN_BOOTSTRAP_TOKEN}
       # Portal de Credenciales
       - PORTAL_DB_URL=postgresql://${PORTAL_DB_USER}:${PORTAL_DB_PASSWORD}@portal-db:5432/${PORTAL_DB_NAME}
@@ -150,13 +75,13 @@ services:
       - ${OPENID_PRIVATE_KEY_PATH}:/run/secrets/openid_private_key:ro
       - ${OPENID_PUBLIC_KEY_PATH}:/run/secrets/openid_public_key:ro
     depends_on:
-      acapy-agent:
-        condition: service_healthy
+      besu-node:
+        condition: service_started
       portal-db:
         condition: service_started
     networks:
       - moodle_network
-      - acapy_network
+      - besu_network
       - dokploy-network # Conectar a la red del proxy
     restart: unless-stopped
     labels:
