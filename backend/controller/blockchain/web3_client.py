@@ -87,7 +87,7 @@ class BesuWeb3Client:
 
             # Firmar y Enviar
             signed_tx = self.w3.eth.account.sign_transaction(tx, private_key=self.dev_private_key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
             tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
             self.contract_address = tx_receipt.contractAddress
@@ -144,7 +144,7 @@ class BesuWeb3Client:
             signed_tx = self.w3.eth.account.sign_transaction(tx, private_key=self.dev_private_key)
             
             # Ejecutar transacción enviándola a Besu RPC
-            tx_hash_bytes = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            tx_hash_bytes = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             tx_hash = self.w3.to_hex(tx_hash_bytes)
             
             logger.info(f"🪙 Tx enviada! Block Explorer Hash: {tx_hash}")
