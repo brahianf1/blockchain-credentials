@@ -19,6 +19,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar código del controller
 COPY controller/ .
 
+# Copiar artefactos Web3 (JSON ABI y Bytecode de Contratos)
+COPY contracts/ /contracts
+
 # Hacer ejecutable el script de inicio
 RUN chmod +x start.sh
 
