@@ -79,7 +79,8 @@ class BesuWeb3Client:
             nonce = self.w3.eth.get_transaction_count(self.admin_account.address)
             tx = RegistryContract.constructor().build_transaction({
                 "chainId": self.w3.eth.chain_id,
-                "gasPrice": self.w3.eth.gas_price,
+                "maxFeePerGas": self.w3.to_wei(20, 'gwei'),
+                "maxPriorityFeePerGas": self.w3.to_wei(2, 'gwei'),
                 "gas": 5000000,
                 "from": self.admin_account.address,
                 "nonce": nonce,
@@ -135,7 +136,8 @@ class BesuWeb3Client:
                 course_name
             ).build_transaction({
                 "chainId": self.w3.eth.chain_id,
-                "gasPrice": self.w3.eth.gas_price,
+                "maxFeePerGas": self.w3.to_wei(20, 'gwei'),
+                "maxPriorityFeePerGas": self.w3.to_wei(2, 'gwei'),
                 "gas": 3000000, 
                 "from": self.admin_account.address,
                 "nonce": nonce,
