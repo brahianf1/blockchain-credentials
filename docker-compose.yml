@@ -37,6 +37,8 @@ services:
       - BESU_RPC_HTTP_API=ETH,NET,WEB3,DEBUG,ADMIN,TXPOOL,TRACE
       - BESU_HOST_ALLOWLIST=*
       - BESU_DATA_PATH=/opt/besu/data
+      # Historial completo para Blockscout (default=512 causa WARN)
+      - BESU_BONSAI_HISTORICAL_BLOCK_LIMIT=0
     volumes:
       - besu_data:/opt/besu/data
     ports:
