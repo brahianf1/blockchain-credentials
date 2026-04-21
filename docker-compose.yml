@@ -37,8 +37,11 @@ services:
       - BESU_RPC_HTTP_API=ETH,NET,WEB3,DEBUG,ADMIN,TXPOOL,TRACE
       - BESU_HOST_ALLOWLIST=*
       - BESU_DATA_PATH=/opt/besu/data
-      # Historial extendido para Blockscout (debe ser < pruning-window-size=5000)
-      - BESU_BONSAI_HISTORICAL_BLOCK_LIMIT=4096
+      # Modo archivo para Blockscout: FOREST guarda todo el historial de estado.
+      # Bonsai (default) solo guarda los últimos N bloques → warnings.
+      # En red privada dev el impacto en disco es insignificante.
+      - BESU_DATA_STORAGE_FORMAT=FOREST
+      - BESU_SYNC_MODE=FULL
     volumes:
       - besu_data:/opt/besu/data
     ports:
