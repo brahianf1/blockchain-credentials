@@ -21,6 +21,9 @@ PORTAL_FRONTEND_URL = os.getenv("PORTAL_FRONTEND_URL", "http://localhost:5173")
 # --- Issuer info ---
 ISSUER_NAME = os.getenv("UNIVERSITY_NAME", "Universidad Tecnologica Nacional")
 
+# --- Blockchain Explorer ---
+EXPLORER_BASE_URL = os.getenv("BLOCKCHAIN_EXPLORER_URL", "").rstrip("/")
+
 
 def validate_config() -> None:
     """Validate that required secrets are configured. Called at startup."""

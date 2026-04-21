@@ -1,11 +1,11 @@
 """DID normalization helpers shared across the blockchain subsystem.
 
-The system uses two representations of a Hyperledger Indy DID:
+The system may handle DIDs in multiple representations:
 
-* **Raw** (e.g. ``5yUtyhQwfcVZo9bGoNfi2R``) — what ACA-Py returns from
-  ``/wallet/did/public`` and what we persist in the database.
-* **Sov-prefixed** (e.g. ``did:sov:5yUtyhQwfcVZo9bGoNfi2R``) — the W3C
-  DID URL form used in API responses and in the UI.
+* **Raw** (e.g. ``0xfe3b557e...`` for Ethereum addresses) — compact form
+  used for database persistence.
+* **Prefixed** (e.g. ``did:ethr:0xfe3b557e...`` or ``did:sov:5yUty...``)
+  — W3C DID URL form used in API responses and in the UI.
 
 Centralising the conversion avoids bugs where a value in one form is
 passed to code that expects the other (e.g. DB queries not matching
@@ -19,7 +19,7 @@ _SOV_METHOD_PREFIX = "did:sov:"
 
 
 def to_raw_did(did: Optional[str]) -> Optional[str]:
-    """Return the raw Indy DID, stripping a ``did:sov:`` prefix if present."""
+    """Return the raw DID, stripping any known method prefix if present."""
     if not did:
         return None
     if did.startswith(_SOV_METHOD_PREFIX):

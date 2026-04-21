@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Controller Python - Integración Moodle + ACA-Py + Indy (VON Network)
-Sistema REAL de Emisión de Credenciales W3C Verificables.
+Controller Python — Plataforma de Microcredenciales Blockchain.
 
-El anclaje público de credenciales se realiza en Hyperledger Indy a
-través del agente ACA-Py. Cualquier interacción con blockchain pasa
-por el módulo ``blockchain`` (puerto/adaptador) para mantener el resto
-del sistema agnóstico al ledger subyacente.
+Emisión de credenciales W3C Verificables (SD-JWT) via OpenID4VCI,
+con anclaje criptográfico en Hyperledger Besu (Smart Contracts EVM).
+La capa de blockchain es abstrada por el módulo ``blockchain``
+(patrón puerto/adaptador) para mantener el sistema agnóstico al
+ledger subyacente.
 """
 
 import asyncio
@@ -41,8 +41,6 @@ logger = structlog.get_logger()
 logger.info("✅ OpenID4VC modular router initialized")
 
 # Configuración del Controller
-ACAPY_ADMIN_URL = os.getenv("ACAPY_ADMIN_URL", "http://acapy-agent:8020")
-ACAPY_PUBLIC_URL = os.getenv("ACAPY_PUBLIC_URL", "http://localhost:8021")
 CONTROLLER_PORT = int(os.getenv("CONTROLLER_PORT", "3000"))
 UNIVERSITY_NAME = os.getenv("UNIVERSITY_NAME", "Universidad Tecnológica Nacional")
 PORTAL_URL = os.getenv("PORTAL_FRONTEND_URL", os.getenv("PORTAL_URL"))

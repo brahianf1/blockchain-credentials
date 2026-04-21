@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -53,22 +53,23 @@ class AuthResponse(BaseModel):
 class BlockchainEvidence(BaseModel):
     """Public, verifier-facing snapshot of on-ledger credential evidence.
 
-    Fields beyond ``network`` and ``status`` are populated progressively
-    as the anchoring pipeline matures; clients must drive their UI from
-    ``status`` rather than from the presence of optional fields.
+    The ``status`` and ``explorer_url`` fields are the primary drivers for
+    the frontend UI.  ``explorer_url`` links directly to the Blockscout
+    blockchain explorer for transparent, independent verification.
     """
 
     network: str
     status: AnchorStatus
     issuer_did: Optional[str] = None
+    txn_id: Optional[str] = None
+    ledger_timestamp: Optional[str] = None
+    explorer_url: Optional[str] = None
+    # Legacy fields — kept for backward API compatibility.
     schema_id: Optional[str] = None
     cred_def_id: Optional[str] = None
     rev_reg_id: Optional[str] = None
     cred_rev_id: Optional[str] = None
-    txn_id: Optional[str] = None
     seq_no: Optional[int] = None
-    ledger_timestamp: Optional[str] = None
-    explorer_url: Optional[str] = None
 
 
 class CredentialSummary(BaseModel):
@@ -108,69 +109,13 @@ class PublicVerificationResponse(BaseModel):
     blockchain: Optional[BlockchainEvidence] = None
 
 
-# ── Blockchain registry (public + admin) ──
-
-class LedgerArtifactView(BaseModel):
-    """Verifier-facing view of a ledger artifact (schema, cred_def, rev_reg_def)."""
-
-    kind: str
-    artifact_id: str
-    name: Optional[str] = None
-    version: Optional[str] = None
-    tag: Optional[str] = None
-    issuer_did: Optional[str] = None
-    schema_id: Optional[str] = None
-    supports_revocation: bool = False
-    seq_no: Optional[int] = None
-    explorer_url: Optional[str] = None
-
-
-class RevRegView(BaseModel):
-    """Public view of the institutional revocation registry."""
-
-    kind: str = "rev_reg_def"
-    rev_reg_id: str
-    cred_def_id: Optional[str] = None
-    issuer_did: Optional[str] = None
-    tag: Optional[str] = None
-    max_cred_num: Optional[int] = None
-    issuance_type: Optional[str] = None
-    tails_location: Optional[str] = None
-    explorer_url: Optional[str] = None
-
+# ── Blockchain registry (public read-only) ──
 
 class BlockchainRegistryResponse(BaseModel):
-    """Snapshot of the institutional registry anchored on the ledger."""
+    """Snapshot of the institutional blockchain configuration."""
 
     network: str
     issuer_did: Optional[str] = None
+    contract_address: Optional[str] = None
     explorer_url: Optional[str] = None
-    schema: Optional[LedgerArtifactView] = None
-    cred_def: Optional[LedgerArtifactView] = None
-    rev_reg: Optional[RevRegView] = None
     total_anchored_credentials: int = 0
-
-
-class BootstrapArtifactReport(BaseModel):
-    """Outcome for a single artifact processed by the bootstrap."""
-
-    kind: str
-    artifact_id: str
-    outcome: str
-    seq_no: Optional[int] = None
-
-
-class BootstrapResponse(BaseModel):
-    """Response body for ``POST /api/admin/blockchain/bootstrap``."""
-
-    issuer_did: str
-    network: str
-    schema_id: str
-    cred_def_id: str
-    supports_revocation: bool
-    schema: BootstrapArtifactReport
-    cred_def: BootstrapArtifactReport
-    rev_reg: Optional[BootstrapArtifactReport] = None
-    rev_reg_id: Optional[str] = None
-    rev_reg_max_cred_num: Optional[int] = None
-    rev_reg_issuance_type: Optional[str] = None

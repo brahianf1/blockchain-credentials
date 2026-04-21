@@ -1,4 +1,4 @@
-# Controller Python - Integración Moodle + ACA-Py + Indy (VON Network)
+# Controller Python — Microcredenciales Blockchain (Besu + OpenID4VCI)
 fastapi
 uvicorn[standard]
 pydantic[email]

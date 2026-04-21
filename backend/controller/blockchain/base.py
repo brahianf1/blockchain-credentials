@@ -2,9 +2,9 @@
 
 The abstractions in this module follow the hexagonal architecture style:
 business code depends on the ``LedgerClient`` port, while concrete adapters
-(Hyperledger Indy via ACA-Py, no-op for tests, etc.) live in sibling
-modules. This keeps the rest of the application ledger-agnostic and makes
-it trivial to swap the underlying blockchain without touching callers.
+(Hyperledger Besu via Web3, no-op for tests, etc.) live in sibling modules.
+This keeps the rest of the application ledger-agnostic and makes it trivial
+to swap the underlying blockchain without touching callers.
 """
 from __future__ import annotations
 
@@ -46,8 +46,8 @@ class LedgerStatus:
         name: Human-readable network label surfaced to clients.
         health: Current :class:`LedgerHealth`.
         issuer_did: Canonical DID of the issuing institution, if known.
-        endpoint: Service endpoint registered on-ledger for the issuer.
-        explorer_url: Public URL of the ledger explorer, when available.
+        endpoint: Service endpoint registered for the issuer.
+        explorer_url: Public URL of the Blockscout blockchain explorer.
     """
 
     name: str
@@ -61,14 +61,24 @@ class LedgerStatus:
 class CredentialAnchor:
     """Verifiable on-ledger evidence bound to a credential hash.
 
-    Fields are progressively populated as the anchoring pipeline matures
-    across phases. Callers should drive their UI from :attr:`status`
-    rather than from the presence of optional fields.
+    The primary fields driving the UI are ``status`` and ``explorer_url``.
+    Callers should derive their presentation from ``status`` rather than
+    from the presence of optional metadata fields.
+
+    Attributes:
+        status: Current lifecycle state of the credential on-chain.
+        network: Human-readable name of the blockchain network.
+        issuer_did: DID of the issuing institution (``did:ethr:0x...``).
+        txn_id: Ethereum transaction hash (``0x...``), when available.
+        ledger_timestamp: ISO 8601 timestamp of the on-chain event.
+        explorer_url: Deep-link into Blockscout for transparent verification.
     """
 
     status: AnchorStatus
     network: str
     issuer_did: Optional[str] = None
+    # Legacy fields kept for backward API compatibility; not populated
+    # by the Besu adapter.  Will be removed in a future major version.
     schema_id: Optional[str] = None
     cred_def_id: Optional[str] = None
     rev_reg_id: Optional[str] = None

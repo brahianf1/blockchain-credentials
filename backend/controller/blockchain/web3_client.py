@@ -128,11 +128,15 @@ class BesuWeb3Client:
         try:
             logger.info("⚙️ Cargando contrato CredentialRegistry.sol (Besu EVM)...")
 
-            # Load pre-compiled contract artifacts (ABI + bytecode)
-            contract_path = os.path.join(
-                os.path.dirname(__file__),
-                "../../contracts/CredentialRegistry.json",
-            )
+            # Load pre-compiled contract artifacts (ABI + bytecode).
+            # In Docker the artifacts live at /contracts/ (see Dockerfile),
+            # locally they are at ../../contracts/ relative to this file.
+            contract_path = "/contracts/CredentialRegistry.json"
+            if not os.path.exists(contract_path):
+                contract_path = os.path.join(
+                    os.path.dirname(__file__),
+                    "../../contracts/CredentialRegistry.json",
+                )
             with open(contract_path, "r") as f:
                 contract_data = json.load(f)
 

@@ -28,8 +28,8 @@ class PortalStudent(Base):
     last_login_at = Column(DateTime(timezone=True), nullable=True)
 
 
-# Institutional ledger artifacts (schema, cred_def, rev_reg_def).
-# One row per distinct artifact registered on Hyperledger Indy by the issuer.
+# Institutional ledger artifacts (contract addresses, deployment records).
+# One row per distinct artifact registered on Hyperledger Besu by the issuer.
 class LedgerArtifact(Base):
     __tablename__ = "portal_ledger_artifacts"
     __table_args__ = (
@@ -60,8 +60,9 @@ class LedgerArtifact(Base):
     )
 
 
-# On-ledger anchor for a specific credential issued by the institution.
-# Populated whenever a credential is emitted (Fase 2).
+# On-chain anchor for a specific credential issued by the institution.
+# Populated whenever a credential hash is written to the CredentialRegistry
+# smart contract on Hyperledger Besu.
 class CredentialAnchor(Base):
     __tablename__ = "portal_blockchain_anchors"
 

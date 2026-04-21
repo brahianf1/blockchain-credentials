@@ -1,8 +1,13 @@
-"""Ledger client factory refactored for Besu."""
+"""Ledger client factory for Hyperledger Besu.
+
+Provides process-wide singletons for the ``LedgerClient`` (used by
+Portal API endpoints to verify credentials on-chain) and the
+``LedgerRepository`` (used for DB-level persistence of anchor records).
+"""
 from functools import lru_cache
 
 from blockchain.base import LedgerClient
-from blockchain.null_client import NullLedgerClient
+from blockchain.besu_ledger_client import BesuLedgerClient
 from blockchain.repository import LedgerRepository
 
 
@@ -15,6 +20,8 @@ def get_ledger_repository() -> LedgerRepository:
 @lru_cache(maxsize=1)
 def get_ledger_client() -> LedgerClient:
     """Return the process-wide ledger client.
-    For Phase 2B this returns NullLedgerClient until Besu resolving is implemented.
+
+    Uses ``BesuLedgerClient`` which queries the CredentialRegistry smart
+    contract on Hyperledger Besu for real on-chain credential verification.
     """
-    return NullLedgerClient()
+    return BesuLedgerClient()

@@ -1,4 +1,4 @@
-# Dockerfile para Controller Python - Integración Moodle + ACA-Py + Fabric
+# Dockerfile para Controller Python — Microcredenciales Blockchain (Besu + OpenID4VCI)
 FROM python:3.11-slim
 
 # Instalar dependencias del sistema
