@@ -85,3 +85,31 @@ class CredentialAnchor(Base):
     anchored_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+# Student-controlled visibility for public credential verification.
+# Default is private (is_public=False) — students opt-in to public visibility.
+class CredentialVisibility(Base):
+    __tablename__ = "portal_credential_visibility"
+    __table_args__ = (
+        UniqueConstraint(
+            "moodle_user_id",
+            "credential_hash",
+            name="uq_visibility_user_hash",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    moodle_user_id = Column(Integer, nullable=False, index=True)
+    credential_hash = Column(String(64), nullable=False, index=True)
+    is_public = Column(Boolean, default=False, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+

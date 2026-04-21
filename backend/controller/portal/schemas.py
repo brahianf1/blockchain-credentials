@@ -30,6 +30,13 @@ class SetPasswordRequest(BaseModel):
         return v
 
 
+class VisibilityToggleRequest(BaseModel):
+    """Toggle public visibility for a specific credential."""
+
+    credential_hash: str = Field(..., min_length=1, max_length=64)
+    is_public: bool
+
+
 # ── Response Models ──
 
 class StudentInfo(BaseModel):
@@ -80,6 +87,7 @@ class CredentialSummary(BaseModel):
     completion_date: Optional[str] = None
     credential_hash: Optional[str] = None
     created_at: Optional[str] = None
+    is_public: bool = False
 
 
 class CredentialDetail(CredentialSummary):
