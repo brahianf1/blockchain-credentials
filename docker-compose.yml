@@ -36,8 +36,10 @@ services:
       - BESU_MINER_ENABLED=true
       - BESU_MINER_COINBASE=0xfe3b557e8fb62b89f4916b721be55ceb828dbd73
       - BESU_SYNC_MIN_PEERS=0
+      - BESU_NODE_PRIVATE_KEY_FILE=/opt/besu/keys/dev_node.key
     volumes:
       - besu_data:/opt/besu/data
+      - ./besu_config:/opt/besu/keys:ro
     ports:
       - "8545:8545"
     networks:
