@@ -24,19 +24,18 @@ services:
   besu-node:
     image: hyperledger/besu:latest
     container_name: besu-node
-    environment:
-      - BESU_NETWORK=dev
-      - BESU_RPC_HTTP_ENABLED=true
-      - BESU_RPC_HTTP_HOST=0.0.0.0
-      - BESU_RPC_HTTP_PORT=8545
-      - BESU_RPC_HTTP_CORS_ORIGINS="all"
-      - BESU_RPC_HTTP_API=ETH,NET,CLIQUE,DEBUG,MINER,PERM,ADMIN,TXPOOL,WEB3
-      - BESU_HOST_ALLOWLIST=besu-node,localhost,127.0.0.1,${BESU_RPC_DOMAIN}
-      - BESU_DATA_PATH=/opt/besu/data
-      - BESU_MINER_ENABLED=true
-      - BESU_MINER_COINBASE=0xfe3b557e8fb62b89f4916b721be55ceb828dbd73
-      - BESU_SYNC_MIN_PEERS=0
-      - BESU_NODE_PRIVATE_KEY_FILE=/opt/besu/keys/dev_node.key
+    command: >
+      --network=dev
+      --miner-enabled
+      --miner-coinbase=0xfe3b557e8fb62b89f4916b721be55ceb828dbd73
+      --rpc-http-enabled
+      --rpc-http-host=0.0.0.0
+      --rpc-http-port=8545
+      --rpc-http-cors-origins="all"
+      --rpc-http-api=ETH,NET,CLIQUE,DEBUG,MINER,PERM,ADMIN,TXPOOL,WEB3
+      --host-allowlist="*"
+      --data-path=/opt/besu/data
+      --node-private-key-file=/opt/besu/keys/dev_node.key
     volumes:
       - besu_data:/opt/besu/data
       - ./besu_config:/opt/besu/keys:ro
