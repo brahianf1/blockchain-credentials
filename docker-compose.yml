@@ -22,32 +22,36 @@ services:
   # Nodo Hyperledger Besu (Blockchain EVM - Smart Contracts)
   # ===================================================================
   besu-node:
-    image: hyperledger/besu:latest
+    image: hyperledger/besu:24.12.2
     container_name: besu-node
-    command: >
-      --network=dev
-      --miner-enabled
-      --miner-coinbase=0xfe3b557e8fb62b89f4916b721be55ceb828dbd73
-      --rpc-http-enabled
-      --rpc-http-host=0.0.0.0
-      --rpc-http-port=8545
-      --rpc-http-cors-origins="all"
-      --rpc-http-api=ETH,NET,CLIQUE,DEBUG,MINER,PERM,ADMIN,TXPOOL,WEB3
-      --host-allowlist="*"
-      --data-path=/opt/besu/data
-      --node-private-key-file=/opt/besu/keys/dev_node.key
+    environment:
+      - BESU_NETWORK=dev
+      - BESU_MINER_ENABLED=true
+      - BESU_MINER_COINBASE=0xfe3b557e8fb62b89f4916b721be55ceb828dbd73
+      - BESU_RPC_HTTP_ENABLED=true
+      - BESU_RPC_HTTP_HOST=0.0.0.0
+      - BESU_RPC_HTTP_PORT=8545
+      - BESU_RPC_HTTP_CORS_ORIGINS="all"
+      - BESU_RPC_HTTP_API=ETH,NET,CLIQUE,DEBUG,MINER,ADMIN,TXPOOL,WEB3
+      - BESU_HOST_ALLOWLIST="*"
+      - BESU_DATA_PATH=/opt/besu/data
     volumes:
       - besu_data:/opt/besu/data
-      - ./besu_config:/opt/besu/keys:ro
     ports:
       - "8545:8545"
     networks:
       - besu_network
       - dokploy-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545/liveness"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.besu.rule=Host(`${BESU_RPC_DOMAIN}`)" 
+      - "traefik.http.routers.besu.rule=Host(`${BESU_RPC_DOMAIN}`)"
       - "traefik.http.routers.besu.entrypoints=websecure"
       - "traefik.http.routers.besu.tls.certresolver=letsencrypt"
       - "traefik.http.services.besu.loadbalancer.server.port=8545"
@@ -80,7 +84,7 @@ services:
       - ${OPENID_PUBLIC_KEY_PATH}:/run/secrets/openid_public_key:ro
     depends_on:
       besu-node:
-        condition: service_started
+        condition: service_healthy
       portal-db:
         condition: service_started
     networks:
