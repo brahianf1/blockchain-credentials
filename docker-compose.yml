@@ -44,11 +44,11 @@ services:
       - dokploy-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8545/liveness"]
-      interval: 15s
-      timeout: 5s
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8545'"] 
+      interval: 10s
+      timeout: 3s
       retries: 5
-      start_period: 30s
+      start_period: 15s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.besu.rule=Host(`${BESU_RPC_DOMAIN}`)"
