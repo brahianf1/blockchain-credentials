@@ -108,7 +108,11 @@ class credenciales_observer {
                     $DB->update_record('block_credenciales', $record);
                     logger::info("Registro actualizado en DB local");
                 } else {
-                    $record->timecreated = time();
+                    // Use the event's original timestamp — NOT time() — so the
+                // value persisted in Moodle's DB matches the completion_date
+                // sent to the backend.  Both flows feed compute_credential_hash()
+                // and MUST produce the same SHA-256 for on-chain verification.
+                $record->timecreated = $event->timecreated;
                     $DB->insert_record('block_credenciales', $record);
                     logger::info("Nuevo registro creado en DB local");
                 }
