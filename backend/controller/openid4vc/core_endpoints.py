@@ -988,19 +988,78 @@ async def credential_endpoint(
         import httpx
         import os
         from blockchain.web3_client import besu_client
+        from utils.hashing import compute_credential_hash
 
-        async def anchor_and_notify(conn_id: str, cred_str: str, c_name: str):
+        async def anchor_and_notify(
+            conn_id: str,
+            cred_data: dict,
+            c_name: str,
+        ):
+            """Background job: anchor the portal hash on-chain and notify Moodle.
+
+            The hash anchored on Besu is the **same** canonical SHA-256 digest
+            displayed in the student portal and used for public verification.
+            This guarantees a single cryptographic identity end-to-end.
+            """
             logger.info("⚙️ Iniciando Job en Background: Blockchain Anchor + Webhook")
-            
-            # PASO 1: Anclar el JWT a Besu (Smart Contract)
-            # En la vida real, The Blockchain nunca falla :-)
-            tx_hash = await besu_client.anchor_credential_hash(cred_str, c_name)
-            
-            # PASO 2: Mandar Webhook al LMS
+
+            # PASO 1: Calcular el Portal Hash canónico
+            portal_hash = compute_credential_hash(
+                student_id=str(cred_data.get("student_id", "")),
+                course_id=str(cred_data.get("course_id", "")),
+                completion_date=cred_data.get("completion_date", ""),
+                grade=cred_data.get("grade", "Aprobado"),
+            )
+            logger.info(f"🔗 Portal Hash calculado: {portal_hash}")
+
+            # PASO 2: Anclar el Portal Hash en Besu
+            tx_hash = await besu_client.anchor_credential_hash(portal_hash, c_name)
+
+            # PASO 3: Persistir el anchor (con tx_hash) en la DB del portal
+            if tx_hash:
+                try:
+                    from portal.database import PortalSessionLocal
+                    from portal.models import CredentialAnchor as CredentialAnchorModel
+
+                    db = PortalSessionLocal()
+                    try:
+                        # Upsert: update if hash exists, insert otherwise
+                        existing = (
+                            db.query(CredentialAnchorModel)
+                            .filter(CredentialAnchorModel.credential_hash == portal_hash)
+                            .first()
+                        )
+                        issuer_did = (
+                            f"did:ethr:{besu_client.admin_account.address}"
+                            if besu_client.admin_account
+                            else None
+                        )
+
+                        if existing:
+                            existing.txn_id = tx_hash
+                            existing.issuer_did = issuer_did
+                        else:
+                            anchor = CredentialAnchorModel(
+                                credential_hash=portal_hash,
+                                moodle_user_id=int(cred_data.get("student_id", 0)),
+                                moodle_course_id=int(cred_data.get("course_id", 0)),
+                                txn_id=tx_hash,
+                                issuer_did=issuer_did,
+                            )
+                            db.add(anchor)
+
+                        db.commit()
+                        logger.info(f"💾 Anchor persistido: hash={portal_hash[:16]}... tx={tx_hash}")
+                    finally:
+                        db.close()
+                except Exception as db_err:
+                    logger.warning(f"⚠️ Error persistiendo anchor en DB: {db_err}")
+
+            # PASO 4: Mandar Webhook al LMS
             moodle_internal_url = os.getenv("MOODLE_INTERNAL_URL", "http://moodle-app")
             webhook_url = f"{moodle_internal_url}/blocks/credenciales/webhook.php"
             moodle_domain = os.getenv("MOODLE_DOMAIN", "moodle.utnpf.site")
-            
+
             payload = {"connection_id": conn_id, "status": "claimed"}
             if tx_hash:
                 payload["tx_hash"] = tx_hash
@@ -1027,12 +1086,9 @@ async def credential_endpoint(
                 conn_id = pre_auth_flow.get("code")
         
         c_name = credential_data.get("course_name", "Curso Desconocido")
-        
-        # Como es dict en algunos casos (ej w3c json), nos aseguramos de pasarlo como string para el hasheo
-        cred_str = credential if isinstance(credential, str) else json.dumps(credential)
 
         if conn_id:
-            background_tasks.add_task(anchor_and_notify, conn_id, cred_str, c_name)
+            background_tasks.add_task(anchor_and_notify, conn_id, credential_data, c_name)
             logger.info("🟢 Job 'Anchor on-chain & Notify Moodle' registrado en BackgroundTasks.")
         
         # ─── Construir respuesta para la Wallet ───

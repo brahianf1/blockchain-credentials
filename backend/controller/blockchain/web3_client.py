@@ -1,52 +1,56 @@
+"""Hyperledger Besu Web3 Client — Smart Contract Layer.
+
+Manages the lifecycle of the ``CredentialRegistry`` smart contract
+and anchors credential hashes on-chain.
+
+Architecture:
+    - Designed for Besu's ``--network=dev`` mode (PoW with auto-mining).
+    - Uses the official Besu dev pre-funded account for gas fees.
+    - Contract address is **persisted** in ``portal_ledger_artifacts``
+      so existing anchors survive backend restarts.
+    - Contract is deployed lazily on first anchor request only when
+      no persisted address is found or the on-chain code is gone.
+"""
+import json
 import os
 import time
-import hashlib
-import json
 from typing import Optional
+
+import structlog
+from eth_account import Account
 from web3 import Web3
 from web3.middleware import ExtraDataToPOAMiddleware
-from eth_account import Account
-import structlog
 
 logger = structlog.get_logger()
-
-# =====================================================================
-# Hyperledger Besu Client (EVM Smart Contract Layer)
-# =====================================================================
-# This module manages the lifecycle of the CredentialRegistry smart
-# contract and anchors credential hashes on-chain.
-#
-# Architecture notes:
-#   - Designed for Besu's `--network=dev` mode (PoW with auto-mining)
-#   - Uses the official Besu dev pre-funded account for gas fees
-#   - Contract is deployed lazily on first credential anchor request
-#   - Contract address is cached in-memory for the process lifetime
-# =====================================================================
 
 # Official Hyperledger Besu Dev Network pre-funded account.
 # This key is PUBLIC by design — it controls test ETH only on isolated
 # dev networks. Never use on mainnet. See:
 # https://besu.hyperledger.org/private-networks/reference/accounts-for-testing
-BESU_DEV_PRIVATE_KEY = "0x8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63"
+BESU_DEV_PRIVATE_KEY = (
+    "0x8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63"
+)
 BESU_DEV_ADDRESS = "0xfe3b557e8fb62b89f4916b721be55ceb828dbd73"
 
-# Deployment gas ceiling — generous enough for CredentialRegistry
-# while preventing runaway estimations on fresh networks.
+# Gas ceilings for deployment and anchoring transactions.
 DEPLOY_GAS_LIMIT = 5_000_000
 ANCHOR_GAS_LIMIT = 3_000_000
 
-# Connection retry settings
+# Connection retry settings.
 MAX_CONNECTION_RETRIES = 3
 RETRY_DELAY_SECONDS = 2
 
+# Tag used to identify the CredentialRegistry contract in the DB.
+_CONTRACT_TAG = "credential_registry"
+
 
 class BesuWeb3Client:
-    """
-    Production-grade Web3 client for Hyperledger Besu.
+    """Production-grade Web3 client for Hyperledger Besu.
 
     Responsibilities:
       - Lazy deployment of the CredentialRegistry smart contract
-      - SHA-256 hashing and on-chain anchoring of issued credentials
+      - Persistent storage of the contract address across restarts
+      - On-chain anchoring of pre-computed credential hashes
       - Resilient connection handling with automatic retries
     """
 
@@ -62,8 +66,8 @@ class BesuWeb3Client:
     # -----------------------------------------------------------------
 
     def _ensure_connection(self) -> bool:
-        """
-        Establish or verify the Web3 connection to the Besu RPC node.
+        """Establish or verify the Web3 connection to the Besu RPC node.
+
         Returns True if connected and ready, False otherwise.
         """
         # Fast path: already connected
@@ -82,14 +86,14 @@ class BesuWeb3Client:
                     continue
 
                 # Besu dev mode (Ethash/Clique) requires POA middleware
-                # to correctly parse block headers with non-standard extraData
+                # to correctly parse block headers with non-standard extraData.
                 self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
 
-                # Initialize the pre-funded dev account
+                # Initialize the pre-funded dev account.
                 self.admin_account = Account.from_key(BESU_DEV_PRIVATE_KEY)
                 self.w3.eth.default_account = self.admin_account.address
 
-                # Validate on-chain balance as a sanity check
+                # Validate on-chain balance as a sanity check.
                 balance_wei = self.w3.eth.get_balance(self.admin_account.address)
                 balance_eth = self.w3.from_wei(balance_wei, "ether")
                 logger.info(f"✅ Conectado a Besu Dev | Saldo: {balance_eth} ETH")
@@ -111,13 +115,96 @@ class BesuWeb3Client:
         return False
 
     # -----------------------------------------------------------------
+    # Contract ABI Loader
+    # -----------------------------------------------------------------
+
+    def _load_contract_abi(self) -> None:
+        """Load the pre-compiled ABI from the contract artifact JSON.
+
+        Called once — the ABI is cached for the process lifetime.
+        """
+        if self.contract_abi:
+            return
+
+        contract_path = "/contracts/CredentialRegistry.json"
+        if not os.path.exists(contract_path):
+            contract_path = os.path.join(
+                os.path.dirname(__file__),
+                "../../contracts/CredentialRegistry.json",
+            )
+        with open(contract_path, "r") as f:
+            contract_data = json.load(f)
+
+        self.contract_abi = contract_data["abi"]
+
+    # -----------------------------------------------------------------
+    # Contract Persistence
+    # -----------------------------------------------------------------
+
+    def _load_persisted_address(self) -> Optional[str]:
+        """Attempt to load a previously deployed contract address from the DB."""
+        try:
+            from portal.database import PortalSessionLocal
+            from portal.models import LedgerArtifact
+
+            db = PortalSessionLocal()
+            try:
+                row = (
+                    db.query(LedgerArtifact)
+                    .filter(
+                        LedgerArtifact.kind == "contract",
+                        LedgerArtifact.tag == _CONTRACT_TAG,
+                    )
+                    .order_by(LedgerArtifact.created_at.desc())
+                    .first()
+                )
+                return row.artifact_id if row else None
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"⚠️ No se pudo cargar contract address de la DB: {e}")
+            return None
+
+    def _persist_address(self, address: str) -> None:
+        """Store the deployed contract address in the DB for future restarts."""
+        try:
+            from portal.database import PortalSessionLocal
+            from portal.models import LedgerArtifact
+
+            db = PortalSessionLocal()
+            try:
+                artifact = LedgerArtifact(
+                    kind="contract",
+                    artifact_id=address,
+                    name="CredentialRegistry",
+                    tag=_CONTRACT_TAG,
+                    issuer_did=(
+                        f"did:ethr:{self.admin_account.address}"
+                        if self.admin_account
+                        else None
+                    ),
+                )
+                db.add(artifact)
+                db.commit()
+                logger.info(f"💾 Contract address persistida en DB: {address}")
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"⚠️ No se pudo persistir contract address: {e}")
+
+    # -----------------------------------------------------------------
     # Smart Contract Deployment
     # -----------------------------------------------------------------
 
     def deploy_contract_if_needed(self) -> bool:
-        """
-        Deploy the CredentialRegistry contract if not already deployed.
-        Returns True if contract is ready to use, False otherwise.
+        """Deploy the CredentialRegistry contract if not already deployed.
+
+        Resolution order:
+          1. In-memory cache (``self.contract_address``)
+          2. Persisted address in ``portal_ledger_artifacts``
+          3. Fresh deployment
+
+        Returns True if the contract is ready to use, False otherwise.
         """
         if self.contract_address:
             return True
@@ -125,12 +212,33 @@ class BesuWeb3Client:
         if not self._ensure_connection():
             return False
 
+        self._load_contract_abi()
+
+        # Step 1: Try to load a persisted address.
+        persisted = self._load_persisted_address()
+        if persisted:
+            # Verify the contract code still exists on-chain (guard against
+            # chain resets or volume wipes).
+            try:
+                code = self.w3.eth.get_code(persisted)
+                if code and code != b"" and code != b"0x":
+                    self.contract_address = persisted
+                    logger.info(
+                        f"✅ Contrato recuperado de DB: {self.contract_address}"
+                    )
+                    return True
+                else:
+                    logger.warning(
+                        f"⚠️ Contrato {persisted} ya no existe on-chain. "
+                        "Re-desplegando..."
+                    )
+            except Exception as e:
+                logger.warning(f"⚠️ Error verificando contrato persistido: {e}")
+
+        # Step 2: Fresh deployment.
         try:
             logger.info("⚙️ Cargando contrato CredentialRegistry.sol (Besu EVM)...")
 
-            # Load pre-compiled contract artifacts (ABI + bytecode).
-            # In Docker the artifacts live at /contracts/ (see Dockerfile),
-            # locally they are at ../../contracts/ relative to this file.
             contract_path = "/contracts/CredentialRegistry.json"
             if not os.path.exists(contract_path):
                 contract_path = os.path.join(
@@ -141,8 +249,6 @@ class BesuWeb3Client:
                 contract_data = json.load(f)
 
             bytecode = contract_data["bytecode"]
-            self.contract_abi = contract_data["abi"]
-
             registry = self.w3.eth.contract(
                 abi=self.contract_abi, bytecode=bytecode
             )
@@ -168,6 +274,9 @@ class BesuWeb3Client:
 
             self.contract_address = tx_receipt.contractAddress
             logger.info(f"✅ Contrato desplegado en: {self.contract_address}")
+
+            # Persist for future restarts.
+            self._persist_address(self.contract_address)
             return True
 
         except Exception as e:
@@ -179,29 +288,38 @@ class BesuWeb3Client:
     # -----------------------------------------------------------------
 
     async def anchor_credential_hash(
-        self, credential_jwt: str, course_name: str
+        self, credential_hash_hex: str, course_name: str
     ) -> Optional[str]:
-        """
-        Hash the issued JWT credential (SHA-256) and anchor the digest
-        on-chain via the CredentialRegistry smart contract.
+        """Anchor a pre-computed credential hash on-chain.
 
-        Returns the transaction hash on success, None on failure.
+        The ``credential_hash_hex`` is the canonical SHA-256 digest computed
+        by ``utils.hashing.compute_credential_hash``.  This is the **same**
+        hash displayed in the student portal and verified publicly, ensuring
+        a single cryptographic identity across all layers.
+
+        Args:
+            credential_hash_hex: 64-char hex string (SHA-256 digest).
+            course_name: Human-readable course label stored on-chain alongside
+                the hash for explorer readability.
+
+        Returns:
+            The Ethereum transaction hash on success, ``None`` on failure.
         """
         try:
             if not self.deploy_contract_if_needed():
                 logger.error("❌ No se puede anclar: Smart Contract no disponible")
                 return None
 
-            # Compute SHA-256 digest → Solidity bytes32
-            cred_hash = hashlib.sha256(credential_jwt.encode("utf-8")).digest()
-            logger.info(f"🔗 SHA-256 calculado: 0x{cred_hash.hex()}")
+            # Convert the hex string to bytes32 for the Solidity function.
+            cred_hash_bytes = bytes.fromhex(credential_hash_hex)
+            logger.info(f"🔗 Portal Hash (SHA-256): 0x{credential_hash_hex}")
 
             contract = self.w3.eth.contract(
                 address=self.contract_address, abi=self.contract_abi
             )
 
-            # Check idempotency — skip if already anchored
-            if contract.functions.isValid(cred_hash).call():
+            # Check idempotency — skip if already anchored.
+            if contract.functions.isValid(cred_hash_bytes).call():
                 logger.warning("⚠️ Credencial ya anclada en la Blockchain.")
                 return None
 
@@ -209,7 +327,7 @@ class BesuWeb3Client:
 
             logger.info("⚡ Construyendo Transacción Blockchain hacia Besu Node...")
             tx = contract.functions.issueCredential(
-                cred_hash, course_name
+                cred_hash_bytes, course_name
             ).build_transaction(
                 {
                     "chainId": self.w3.eth.chain_id,
@@ -234,9 +352,10 @@ class BesuWeb3Client:
         except Exception as e:
             logger.error(f"❌ Error en operación Blockchain: {e}")
             import traceback
+
             traceback.print_exc()
             return None
 
 
-# Singleton instance — shared across the application lifecycle
+# Singleton instance — shared across the application lifecycle.
 besu_client = BesuWeb3Client()
