@@ -1004,11 +1004,22 @@ async def credential_endpoint(
             logger.info("⚙️ Iniciando Job en Background: Blockchain Anchor + Webhook")
 
             # PASO 1: Calcular el Portal Hash canónico
+            _sid = str(cred_data.get("student_id", ""))
+            _cid = str(cred_data.get("course_id", ""))
+            _cd  = cred_data.get("completion_date", "")
+            _gr  = cred_data.get("grade", "Aprobado")
+            logger.info(
+                f"🔍 HASH INPUTS: student_id={repr(_sid)} "
+                f"course_id={repr(_cid)} "
+                f"completion_date={repr(_cd)} "
+                f"grade={repr(_gr)}"
+            )
+            logger.info(f"🔍 RAW CONCAT: {repr(_sid + _cid + _cd + _gr)}")
             portal_hash = compute_credential_hash(
-                student_id=str(cred_data.get("student_id", "")),
-                course_id=str(cred_data.get("course_id", "")),
-                completion_date=cred_data.get("completion_date", ""),
-                grade=cred_data.get("grade", "Aprobado"),
+                student_id=_sid,
+                course_id=_cid,
+                completion_date=_cd,
+                grade=_gr,
             )
             logger.info(f"🔗 Portal Hash calculado: {portal_hash}")
 
