@@ -37,7 +37,11 @@ class credenciales_observer {
             'student_email' => $user->email,
             'course_id' => (string)$course->id,
             'course_name' => $course->fullname,
-            'completion_date' => date('c', $event->timecreated),
+            // gmdate() forces UTC (+00:00) regardless of Moodle's site
+            // timezone.  The portal's Python code also normalises to UTC,
+            // so both sides feed compute_credential_hash() an identical
+            // ISO-8601 string → identical SHA-256 → on-chain match.
+            'completion_date' => gmdate('c', $event->timecreated),
             'grade' => $grade,
             'instructor_name' => "Instructor del Curso" // Por defecto
         );
