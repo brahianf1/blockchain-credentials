@@ -10,9 +10,12 @@ Architecture:
       so existing anchors survive backend restarts.
     - Contract is deployed lazily on first anchor request only when
       no persisted address is found or the on-chain code is gone.
+    - After a fresh deploy, the contract is automatically verified in
+      Blockscout so that transaction inputs are decoded for explorers.
 """
 import json
 import os
+import threading
 import time
 from typing import Optional
 
@@ -226,6 +229,9 @@ class BesuWeb3Client:
                     logger.info(
                         f"✅ Contrato recuperado de DB: {self.contract_address}"
                     )
+                    # Ensure contract is verified in Blockscout even if
+                    # Blockscout was reset while the blockchain persisted.
+                    self._ensure_blockscout_verified(self.contract_address)
                     return True
                 else:
                     logger.warning(
@@ -277,11 +283,145 @@ class BesuWeb3Client:
 
             # Persist for future restarts.
             self._persist_address(self.contract_address)
+
+            # Auto-verify in Blockscout (fire-and-forget, non-blocking).
+            self._verify_in_blockscout(self.contract_address)
+
             return True
 
         except Exception as e:
             logger.error(f"❌ Fallo al desplegar contrato en Besu: {e}")
             return False
+
+    # -----------------------------------------------------------------
+    # Blockscout Contract Verification
+    # -----------------------------------------------------------------
+
+    def _ensure_blockscout_verified(self, address: str) -> None:
+        """Check if the contract is already verified in Blockscout.
+
+        If not verified, triggers background verification.  This is called
+        on every contract recovery from the DB, but the actual verification
+        POST only fires when the contract ABI is missing from Blockscout
+        (e.g., after a Blockscout DB reset).
+        """
+        def _check_and_verify():
+            try:
+                import requests
+
+                explorer_api = os.getenv(
+                    "BLOCKSCOUT_API_URL",
+                    "http://blockscout-backend:4000/api",
+                )
+
+                resp = requests.get(
+                    explorer_api,
+                    params={
+                        "module": "contract",
+                        "action": "getabi",
+                        "address": address,
+                    },
+                    timeout=10,
+                )
+                result = resp.json()
+
+                if result.get("status") == "1":
+                    logger.info(
+                        f"✅ Contrato ya verificado en Blockscout: {address}"
+                    )
+                    return
+
+                logger.info(
+                    "🔍 Contrato no verificado en Blockscout — verificando..."
+                )
+                self._submit_verification(address)
+
+            except Exception as exc:
+                logger.warning(
+                    f"⚠️ No se pudo consultar Blockscout (verificación): {exc}"
+                )
+
+        thread = threading.Thread(target=_check_and_verify, daemon=True)
+        thread.start()
+
+    def _verify_in_blockscout(self, address: str) -> None:
+        """Submit contract verification after a fresh deploy.
+
+        Runs in a background thread with a short delay to give Blockscout
+        time to index the deploy transaction.
+        """
+        def _delayed_verify():
+            # Give Blockscout time to index the deploy transaction.
+            time.sleep(5)
+            self._submit_verification(address)
+
+        thread = threading.Thread(target=_delayed_verify, daemon=True)
+        thread.start()
+
+    def _submit_verification(self, address: str) -> None:
+        """POST the contract source to Blockscout's verification API.
+
+        Uses the Etherscan-compatible endpoint (``module=contract``,
+        ``action=verifysourcecode``).  Once verified, the explorer
+        automatically decodes transaction inputs, events and exposes
+        Read/Write Contract UIs.
+
+        This is a synchronous helper — callers are responsible for
+        running it in a thread if non-blocking behaviour is required.
+        """
+        try:
+            import requests
+
+            explorer_api = os.getenv(
+                "BLOCKSCOUT_API_URL",
+                "http://blockscout-backend:4000/api",
+            )
+
+            # Read Solidity source from the same path the deployer uses.
+            source_path = "/contracts/CredentialRegistry.sol"
+            if not os.path.exists(source_path):
+                source_path = os.path.join(
+                    os.path.dirname(__file__),
+                    "../../contracts/CredentialRegistry.sol",
+                )
+            with open(source_path, "r") as f:
+                source_code = f.read()
+
+            # Compiler version must match the one used in compile.py.
+            compiler_version = os.getenv(
+                "SOLC_VERSION", "v0.8.0+commit.c7dfd78e"
+            )
+
+            payload = {
+                "module": "contract",
+                "action": "verifysourcecode",
+                "codeformat": "solidity-single-file",
+                "addressHash": address,
+                "name": "CredentialRegistry",
+                "compilerVersion": compiler_version,
+                "optimization": "false",
+                "optimizationRuns": "200",
+                "contractSourceCode": source_code,
+                "evmVersion": "default",
+                "constructorArguments": "",
+            }
+
+            resp = requests.post(explorer_api, data=payload, timeout=30)
+            result = resp.json()
+
+            if result.get("status") == "1":
+                logger.info(
+                    f"✅ Contrato verificado en Blockscout: {address}"
+                )
+            else:
+                logger.warning(
+                    f"⚠️ Blockscout verificación respuesta: "
+                    f"{result.get('message', 'unknown')}"
+                )
+        except Exception as exc:
+            logger.warning(
+                f"⚠️ No se pudo verificar contrato en Blockscout: {exc}"
+            )
 
     # -----------------------------------------------------------------
     # Credential Anchoring
