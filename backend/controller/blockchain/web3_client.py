@@ -297,48 +297,47 @@ class BesuWeb3Client:
     # Blockscout Contract Verification
     # -----------------------------------------------------------------
 
+    _BLOCKSCOUT_BASE_URL = os.getenv(
+        "BLOCKSCOUT_API_URL", "http://blockscout-backend:4000"
+    ).rstrip("/")
+
     def _ensure_blockscout_verified(self, address: str) -> None:
         """Check if the contract is already verified in Blockscout.
 
         If not verified, triggers background verification.  This is called
         on every contract recovery from the DB, but the actual verification
-        POST only fires when the contract ABI is missing from Blockscout
+        POST only fires when the ABI is missing from Blockscout
         (e.g., after a Blockscout DB reset).
         """
         def _check_and_verify():
             try:
                 import requests
 
-                explorer_api = os.getenv(
-                    "BLOCKSCOUT_API_URL",
-                    "http://blockscout-backend:4000/api",
+                url = (
+                    f"{self._BLOCKSCOUT_BASE_URL}"
+                    f"/api/v2/smart-contracts/{address}"
                 )
+                resp = requests.get(url, timeout=10)
 
-                resp = requests.get(
-                    explorer_api,
-                    params={
-                        "module": "contract",
-                        "action": "getabi",
-                        "address": address,
-                    },
-                    timeout=10,
-                )
-                result = resp.json()
-
-                if result.get("status") == "1":
-                    logger.info(
-                        f"✅ Contrato ya verificado en Blockscout: {address}"
-                    )
-                    return
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("is_verified"):
+                        logger.info(
+                            f"✅ Contrato ya verificado en Blockscout: "
+                            f"{address}"
+                        )
+                        return
 
                 logger.info(
-                    "🔍 Contrato no verificado en Blockscout — verificando..."
+                    "🔍 Contrato no verificado en Blockscout — "
+                    "verificando..."
                 )
                 self._submit_verification(address)
 
             except Exception as exc:
                 logger.warning(
-                    f"⚠️ No se pudo consultar Blockscout (verificación): {exc}"
+                    f"⚠️ No se pudo consultar Blockscout "
+                    f"(verificación): {exc}"
                 )
 
         thread = threading.Thread(target=_check_and_verify, daemon=True)
@@ -351,7 +350,6 @@ class BesuWeb3Client:
         time to index the deploy transaction.
         """
         def _delayed_verify():
-            # Give Blockscout time to index the deploy transaction.
             time.sleep(5)
             self._submit_verification(address)
 
@@ -359,23 +357,19 @@ class BesuWeb3Client:
         thread.start()
 
     def _submit_verification(self, address: str) -> None:
-        """POST the contract source to Blockscout's verification API.
+        """POST the contract source to Blockscout's V2 verification API.
 
-        Uses the Etherscan-compatible endpoint (``module=contract``,
-        ``action=verifysourcecode``).  Once verified, the explorer
-        automatically decodes transaction inputs, events and exposes
-        Read/Write Contract UIs.
+        Uses the ``/api/v2/smart-contracts/{address}/verification/via/
+        flattened-code`` endpoint, which is the standard in modern
+        Blockscout versions.  Once verified, the explorer automatically
+        decodes transaction inputs, events, and exposes Read/Write
+        Contract UIs.
 
         This is a synchronous helper — callers are responsible for
         running it in a thread if non-blocking behaviour is required.
         """
         try:
             import requests
-
-            explorer_api = os.getenv(
-                "BLOCKSCOUT_API_URL",
-                "http://blockscout-backend:4000/api",
-            )
 
             # Read Solidity source from the same path the deployer uses.
             source_path = "/contracts/CredentialRegistry.sol"
@@ -392,31 +386,39 @@ class BesuWeb3Client:
                 "SOLC_VERSION", "v0.8.0+commit.c7dfd78e"
             )
 
+            url = (
+                f"{self._BLOCKSCOUT_BASE_URL}"
+                f"/api/v2/smart-contracts/{address}"
+                f"/verification/via/flattened-code"
+            )
+
             payload = {
-                "module": "contract",
-                "action": "verifysourcecode",
-                "codeformat": "solidity-single-file",
-                "addressHash": address,
-                "name": "CredentialRegistry",
-                "compilerVersion": compiler_version,
-                "optimization": "false",
-                "optimizationRuns": "200",
-                "contractSourceCode": source_code,
-                "evmVersion": "default",
-                "constructorArguments": "",
+                "compiler_version": compiler_version,
+                "source_code": source_code,
+                "is_optimization_enabled": False,
+                "optimization_runs": 200,
+                "contract_name": "CredentialRegistry",
+                "evm_version": "default",
+                "autodetect_constructor_args": True,
             }
 
-            resp = requests.post(explorer_api, data=payload, timeout=30)
-            result = resp.json()
+            resp = requests.post(url, json=payload, timeout=30)
 
-            if result.get("status") == "1":
-                logger.info(
-                    f"✅ Contrato verificado en Blockscout: {address}"
-                )
+            if resp.status_code == 200:
+                result = resp.json()
+                msg = result.get("message", "")
+                if "started" in msg.lower() or result.get("is_verified"):
+                    logger.info(
+                        f"✅ Contrato verificado en Blockscout: {address}"
+                    )
+                else:
+                    logger.warning(
+                        f"⚠️ Blockscout verificación respuesta: {msg}"
+                    )
             else:
                 logger.warning(
-                    f"⚠️ Blockscout verificación respuesta: "
-                    f"{result.get('message', 'unknown')}"
+                    f"⚠️ Blockscout verificación HTTP {resp.status_code}: "
+                    f"{resp.text[:200]}"
                 )
         except Exception as exc:
             logger.warning(
