@@ -34,18 +34,64 @@ _NETWORK_NAME = "UTN Credential Chain (Hyperledger Besu)"
 _EXPLORER_BASE_URL = os.getenv("BLOCKCHAIN_EXPLORER_URL", "").rstrip("/")
 
 
+def _lookup_revocation_tx_from_events(credential_hash: str) -> Optional[str]:
+    """Query the CredentialRevoked event logs from the smart contract.
+
+    This is the authoritative fallback when ``revocation_txn_id`` is not
+    persisted in the portal DB (e.g. for credentials revoked before the
+    column was introduced).  The blockchain event log is immutable and
+    always available as long as the node is reachable.
+
+    Follows the standard Ethereum pattern of using indexed events for
+    historical state lookups (EIP-165 / ERC-5564).
+    """
+    try:
+        if not besu_client.contract_address or not besu_client.w3:
+            return None
+
+        hash_hex = credential_hash
+        if hash_hex.startswith("0x"):
+            hash_hex = hash_hex[2:]
+        cred_hash_bytes = bytes.fromhex(hash_hex)
+
+        contract = besu_client.w3.eth.contract(
+            address=besu_client.contract_address,
+            abi=besu_client.contract_abi,
+        )
+
+        # Query the CredentialRevoked event filtered by the credential hash.
+        # The hash is an indexed parameter, so this is an efficient lookup.
+        events = contract.events.CredentialRevoked.get_logs(
+            argument_filters={"credentialHash": cred_hash_bytes},
+            fromBlock=0,
+        )
+
+        if events:
+            # Return the most recent revocation TX hash.
+            return events[-1]["transactionHash"].hex()
+
+        return None
+    except Exception as e:
+        logger.warning(
+            "⚠️ Event log lookup failed",
+            credential_hash=credential_hash[:16],
+            error=str(e),
+        )
+        return None
+
+
 def _lookup_txn_id(credential_hash: str) -> tuple[Optional[str], Optional[str]]:
     """Query the portal DB for the persisted transaction hashes.
 
     Returns a tuple ``(effective_txn_id, issuance_txn_id)`` where:
-      - ``effective_txn_id`` is the revocation TX if revoked, otherwise
-        the issuance TX — i.e. the TX that defines the current state.
+      - ``effective_txn_id`` is the TX that defines the **current** state
+        (revocation TX if revoked, issuance TX otherwise).
       - ``issuance_txn_id`` is always the original issuance TX hash.
 
-    This ensures the explorer link always points to the transaction
-    that proves the credential's **current** on-chain state, following
-    the W3C VC Data Model principle that a credential's status must
-    be resolvable to its most recent status entry.
+    Source of truth hierarchy (per W3C VC Status List 2021):
+      1. Portal DB ``revocation_txn_id`` (fastest, persisted at revocation time)
+      2. Blockchain event logs (authoritative fallback, immutable)
+      3. Portal DB ``txn_id`` (fallback for non-revoked or when events are unavailable)
     """
     try:
         from portal.database import PortalSessionLocal
@@ -61,11 +107,28 @@ def _lookup_txn_id(credential_hash: str) -> tuple[Optional[str], Optional[str]]:
             if not row:
                 return None, None
 
-            # If revoked and we have the revocation TX, surface that.
-            if row.revoked and row.revocation_txn_id:
-                return row.revocation_txn_id, row.txn_id
+            issuance_txn = row.txn_id
 
-            return row.txn_id, row.txn_id
+            # If revoked, find the revocation TX.
+            if row.revoked:
+                if row.revocation_txn_id:
+                    # Best case: persisted at revocation time.
+                    return row.revocation_txn_id, issuance_txn
+
+                # Fallback: query blockchain events for pre-migration
+                # revocations.  Also backfill the DB for future lookups.
+                revocation_tx = _lookup_revocation_tx_from_events(
+                    credential_hash
+                )
+                if revocation_tx:
+                    # Backfill the DB so we don't query events next time.
+                    row.revocation_txn_id = revocation_tx
+                    db.commit()
+                    return revocation_tx, issuance_txn
+
+                # No revocation TX found — fall through to issuance TX.
+
+            return issuance_txn, issuance_txn
         finally:
             db.close()
     except Exception as e:
