@@ -16,7 +16,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from blockchain import LedgerClient, get_ledger_client
-from blockchain.repository import BlockchainRepository
 from blockchain.web3_client import besu_client
 from portal import moodle_queries
 from portal.dependencies import get_moodle_db, get_portal_db, require_admin
