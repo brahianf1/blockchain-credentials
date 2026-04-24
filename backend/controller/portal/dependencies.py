@@ -45,3 +45,21 @@ def get_current_user(
         )
 
     return student
+
+
+def require_admin(
+    current_user: PortalStudent = Depends(get_current_user),
+) -> PortalStudent:
+    """Authorize an admin-only operation.
+
+    Relies on the ``role`` field synced from Moodle's ``is_siteadmin()``
+    claim during the JWT authentication flow.  This guard NEVER grants
+    admin access based on static configuration — the identity provider
+    (Moodle) is the single source of truth.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado: se requieren permisos de administrador",
+        )
+    return current_user

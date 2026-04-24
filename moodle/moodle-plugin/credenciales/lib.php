@@ -69,6 +69,7 @@ function block_credenciales_get_portal_url($user) {
         'moodle_user_id' => (int) $user->id,
         'email'          => $user->email,
         'full_name'      => trim($user->firstname . ' ' . $user->lastname),
+        'is_admin'       => is_siteadmin($user->id),
         'iat'            => $now,
         'exp'            => $now + 300, // 5-minute TTL — sufficient for redirect.
     ];

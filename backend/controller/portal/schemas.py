@@ -45,6 +45,7 @@ class StudentInfo(BaseModel):
     email: str
     full_name: str
     has_password: bool
+    role: str = "student"
     created_at: datetime
 
     class Config:

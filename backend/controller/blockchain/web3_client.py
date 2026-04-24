@@ -498,6 +498,87 @@ class BesuWeb3Client:
             traceback.print_exc()
             return None
 
+    # -----------------------------------------------------------------
+    # Credential Revocation
+    # -----------------------------------------------------------------
+
+    async def revoke_credential_hash(
+        self, credential_hash_hex: str
+    ) -> Optional[str]:
+        """Revoke a credential hash on-chain.
+
+        Calls ``revokeCredential(bytes32)`` on the ``CredentialRegistry``
+        contract, transitioning the credential state from ``Valid`` to
+        ``Revoked``.  The smart contract enforces that only the owner
+        (university issuer) can revoke, and that the credential must
+        currently be in ``Valid`` state.
+
+        Args:
+            credential_hash_hex: 64-char hex string (SHA-256 digest).
+
+        Returns:
+            The Ethereum transaction hash on success, ``None`` on failure.
+        """
+        try:
+            if not self.deploy_contract_if_needed():
+                logger.error(
+                    "❌ No se puede revocar: Smart Contract no disponible"
+                )
+                return None
+
+            cred_hash_bytes = bytes.fromhex(credential_hash_hex)
+
+            contract = self.w3.eth.contract(
+                address=self.contract_address, abi=self.contract_abi
+            )
+
+            # Verify the credential is currently Valid before sending the TX.
+            if not contract.functions.isValid(cred_hash_bytes).call():
+                logger.warning(
+                    "⚠️ Credencial no está en estado Valid — "
+                    "no se puede revocar"
+                )
+                return None
+
+            nonce = self.w3.eth.get_transaction_count(
+                self.admin_account.address
+            )
+
+            logger.info(
+                f"🔴 Revocando credencial on-chain: 0x{credential_hash_hex}"
+            )
+            tx = contract.functions.revokeCredential(
+                cred_hash_bytes
+            ).build_transaction(
+                {
+                    "chainId": self.w3.eth.chain_id,
+                    "gasPrice": self.w3.eth.gas_price,
+                    "gas": ANCHOR_GAS_LIMIT,
+                    "from": self.admin_account.address,
+                    "nonce": nonce,
+                }
+            )
+
+            signed_tx = self.w3.eth.account.sign_transaction(
+                tx, private_key=BESU_DEV_PRIVATE_KEY
+            )
+            tx_hash_bytes = self.w3.eth.send_raw_transaction(
+                signed_tx.raw_transaction
+            )
+            tx_hash = self.w3.to_hex(tx_hash_bytes)
+
+            logger.info(
+                f"🔴 Credencial revocada on-chain — TX: {tx_hash}"
+            )
+            return tx_hash
+
+        except Exception as e:
+            logger.error(f"❌ Error al revocar credencial on-chain: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return None
+
 
 # Singleton instance — shared across the application lifecycle.
 besu_client = BesuWeb3Client()

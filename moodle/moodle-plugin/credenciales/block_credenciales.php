@@ -27,9 +27,11 @@ class block_credenciales extends block_base {
                 $message = get_string('dashboard_no_credentials', 'block_credenciales');
             }
             $data = [
-                'has_credential' => false, // Set false to reuse empty state template for message
+                'has_credential' => false,
                 'message' => $message,
-                'dashboard_url' => new moodle_url('/blocks/credenciales/my_certificates.php')
+                'dashboard_url' => new moodle_url('/blocks/credenciales/my_certificates.php'),
+                'portal_url' => block_credenciales_get_portal_url($USER),
+                'is_admin' => is_siteadmin(),
             ];
             $this->content->text = $PAGE->get_renderer('block_credenciales')->render_credential_status($data);
             return $this->content;
@@ -61,6 +63,7 @@ class block_credenciales extends block_base {
                 'is_modal' => ($view_mode === 'modal'),
                 'dashboard_url' => new moodle_url('/blocks/credenciales/my_certificates.php'),
                 'portal_url' => block_credenciales_get_portal_url($USER),
+                'is_admin' => is_siteadmin(),
             ];
             
             // Renderizar plantilla principal
@@ -78,7 +81,9 @@ class block_credenciales extends block_base {
             $data = [
                 'has_credential' => false,
                 'message' => get_string('complete_course_message', 'block_credenciales'),
-                'dashboard_url' => new moodle_url('/blocks/credenciales/my_certificates.php')
+                'dashboard_url' => new moodle_url('/blocks/credenciales/my_certificates.php'),
+                'portal_url' => block_credenciales_get_portal_url($USER),
+                'is_admin' => is_siteadmin(),
             ];
             $this->content->text = $renderer->render_credential_status($data);
         }
