@@ -245,6 +245,11 @@ class BesuLedgerClient(LedgerClient):
                 credential_hash
             )
 
+            # Postel's Law: Normalize the TX ID from the DB. Legacy rows might
+            # lack the '0x' prefix, but explorers strictly require it.
+            if effective_txn_id and not effective_txn_id.startswith("0x"):
+                effective_txn_id = f"0x{effective_txn_id}"
+
             # Build explorer URL: link to the state-defining transaction
             # so the viewer always sees proof of the current state.
             explorer_url = None
