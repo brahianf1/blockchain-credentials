@@ -34,10 +34,18 @@ _NETWORK_NAME = "UTN Credential Chain (Hyperledger Besu)"
 _EXPLORER_BASE_URL = os.getenv("BLOCKCHAIN_EXPLORER_URL", "").rstrip("/")
 
 
-def _lookup_txn_id(credential_hash: str) -> Optional[str]:
-    """Query the portal DB for the persisted transaction hash.
+def _lookup_txn_id(credential_hash: str) -> tuple[Optional[str], Optional[str]]:
+    """Query the portal DB for the persisted transaction hashes.
 
-    Returns the ``txn_id`` (``0x...``) if found, ``None`` otherwise.
+    Returns a tuple ``(effective_txn_id, issuance_txn_id)`` where:
+      - ``effective_txn_id`` is the revocation TX if revoked, otherwise
+        the issuance TX — i.e. the TX that defines the current state.
+      - ``issuance_txn_id`` is always the original issuance TX hash.
+
+    This ensures the explorer link always points to the transaction
+    that proves the credential's **current** on-chain state, following
+    the W3C VC Data Model principle that a credential's status must
+    be resolvable to its most recent status entry.
     """
     try:
         from portal.database import PortalSessionLocal
@@ -50,7 +58,14 @@ def _lookup_txn_id(credential_hash: str) -> Optional[str]:
                 .filter(CredentialAnchorModel.credential_hash == credential_hash)
                 .first()
             )
-            return row.txn_id if row else None
+            if not row:
+                return None, None
+
+            # If revoked and we have the revocation TX, surface that.
+            if row.revoked and row.revocation_txn_id:
+                return row.revocation_txn_id, row.txn_id
+
+            return row.txn_id, row.txn_id
         finally:
             db.close()
     except Exception as e:
@@ -59,7 +74,7 @@ def _lookup_txn_id(credential_hash: str) -> Optional[str]:
             credential_hash=credential_hash[:16],
             error=str(e),
         )
-        return None
+        return None, None
 
 
 class BesuLedgerClient(LedgerClient):
@@ -142,15 +157,18 @@ class BesuLedgerClient(LedgerClient):
                 return None
 
             # Resolve the transaction hash from the portal DB.
-            txn_id = _lookup_txn_id(credential_hash)
+            # effective_txn_id is the state-defining TX (revocation if
+            # revoked, issuance otherwise).
+            effective_txn_id, _issuance_txn_id = _lookup_txn_id(
+                credential_hash
+            )
 
-            # Build explorer URL: prefer /tx/<hash> for a direct link to the
-            # exact transaction; fall back to /address/<contract> if txn_id
-            # is not available yet.
+            # Build explorer URL: link to the state-defining transaction
+            # so the viewer always sees proof of the current state.
             explorer_url = None
             if _EXPLORER_BASE_URL:
-                if txn_id:
-                    explorer_url = f"{_EXPLORER_BASE_URL}/tx/{txn_id}"
+                if effective_txn_id:
+                    explorer_url = f"{_EXPLORER_BASE_URL}/tx/{effective_txn_id}"
                 elif besu_client.contract_address:
                     explorer_url = (
                         f"{_EXPLORER_BASE_URL}/address"
@@ -181,7 +199,7 @@ class BesuLedgerClient(LedgerClient):
                 status=anchor_status,
                 network=_NETWORK_NAME,
                 issuer_did=issuer_did,
-                txn_id=txn_id,
+                txn_id=effective_txn_id,
                 explorer_url=explorer_url,
                 ledger_timestamp=ledger_ts,
             )

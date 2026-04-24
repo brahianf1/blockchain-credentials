@@ -83,6 +83,7 @@ class CredentialAnchor(Base):
     revoked = Column(Boolean, default=False, nullable=False, index=True)
     revoked_at = Column(DateTime(timezone=True), nullable=True)
     revoked_reason = Column(String(256), nullable=True)
+    revocation_txn_id = Column(String(128), nullable=True)
     anchored_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

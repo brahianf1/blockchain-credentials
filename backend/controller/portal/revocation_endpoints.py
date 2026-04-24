@@ -199,11 +199,12 @@ async def revoke_credential(
             "La credencial puede no estar anclada on-chain.",
         )
 
-    # 3. Mark revoked in portal DB.
+    # 3. Mark revoked in portal DB and persist the revocation TX hash.
     revoked_at = datetime.now(tz=timezone.utc)
     anchor.revoked = True
     anchor.revoked_at = revoked_at
     anchor.revoked_reason = body.reason
+    anchor.revocation_txn_id = tx_hash
     portal_db.commit()
 
     logger.info(
