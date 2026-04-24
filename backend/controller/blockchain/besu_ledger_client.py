@@ -63,7 +63,7 @@ def _lookup_revocation_tx_from_events(credential_hash: str) -> Optional[str]:
         # The hash is an indexed parameter, so this is an efficient lookup.
         events = contract.events.CredentialRevoked.get_logs(
             argument_filters={"credentialHash": cred_hash_bytes},
-            fromBlock=0,
+            from_block=0,
         )
 
         if events:
