@@ -90,6 +90,12 @@ async def verify_public(
     - Private credentials: hash confirmed as valid + blockchain evidence,
       but student name and personal data are withheld.
     """
+    # Postel's Law (Robustness Principle): Be liberal in what you accept.
+    # If the user copied the hash from the Blockscout explorer, it will
+    # have a "0x" prefix and might contain uppercase letters. We normalize
+    # it to match our internal lowercase representation.
+    credential_hash = credential_hash.lower().removeprefix("0x")
+
     rows = moodle_queries.get_all_credential_hashes(moodle_db)
 
     for row in rows:

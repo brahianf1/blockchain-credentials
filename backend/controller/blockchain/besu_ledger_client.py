@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import structlog
+from web3 import Web3
 
 from blockchain.base import (
     AnchorStatus,
@@ -85,8 +86,8 @@ def _lookup_revocation_tx_from_events(credential_hash: str, issuance_txn_id: Opt
             )
 
             if events:
-                # Return the most recent revocation TX hash in this chunk.
-                return events[-1]["transactionHash"].hex()
+                # Return the most recent revocation TX hash using standard Web3 utils
+                return Web3.to_hex(events[-1]["transactionHash"])
 
         return None
     except Exception as e:
