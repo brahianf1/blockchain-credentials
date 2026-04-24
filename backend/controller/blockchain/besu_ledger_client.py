@@ -34,7 +34,7 @@ _NETWORK_NAME = "UTN Credential Chain (Hyperledger Besu)"
 _EXPLORER_BASE_URL = os.getenv("BLOCKCHAIN_EXPLORER_URL", "").rstrip("/")
 
 
-def _lookup_revocation_tx_from_events(credential_hash: str) -> Optional[str]:
+def _lookup_revocation_tx_from_events(credential_hash: str, issuance_txn_id: Optional[str] = None) -> Optional[str]:
     """Query the CredentialRevoked event logs from the smart contract.
 
     This is the authoritative fallback when ``revocation_txn_id`` is not
@@ -44,6 +44,7 @@ def _lookup_revocation_tx_from_events(credential_hash: str) -> Optional[str]:
 
     Follows the standard Ethereum pattern of using indexed events for
     historical state lookups (EIP-165 / ERC-5564).
+    Handles RPC maximum range limits by chunking the requests backwards.
     """
     try:
         if not besu_client.contract_address or not besu_client.w3:
@@ -59,16 +60,33 @@ def _lookup_revocation_tx_from_events(credential_hash: str) -> Optional[str]:
             abi=besu_client.contract_abi,
         )
 
-        # Query the CredentialRevoked event filtered by the credential hash.
-        # The hash is an indexed parameter, so this is an efficient lookup.
-        events = contract.events.CredentialRevoked.get_logs(
-            argument_filters={"credentialHash": cred_hash_bytes},
-            from_block=0,
-        )
+        current_block = besu_client.w3.eth.block_number
+        start_block = 0
 
-        if events:
-            # Return the most recent revocation TX hash.
-            return events[-1]["transactionHash"].hex()
+        # Optimization: Don't search before the credential was issued.
+        if issuance_txn_id:
+            try:
+                receipt = besu_client.w3.eth.get_transaction_receipt(issuance_txn_id)
+                if receipt and "blockNumber" in receipt:
+                    start_block = receipt["blockNumber"]
+            except Exception:
+                pass
+
+        CHUNK_SIZE = 5000
+
+        # Search backwards so we find the most recent revocation quickly.
+        for to_b in range(current_block, start_block - 1, -CHUNK_SIZE):
+            from_b = max(start_block, to_b - CHUNK_SIZE + 1)
+            
+            events = contract.events.CredentialRevoked.get_logs(
+                argument_filters={"credentialHash": cred_hash_bytes},
+                from_block=from_b,
+                to_block=to_b,
+            )
+
+            if events:
+                # Return the most recent revocation TX hash in this chunk.
+                return events[-1]["transactionHash"].hex()
 
         return None
     except Exception as e:
@@ -118,7 +136,7 @@ def _lookup_txn_id(credential_hash: str) -> tuple[Optional[str], Optional[str]]:
                 # Fallback: query blockchain events for pre-migration
                 # revocations.  Also backfill the DB for future lookups.
                 revocation_tx = _lookup_revocation_tx_from_events(
-                    credential_hash
+                    credential_hash, issuance_txn
                 )
                 if revocation_tx:
                     # Backfill the DB so we don't query events next time.
