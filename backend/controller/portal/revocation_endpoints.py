@@ -170,8 +170,6 @@ async def revoke_credential(
         3. Mark the anchor as revoked in the portal database.
         4. Return the revocation confirmation with TX hash.
     """
-    repo = BlockchainRepository()
-
     # 1. Look up the anchor in the portal DB.
     anchor = (
         portal_db.query(CredentialAnchor)
