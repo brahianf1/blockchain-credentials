@@ -18,11 +18,11 @@ import structlog
 from web3 import Web3
 
 from blockchain.base import (
-    AnchorStatus,
     CredentialAnchor,
     LedgerClient,
     LedgerHealth,
     LedgerStatus,
+    state_to_anchor_status,
 )
 from blockchain.web3_client import besu_client
 
@@ -234,8 +234,11 @@ class BesuLedgerClient(LedgerClient):
             state = entry[0]       # CredentialState enum: 0=NotIssued, 1=Valid, 2=Revoked
             timestamp = entry[1]   # uint256 — block.timestamp at issuance/revocation
 
-            # State 0 = NotIssued → credential not found on-chain.
-            if state == 0:
+            # Core verification rule (pure, see blockchain.base).
+            anchor_status = state_to_anchor_status(state)
+
+            # NotIssued → credential not found on-chain.
+            if anchor_status is None:
                 return None
 
             # Resolve the transaction hash from the portal DB.
@@ -266,14 +269,6 @@ class BesuLedgerClient(LedgerClient):
             issuer_did = None
             if besu_client.admin_account:
                 issuer_did = f"did:ethr:{besu_client.admin_account.address}"
-
-            # Map Solidity enum to domain AnchorStatus.
-            if state == 1:
-                anchor_status = AnchorStatus.ANCHORED
-            elif state == 2:
-                anchor_status = AnchorStatus.REVOKED
-            else:
-                anchor_status = AnchorStatus.UNAVAILABLE
 
             # Format the ledger timestamp as ISO 8601.
             ledger_ts = None

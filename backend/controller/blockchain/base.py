@@ -38,6 +38,34 @@ class AnchorStatus(str, Enum):
     UNAVAILABLE = "unavailable"
 
 
+# Solidity ``CredentialState`` enum from CredentialRegistry.sol.
+_STATE_NOT_ISSUED = 0
+_STATE_VALID = 1
+_STATE_REVOKED = 2
+
+
+def state_to_anchor_status(state: int) -> Optional[AnchorStatus]:
+    """Map the on-chain ``CredentialState`` to a domain :class:`AnchorStatus`.
+
+    This is the core verification rule of the system: it decides whether a
+    credential is valid, revoked or simply not present on the ledger. It is
+    kept as a pure function (no I/O) so the rule can be tested in isolation,
+    independently of the Web3/database plumbing that reads the state.
+
+        0 (NotIssued) -> None         # credential not found on-chain
+        1 (Valid)     -> ANCHORED
+        2 (Revoked)   -> REVOKED
+        other         -> UNAVAILABLE  # defensive: unexpected on-chain state
+    """
+    if state == _STATE_NOT_ISSUED:
+        return None
+    if state == _STATE_VALID:
+        return AnchorStatus.ANCHORED
+    if state == _STATE_REVOKED:
+        return AnchorStatus.REVOKED
+    return AnchorStatus.UNAVAILABLE
+
+
 @dataclass(frozen=True)
 class LedgerStatus:
     """Operational snapshot of the ledger.

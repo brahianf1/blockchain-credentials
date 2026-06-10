@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Configuracion minima de PHPUnit para correr las pruebas unitarias puras
+  del plugin SIN un entorno Moodle.
+
+  Uso (ver tests/README.md para el detalle):
+      phpunit -c tests/phpunit.xml
+-->
+<phpunit colors="true" cacheDirectory=".phpunit.cache">
+  <testsuites>
+    <testsuite name="block_credenciales-unit">
+      <file>lib_test.php</file>
+    </testsuite>
+  </testsuites>
+</phpunit>
