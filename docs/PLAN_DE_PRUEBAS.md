@@ -1,7 +1,7 @@
 # Pruebas del proyecto — Microcredenciales Blockchain (UTN)
 
-> Documento de pruebas: detalla la batería de pruebas automatizadas implementada
-> en el proyecto y cómo ejecutarla.
+> Documento de pruebas: detalla la batería de pruebas automatizadas —**unitarias y de
+> integración**— implementada en el proyecto y cómo ejecutarla.
 
 ---
 
@@ -15,21 +15,37 @@ tres piezas que se comunican entre sí:
 - **Plugin de Moodle** (PHP) — dispara la emisión cuando un alumno termina un curso.
 - **Portal del alumno** (React / JavaScript) — el alumno ve y comparte sus credenciales.
 
-Se implementó una **batería de pruebas unitarias automatizadas** sobre las tres piezas:
+Se implementó una **batería de pruebas automatizadas —unitarias y de integración—** sobre las
+tres piezas:
 
-| Pieza | Lenguaje | Herramienta | Pruebas |
+| Pieza | Tipo | Herramienta | Pruebas |
 | --- | --- | --- | --- |
-| Backend | Python | pytest | 66 |
-| Portal | JavaScript | Vitest | 22 |
-| Plugin de Moodle | PHP | PHPUnit | 15 |
-| **Total** | | | **103** |
+| Backend (Python) | Unitarias (lógica de negocio) | pytest | 66 |
+| Backend (Python) | Integración de la API | pytest + TestClient | 26 |
+| Portal (JavaScript) | Unitarias | Vitest | 22 |
+| Plugin de Moodle (PHP) | Unitarias | PHPUnit | 15 |
+| **Total** | | | **129** |
+
+**Cómo se cubre el requisito del proyecto:**
+
+| Lo pedido | Dónde se cubre |
+| --- | --- |
+| Pruebas unitarias de la lógica de negocio | Backend unitarias (§3.1), Portal (§3.2), Plugin (§3.3) |
+| Pruebas de integración de la API, simulando peticiones del frontend | Backend integración (§3.4) |
+| Validar la **robustez del backend** | §3.4 — respuestas correctas: 200 / 401 / 403 / 404 / 409 / 422 |
+| Validar la **seguridad de la API** | §3.4 — autenticación, autorización por rol y privacidad |
+| Validar la **comunicación con la red blockchain** | §3.4 — la API expone fielmente el estado del ledger (simulado) |
 
 ```
-  BACKEND  (Python, pytest) -- 66
-    Reglas de negocio:  hash de credencial, estado valida/revocada/no emitida,
-                        ciclo de vida de la credencial, validaciones y contrasena.
-    Protocolo / infra:  DID (jwk/key), seguridad PKCE (OAuth), formato y
-                        metadata OpenID4VCI, generacion de QR.
+  BACKEND  (Python, pytest) -- 92
+    Unitarias (66):
+      Reglas de negocio:  hash, estado valida/revocada/no emitida, ciclo de
+                          vida, validaciones y contrasena.
+      Protocolo / infra:  DID (jwk/key), PKCE (OAuth), formato y metadata
+                          OpenID4VCI, generacion de QR.
+    Integracion de la API (26):
+      Seguridad (auth / roles / privacidad), robustez (200..422) y
+      comunicacion con la blockchain (ledger simulado).
 
   PORTAL  (JavaScript, Vitest) -- 22
     Estados visuales de la credencial y cliente de API
@@ -42,11 +58,16 @@ Se implementó una **batería de pruebas unitarias automatizadas** sobre las tre
 
 ---
 
-## 2. Qué son las pruebas unitarias
+## 2. Tipos de prueba implementadas
 
 Una **prueba unitaria** verifica una sola función de forma aislada: le entrega una entrada
 conocida y comprueba que devuelve la salida esperada. Son rápidas, simples y forman la base de
-cualquier estrategia de pruebas. Toda esta batería es de ese tipo.
+cualquier estrategia de pruebas.
+
+Una **prueba de integración** ejercita varias piezas trabajando juntas a través de un endpoint
+real: simula una petición del frontend con `TestClient`, reemplaza la base de datos y la
+blockchain por dobles de prueba, y verifica la respuesta completa de la API (código de estado,
+cuerpo y efectos). No requiere levantar Postgres ni un nodo Besu.
 
 ---
 
@@ -100,6 +121,22 @@ Cubre dos grupos de funciones, ambos sin levantar un entorno Moodle:
   secreto incluya el token, que el contenido del token sea el correcto, que refleje si el usuario
   es administrador y que arme bien el separador de la URL.
 
+### 3.4 Backend — Pruebas de integración de la API · 26 pruebas
+
+Archivo: `backend/controller/tests/test_api_integration.py`
+
+Estas pruebas levantan la API con `TestClient` y **simulan las mismas peticiones que hace el
+frontend** a los endpoints reales (`/api/portal/...`, `/api/public/...`, `/api/admin/...`). Para
+correr sin infraestructura, la base del portal es **SQLite en memoria**, la base de Moodle se
+reemplaza por datos de prueba y la blockchain por un **ledger simulado** (no se necesita Postgres
+ni un nodo Besu). Cubren los tres objetivos del requisito:
+
+| Objetivo | Qué se verifica |
+| --- | --- |
+| **Seguridad de la API** | Endpoints protegidos rechazan peticiones sin token o con token inválido (401); endpoints de administración rechazan a un usuario no admin (403); login con contraseña incorrecta o cuenta sin contraseña (401); token de Moodle inválido (401); y la **privacidad**: una credencial privada se verifica como válida pero **sin** datos personales, una pública sí los muestra. |
+| **Robustez del backend** | Respuestas correctas a entradas válidas e inválidas: login correcto (200 + token), alta/actualización por Moodle sin duplicar, listado y detalle de credenciales, credencial inexistente (404), hash desconocido (válido = false), contraseña débil (422), cambio de visibilidad, estadísticas, y revocación de hash inexistente (404) o ya revocada (409). |
+| **Comunicación con la blockchain** | Con un ledger simulado, la API expone fielmente su estado: la verificación devuelve `anchored` / `revoked` según el ledger, la verificación pública adjunta la evidencia on-chain (con enlace al explorador), el registro público refleja la red, y la revocación marca la credencial y devuelve el hash de transacción. |
+
 ---
 
 ## 4. Prueba destacada: consistencia de hash Moodle ↔ Backend
@@ -124,7 +161,10 @@ dos piezas que garantiza que la verificación en la blockchain siempre funcione.
 
 Requisitos: **Python 3.12+**, **Node.js 18+** y **PHP 8.2+**. Cada suite se ejecuta por separado.
 
-### Backend — Python (66 pruebas)
+### Backend — Python (92 pruebas: 66 unitarias + 26 de integración)
+
+Las unitarias y las de integración corren juntas con el mismo comando. Las de integración
+**no requieren** Postgres ni un nodo Besu (usan SQLite en memoria y un ledger simulado).
 
 ```bash
 cd backend/controller
@@ -166,10 +206,11 @@ OK (15 tests, 34 assertions)
 
 | Pieza | Herramienta | Pruebas | Estado |
 | --- | --- | --- | --- |
-| Backend | pytest | 66 | Pasan |
+| Backend — unitarias | pytest | 66 | Pasan |
+| Backend — integración API | pytest + TestClient | 26 | Pasan |
 | Portal | Vitest | 22 | Pasan |
 | Plugin de Moodle | PHPUnit | 15 | Pasan |
-| **Total** | | **103** | |
+| **Total** | | **129** | |
 
 ---
 
