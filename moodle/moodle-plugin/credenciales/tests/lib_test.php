@@ -26,8 +26,10 @@ if (!defined('MOODLE_INTERNAL')) {
     define('MOODLE_INTERNAL', true);
 }
 require_once __DIR__ . '/../lib.php';
+require_once __DIR__ . '/../classes/observer/credenciales_observer.php';
 
 use PHPUnit\Framework\TestCase;
+use block_credenciales\observer\credenciales_observer;
 
 // ---------------------------------------------------------------------------
 // STUBS de funciones de Moodle (no se carga Moodle en estas pruebas).
@@ -264,5 +266,72 @@ class block_credenciales_lib_test extends TestCase {
         $expected = '21699325024681d74af166b9776b8fc185038f9fea318902b370a547a30acdfe';
         $hash = hash('sha256', '100' . '25' . '2025-12-01T09:30:00+00:00' . '9.5');
         $this->assertSame($expected, $hash);
+    }
+
+    // -- Activacion del plugin: construccion del payload (course_completed) ----
+
+    private function sample_user_course() {
+        return [
+            (object) ['id' => 42, 'email' => 'ada@utn.edu'],
+            (object) ['id' => 7, 'fullname' => 'Curso de Blockchain'],
+        ];
+    }
+
+    public function test_build_payload_tiene_las_claves_correctas() {
+        list($user, $course) = $this->sample_user_course();
+        $payload = credenciales_observer::build_payload(
+            $user, $course, 'Ada Lovelace', 'Aprobado', 1749556800
+        );
+
+        $this->assertSame('42', $payload['student_id']);
+        $this->assertSame('7', $payload['course_id']);
+        $this->assertSame('Ada Lovelace', $payload['student_name']);
+        $this->assertSame('ada@utn.edu', $payload['student_email']);
+        $this->assertSame('Curso de Blockchain', $payload['course_name']);
+        $this->assertSame('Aprobado', $payload['grade']);
+    }
+
+    public function test_build_payload_ids_son_string() {
+        list($user, $course) = $this->sample_user_course();
+        $payload = credenciales_observer::build_payload($user, $course, 'X', '9.5', 1700000000);
+        $this->assertIsString($payload['student_id']);
+        $this->assertIsString($payload['course_id']);
+    }
+
+    /**
+     * La fecha de finalizacion DEBE ir en UTC (gmdate 'c'), porque es la que
+     * alimenta el hash de la credencial y tiene que coincidir con el backend.
+     */
+    public function test_build_payload_completion_date_es_utc() {
+        list($user, $course) = $this->sample_user_course();
+        $ts = 1749556800;
+        $payload = credenciales_observer::build_payload($user, $course, 'Ada', 'Aprobado', $ts);
+
+        $this->assertStringEndsWith('+00:00', $payload['completion_date']);
+        $this->assertSame(gmdate('c', $ts), $payload['completion_date']);
+    }
+
+    /**
+     * CONTRATO EXTREMO A EXTREMO: el payload que arma el plugin al completarse
+     * un curso debe producir EXACTAMENTE el mismo hash que el backend (Python)
+     * para los mismos datos. Reusa el vector conocido de
+     * backend/controller/tests/test_hashing.py.
+     */
+    public function test_build_payload_produce_el_hash_del_backend() {
+        list($user, $course) = $this->sample_user_course();
+        $ts = strtotime('2026-06-10T12:00:00+00:00');
+
+        $payload = credenciales_observer::build_payload($user, $course, 'Ada', 'Aprobado', $ts);
+
+        $hash = hash(
+            'sha256',
+            $payload['student_id'] . $payload['course_id'] .
+            $payload['completion_date'] . $payload['grade']
+        );
+
+        $this->assertSame(
+            'f05c5a74f693c09731b130a39dcbeec9904a1e2ea366b8a5a61176596403dbea',
+            $hash
+        );
     }
 }

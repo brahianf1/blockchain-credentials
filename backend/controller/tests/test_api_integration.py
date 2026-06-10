@@ -440,3 +440,31 @@ def test_revoke_ok_marca_revocada_y_devuelve_tx(client, db_session, monkeypatch)
         .first()
     )
     assert anchor.revoked is True
+
+
+def test_revoke_falla_si_la_blockchain_no_responde_devuelve_502(client, db_session, monkeypatch):
+    """Gestión de errores en la comunicación con la blockchain: si el nodo no
+    devuelve transacción, la API responde 502 y NO marca la credencial revocada."""
+    admin = make_student(db_session, role="admin")
+    h = "e" * 64
+    db_session.add(CredentialAnchorModel(credential_hash=h, revoked=False))
+    db_session.commit()
+
+    async def fake_revoke_sin_respuesta(_hash):
+        return None  # la blockchain no responde / no ancló la credencial
+
+    monkeypatch.setattr(besu_client, "revoke_credential_hash", fake_revoke_sin_respuesta)
+
+    r = client.post(
+        "/api/admin/credentials/revoke",
+        headers=auth_headers(admin),
+        json={"credential_hash": h, "reason": "fraude comprobado"},
+    )
+    assert r.status_code == 502
+
+    anchor = (
+        db_session.query(CredentialAnchorModel)
+        .filter(CredentialAnchorModel.credential_hash == h)
+        .first()
+    )
+    assert anchor.revoked is False  # no se revoca si falló el on-chain

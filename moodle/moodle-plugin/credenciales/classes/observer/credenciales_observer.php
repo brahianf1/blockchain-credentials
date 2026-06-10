@@ -6,6 +6,38 @@ use block_credenciales\logger;
 defined('MOODLE_INTERNAL') || die();
 
 class credenciales_observer {
+
+    /**
+     * Construye el payload que se envía al backend cuando se completa un curso.
+     *
+     * Se mantiene como helper PURO (sin globals de Moodle) para poder probar en
+     * aislamiento el contrato de datos — en especial la fecha en UTC, que es la
+     * que alimenta el hash de la credencial y debe coincidir con el backend.
+     *
+     * @param object $user            Usuario de Moodle (id, email).
+     * @param object $course          Curso de Moodle (id, fullname).
+     * @param string $full_name       Nombre completo del alumno (resuelto con fullname()).
+     * @param string $grade           Calificación final o "Aprobado".
+     * @param int    $timecreated     Timestamp del evento (Unix) = fecha de finalización.
+     * @param string $instructor_name Etiqueta del instructor.
+     * @return array Payload en snake_case para la API del backend.
+     */
+    public static function build_payload($user, $course, $full_name, $grade, $timecreated, $instructor_name = "Instructor del Curso") {
+        return array(
+            'student_id' => (string)$user->id,
+            'student_name' => $full_name,
+            'student_email' => $user->email,
+            'course_id' => (string)$course->id,
+            'course_name' => $course->fullname,
+            // gmdate() fuerza UTC (+00:00) sin importar la zona horaria del sitio
+            // Moodle. El backend también normaliza a UTC, así ambos lados alimentan
+            // compute_credential_hash() con la misma cadena ISO-8601 -> mismo SHA-256.
+            'completion_date' => gmdate('c', $timecreated),
+            'grade' => $grade,
+            'instructor_name' => $instructor_name,
+        );
+    }
+
     public static function course_completed(\core\event\course_completed $event) {
         global $DB;
 
@@ -30,20 +62,9 @@ class credenciales_observer {
             $grade = number_format($grade_rec->finalgrade, 1);
         }
 
-        // Preparar los datos para enviar al backend (Formato Moderno Snake Case)
-        $data = array(
-            'student_id' => (string)$user->id,
-            'student_name' => fullname($user),
-            'student_email' => $user->email,
-            'course_id' => (string)$course->id,
-            'course_name' => $course->fullname,
-            // gmdate() forces UTC (+00:00) regardless of Moodle's site
-            // timezone.  The portal's Python code also normalises to UTC,
-            // so both sides feed compute_credential_hash() an identical
-            // ISO-8601 string → identical SHA-256 → on-chain match.
-            'completion_date' => gmdate('c', $event->timecreated),
-            'grade' => $grade,
-            'instructor_name' => "Instructor del Curso" // Por defecto
+        // Preparar los datos para enviar al backend (Formato Moderno Snake Case).
+        $data = self::build_payload(
+            $user, $course, fullname($user), $grade, $event->timecreated
         );
 
         logger::info("Preparando envío de credencial (Modern API)", $data);
