@@ -27,26 +27,52 @@ El proyecto se divide en **dos ambientes** (un *paper* por cada uno):
 | | **Frontend — subtotal** | | **58** |
 | | **Total** | | **159** |
 
-```
-  +===========================+    +===================================+
-  |  AMBIENTE BACKEND         |    |  AMBIENTE FRONTEND                 |
-  |  Python -- 101            |    |  (plugin + portal) -- 58           |
-  |                           |    |                                    |
-  |  Unitarias (66):          |    |  PLUGIN MOODLE (PHP) -- 19         |
-  |   logica de negocio       |    |   base64url, JWT, URL de ingreso, |
-  |   (hash, estado, ciclo    |    |   consistencia de hash, y         |
-  |    de vida, validaciones) |    |   activacion (course_completed)   |
-  |   + protocolo/infra       |    |                                    |
-  |   (DID, PKCE, OpenID4VCI,  |    |  PORTAL (JavaScript) -- 39        |
-  |    QR)                     |    |   unitarias (estados, cliente API)|
-  |                           |    |   + de componente (pagina de      |
-  |  Integracion API (35):    |    |   verificacion, guard de rutas,   |
-  |   portal API + flujo      |    |   contexto de auth, tarjeta)      |
-  |   OpenID4VCI + blockchain |    |                                    |
-  +===========================+    +===================================+
-            \                                      /
-             \____ contrato compartido: hash _____/
-                   (mismo SHA-256 en ambos)
+```mermaid
+%%{init: {'theme': 'dark'}}%%
+flowchart TD
+    %% Clases de estilo Dark Mode
+    classDef backendTitle fill:#0c4a6e,stroke:#38bdf8,stroke-width:2px,color:#e0f2fe,font-weight:bold;
+    classDef pluginTitle fill:#4c1d95,stroke:#c084fc,stroke-width:2px,color:#f3e8ff,font-weight:bold;
+    classDef portalTitle fill:#713f12,stroke:#facc15,stroke-width:2px,color:#fef9c3,font-weight:bold;
+    classDef details fill:#0f172a,stroke:#334155,stroke-width:1px,color:#cbd5e1;
+    classDef contract fill:#064e3b,stroke:#34d399,stroke-width:3px,color:#ecfdf5,font-weight:bold;
+
+    %% AMBIENTE BACKEND
+    subgraph BACKEND ["AMBIENTE BACKEND (Python) • 101 Pruebas"]
+        direction TB
+        B_Unit("Unitarias (66)"):::backendTitle
+        B_Int("Integración API (35)"):::backendTitle
+        
+        B_Unit_Det["Lógica de negocio:<br/>hash, estado, ciclo de vida, validaciones<br/><br/>Protocolo / Infraestructura:<br/>DID, PKCE, OpenID4VCI, QR"]:::details
+        B_Int_Det["Endpoints Portal API<br/>Flujo OpenID4VCI<br/>Conexión Blockchain (Simulada)"]:::details
+
+        B_Unit -.- B_Unit_Det
+        B_Int -.- B_Int_Det
+    end
+
+    %% AMBIENTE FRONTEND
+    subgraph FRONTEND ["AMBIENTE FRONTEND • 58 Pruebas"]
+        direction TB
+        F_Plugin("Plugin Moodle (PHP) • 19"):::pluginTitle
+        F_Portal("Portal Alumno (JS/React) • 39"):::portalTitle
+
+        F_Plugin_Det["Generación de JWT, base64url,<br/>activación (course_completed),<br/>consistencia de hash"]:::details
+        F_Portal_Det["Unitarias: estados, cliente API<br/><br/>Componentes UI: página verificación,<br/>guards, contexto auth, tarjetas"]:::details
+
+        F_Plugin -.- F_Plugin_Det
+        F_Portal -.- F_Portal_Det
+    end
+
+    %% CONTRATO COMPARTIDO
+    Contrato{{"CONTRATO COMPARTIDO<br/>Mismo Hash (SHA-256) en ambos entornos<br/>Garantiza la verificación On-Chain"}}:::contract
+
+    %% Conexiones de integración
+    BACKEND === Contrato
+    FRONTEND === Contrato
+
+    %% Estilos de los contenedores Dark Mode
+    style BACKEND fill:#1e293b,stroke:#475569,stroke-width:2px,stroke-dasharray: 5 5,color:#f8fafc,rx:10
+    style FRONTEND fill:#1e293b,stroke:#475569,stroke-width:2px,stroke-dasharray: 5 5,color:#f8fafc,rx:10
 ```
 
 ---
