@@ -220,10 +220,23 @@ Requisitos: **Python 3.12+**, **Node.js 18+** y **PHP 8.2+**.
 
 Unitarias e integración corren juntas; **no requieren** Postgres, Besu ni una wallet.
 
+**Ejecución estándar en consola:**
 ```bash
 cd backend/controller
 pip install -r requirements.txt -r requirements-dev.txt
 pytest
+```
+
+**Generar reporte visual HTML (Dashboard en Modo Oscuro):**
+Ejecuta la suite de pruebas y genera un reporte web interactivo independiente, útil para ver en detalle qué tests pasaron y cuáles fallaron.
+```bash
+pytest --html=reporte_tests.html --css=dark-theme.css --self-contained-html
+```
+
+**Generar reporte visual de Cobertura (Coverage HTML):**
+Evalúa qué porcentaje exacto del código fuente de la aplicación fue ejecutado por los tests y crea un sitio web navegable en la carpeta `htmlcov/`.
+```bash
+pytest --cov=. --cov-report=html
 ```
 
 ### Ambiente Frontend — Plugin de Moodle (PHP, 19 pruebas)

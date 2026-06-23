@@ -42,3 +42,8 @@ backend/notas.md
 
 # Proyecto frontend anidado pero independiente
 microcredenciales-frontend/
+
+# Reportes de tests y cobertura (se regeneran con pytest)
+backend/controller/reporte_tests.html
+backend/controller/htmlcov/
+backend/controller/.coverage

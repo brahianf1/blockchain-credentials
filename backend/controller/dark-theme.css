@@ -1,0 +1,73 @@
+body {
+    background-color: #1e1e1e !important;
+    color: #d4d4d4 !important;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+h1, h2, h3, p, span, div {
+    color: #ffffff !important;
+}
+
+table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    background-color: #252526 !important;
+    color: #d4d4d4 !important;
+}
+
+th, td {
+    border: 1px solid #3e3e42 !important;
+    padding: 10px !important;
+}
+
+th {
+    background-color: #0e639c !important;
+    color: #ffffff !important;
+    font-weight: bold !important;
+    text-transform: uppercase !important;
+}
+
+tr:nth-child(even) {
+    background-color: #2d2d30 !important;
+}
+
+tr:hover {
+    background-color: #3e3e42 !important;
+}
+
+.passed, td.passed, span.passed {
+    color: #89d185 !important;
+    font-weight: bold;
+}
+
+.failed, .error, td.failed, span.failed {
+    color: #f48771 !important;
+    font-weight: bold;
+}
+
+.skipped, td.skipped, span.skipped {
+    color: #cca700 !important;
+    font-weight: bold;
+}
+
+/* Enlaces y botones */
+a {
+    color: #4fc1ff !important;
+    text-decoration: none !important;
+}
+a:hover {
+    text-decoration: underline !important;
+}
+
+#environment td {
+  border: 1px solid #3e3e42 !important;
+}
+#environment tr:nth-child(odd) {
+  background-color: #252526 !important;
+}
+
+/* Ocultar elementos innecesarios para hacerlo ver mas como un dashboard limpio */
+h2 {
+    border-bottom: 1px solid #3e3e42;
+    padding-bottom: 5px;
+}
