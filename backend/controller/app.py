@@ -66,8 +66,17 @@ class CredentialResponse(BaseModel):
     offer_json: Optional[Dict[str, Any]] = None
     instructions: Optional[str] = None
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Ensure portal tables exist (belt-and-suspenders with Alembic)."""
+    from portal.database import portal_engine, Base
+    Base.metadata.create_all(bind=portal_engine)
+    yield
+
 # Inicializar FastAPI
-app = FastAPI(title="Controller Credenciales", version="2.0.0")
+app = FastAPI(title="Controller Credenciales", version="2.0.0", lifespan=lifespan)
 
 # Determinar orígenes de CORS resolviendo problemas por variables vacías o con slashes
 allowed_origins = [
@@ -327,12 +336,6 @@ async def debug_last_offer():
         "session_id": latest_offer.get("session_id"),
         "instructions": "Copia el 'intent_url' y pégalo en DIDRoom web"
     }
-
-@app.on_event("startup")
-async def startup_portal_db():
-    """Ensure portal tables exist (belt-and-suspenders with Alembic)."""
-    from portal.database import portal_engine, Base
-    Base.metadata.create_all(bind=portal_engine)
 
 
 if __name__ == "__main__":
