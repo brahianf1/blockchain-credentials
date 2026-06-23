@@ -4,21 +4,25 @@ skinparam componentStyle rectangle
 skinparam packageStyle rectangle
 skinparam DefaultFontName Arial
 
-title Arquitectura del Sistema de Credenciales Digitales
+title Arquitectura del Sistema de Credenciales Digitales 
 
 package "Capa de Presentación" as Frontend #F0F4F8 {
     component "Plugin Moodle\n(PHP)" as Moodle #FFFFFF
     component "Portal Alumno y Verificación\n(React / Vite)" as Portal #FFFFFF
-    component "Billetera Digital Estándar\n(App Móvil)" as Wallet #FFFFFF
 }
 
-package "Capa de Lógica de Negocio\n" as Backend #FFF9E6 {
-    component "API REST Central\n(Python / Django)" as API #FFFFFF
+package "Capa de Lógica de Negocio\n" as Backend #FFF9E6{
+    component "API REST Central\n(Python / FastAPI)" as API #FFFFFF
     database "Base de Datos\n(Off-chain / Relacional)" as BD #FFFFFF
     component "Agente SSI\n(Aries Cloud Agent - Python)" as Agente #FFFFFF
 }
+package "Servicios Externos y Auth" as Externos #E8F5E9{
+     component "Billetera Digital Estándar\n(App Móvil)" as Wallet #FFFFFF
+    [Supabase (BaaS)] as Supabase
+    note right of Supabase : Gestión de Identidad (Login)\ny Base de Datos Auxiliar
+}
 
-package "Capa de Registro Distribuido\n(Blockchain)" as Blockchain #E6F0FF {
+package "Capa Blockchain" as Blockchain #E6F0FF {
     component "Red Hyperledger Indy\n(Ledger)" as Indy #FFFFFF
     
     note right of Indy
@@ -30,7 +34,8 @@ package "Capa de Registro Distribuido\n(Blockchain)" as Blockchain #E6F0FF {
 
 ' Relaciones Frontend - Backend
 Moodle -down-> API : 1. Solicita Emisión\n(HTTP/REST)
-Portal <-down-> API : 2. Consultas y Gestión\n(HTTP/REST)
+Portal --> Supabase : 2. Autenticación de Alumno (JWT)
+Portal <-down-> API : 3. Consultas y Gestión\n(HTTP/REST)
 
 ' Relaciones Internas Backend
 API <-right-> BD : 3. Lectura/Escritura\n(ORM)
@@ -40,4 +45,4 @@ API <-down-> Agente : 4. Orquesta Emisión\n(Admin API)
 Wallet <-right-> Agente : 5. Conexión y Transferencia\n(Protocolo DIDComm)
 Agente <-down-> Indy : 6. Lectura/Escritura\nde Registros Públicos
 
-@enduml 
+@enduml
