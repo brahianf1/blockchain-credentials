@@ -1,9 +1,10 @@
 # Controller Python — Microcredenciales Blockchain (Besu + OpenID4VCI)
-fastapi
-uvicorn[standard]
-pydantic[email]
-httpx
+fastapi>=0.138.0
+uvicorn[standard]>=0.49.0
+pydantic[email]>=2.13.0
+httpx>=0.28.1
 python-multipart
+websockets<16.0.0
 
 # Criptografía (firma de credenciales W3C / OpenID4VC)
 cryptography
