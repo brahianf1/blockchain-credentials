@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
@@ -107,13 +108,34 @@ class StatsResponse(BaseModel):
     claimed: int = 0
 
 
+class VerificationVerdict(str, Enum):
+    """Authoritative verdict surfaced to a third-party verifier.
+
+    Derived from the institutional registry (existence) combined with the
+    on-chain credential state (validity).  ``valid`` in the response is the
+    boolean shortcut for ``verdict == VALID``.
+
+        VALID         -> recognized and anchored, not revoked
+        REVOKED       -> recognized but revoked on-chain (NOT valid)
+        NOT_ANCHORED  -> recognized institutionally, no confirmed on-chain proof
+        NOT_FOUND     -> no credential matches the supplied hash
+    """
+
+    VALID = "valid"
+    REVOKED = "revoked"
+    NOT_ANCHORED = "not_anchored"
+    NOT_FOUND = "not_found"
+
+
 class PublicVerificationResponse(BaseModel):
     valid: bool
+    verdict: VerificationVerdict = VerificationVerdict.NOT_FOUND
     credential_hash: str
     student_name: Optional[str] = None
     course_name: Optional[str] = None
     completion_date: Optional[str] = None
     issuer: Optional[str] = None
+    revoked_at: Optional[str] = None
     blockchain: Optional[BlockchainEvidence] = None
 
 

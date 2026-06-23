@@ -2,6 +2,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    ForeignKey,
     Integer,
     String,
     Text,
@@ -85,6 +86,30 @@ class CredentialAnchor(Base):
     revoked_reason = Column(String(256), nullable=True)
     revocation_txn_id = Column(String(128), nullable=True)
     anchored_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+# Append-only audit trail of credential revocations.
+# One row is written on every successful revocation, preserving who revoked
+# the credential, when, why, and the on-chain transaction that proves it.
+# The admin email is denormalized so the audit record survives even if the
+# referenced portal_students row is later removed (ON DELETE SET NULL).
+class RevocationAudit(Base):
+    __tablename__ = "portal_revocation_audit"
+
+    id = Column(Integer, primary_key=True, index=True)
+    credential_hash = Column(String(64), nullable=False, index=True)
+    reason = Column(String(256), nullable=False)
+    revocation_txn_id = Column(String(128), nullable=True)
+    revoked_by_id = Column(
+        Integer,
+        ForeignKey("portal_students.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    revoked_by_email = Column(String(254), nullable=False)
+    revoked_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 

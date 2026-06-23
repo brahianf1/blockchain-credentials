@@ -40,7 +40,7 @@ from portal.config import MOODLE_PORTAL_JWT_SECRET
 from portal.database import Base
 from portal.dependencies import get_moodle_db, get_portal_db
 from portal.models import CredentialAnchor as CredentialAnchorModel
-from portal.models import CredentialVisibility, PortalStudent
+from portal.models import CredentialVisibility, PortalStudent, RevocationAudit
 from utils.hashing import compute_credential_hash
 
 # --- Base de datos SQLite en memoria (una sola conexión compartida) ----------
@@ -203,24 +203,27 @@ def test_moodle_callback_token_invalido_devuelve_401(client):
     assert r.status_code == 401
 
 
-def test_public_verify_credencial_privada_oculta_el_nombre(client, db_session, monkeypatch):
+def test_public_verify_credencial_privada_oculta_el_nombre(client, db_session, fake_ledger, monkeypatch):
     row = moodle_row()
     monkeypatch.setattr(moodle_queries, "get_all_credential_hashes", lambda *_a, **_k: [row])
     monkeypatch.setattr(moodle_queries, "get_user_grade", lambda *_a, **_k: None)
+    fake_ledger.anchor = CredentialAnchor(status=AnchorStatus.ANCHORED, network="Fake Besu Net")
 
     r = client.get(f"/api/public/verify/{expected_hash(row)}")
     data = r.json()
 
     assert r.status_code == 200
     assert data["valid"] is True
+    assert data["verdict"] == "valid"
     assert data["student_name"] is None              # privada => sin datos personales
     assert data["course_name"] == "Curso de Blockchain"
 
 
-def test_public_verify_credencial_publica_muestra_el_nombre(client, db_session, monkeypatch):
+def test_public_verify_credencial_publica_muestra_el_nombre(client, db_session, fake_ledger, monkeypatch):
     row = moodle_row()
     monkeypatch.setattr(moodle_queries, "get_all_credential_hashes", lambda *_a, **_k: [row])
     monkeypatch.setattr(moodle_queries, "get_user_grade", lambda *_a, **_k: None)
+    fake_ledger.anchor = CredentialAnchor(status=AnchorStatus.ANCHORED, network="Fake Besu Net")
 
     h = expected_hash(row)
     db_session.add(
@@ -230,7 +233,46 @@ def test_public_verify_credencial_publica_muestra_el_nombre(client, db_session, 
 
     data = client.get(f"/api/public/verify/{h}").json()
     assert data["valid"] is True
+    assert data["verdict"] == "valid"
     assert data["student_name"] == "Ada Lovelace"     # pública => nombre visible
+
+
+def test_public_verify_credencial_revocada_no_es_valida(client, db_session, fake_ledger, monkeypatch):
+    """Regla central para terceros: una credencial revocada on-chain NO es
+    válida, aunque exista en el registro institucional y sea pública."""
+    row = moodle_row()
+    monkeypatch.setattr(moodle_queries, "get_all_credential_hashes", lambda *_a, **_k: [row])
+    monkeypatch.setattr(moodle_queries, "get_user_grade", lambda *_a, **_k: None)
+    fake_ledger.anchor = CredentialAnchor(
+        status=AnchorStatus.REVOKED,
+        network="Fake Besu Net",
+        ledger_timestamp="2026-06-20T10:00:00+00:00",
+    )
+
+    h = expected_hash(row)
+    db_session.add(
+        CredentialVisibility(moodle_user_id=row["userid"], credential_hash=h, is_public=True)
+    )
+    db_session.commit()
+
+    data = client.get(f"/api/public/verify/{h}").json()
+    assert data["valid"] is False                    # revocada => NO válida
+    assert data["verdict"] == "revoked"
+    assert data["student_name"] is None              # revocada => no se exponen datos personales
+    assert data["revoked_at"] == "2026-06-20T10:00:00+00:00"
+
+
+def test_public_verify_sin_anclaje_confirmado_no_es_valida(client, db_session, fake_ledger, monkeypatch):
+    """Si no hay prueba on-chain confirmada, el veredicto es NOT_ANCHORED y la
+    credencial no se reporta como válida."""
+    row = moodle_row()
+    monkeypatch.setattr(moodle_queries, "get_all_credential_hashes", lambda *_a, **_k: [row])
+    monkeypatch.setattr(moodle_queries, "get_user_grade", lambda *_a, **_k: None)
+    fake_ledger.anchor = None  # el ledger no tiene registro del hash
+
+    data = client.get(f"/api/public/verify/{expected_hash(row)}").json()
+    assert data["valid"] is False
+    assert data["verdict"] == "not_anchored"
 
 
 # =============================================================================
@@ -292,6 +334,7 @@ def test_public_verify_hash_desconocido_devuelve_invalido(client, db_session, mo
     r = client.get("/api/public/verify/" + "f" * 64)
     assert r.status_code == 200
     assert r.json()["valid"] is False
+    assert r.json()["verdict"] == "not_found"
 
 
 def test_set_password_debil_devuelve_422(client, db_session):
@@ -440,6 +483,46 @@ def test_revoke_ok_marca_revocada_y_devuelve_tx(client, db_session, monkeypatch)
         .first()
     )
     assert anchor.revoked is True
+    assert anchor.revocation_txn_id == "0xTXHASH"
+
+    # La revocación deja un registro de auditoría inmutable (quién/por qué/tx).
+    audit = (
+        db_session.query(RevocationAudit)
+        .filter(RevocationAudit.credential_hash == h)
+        .first()
+    )
+    assert audit is not None
+    assert audit.reason == "fraude comprobado"
+    assert audit.revoked_by_email == "ada@utn.edu"
+    assert audit.revocation_txn_id == "0xTXHASH"
+
+
+def test_listar_auditoria_revocaciones_requiere_admin(client, db_session):
+    student = make_student(db_session, role="student")
+    r = client.get("/api/admin/credentials/revocations", headers=auth_headers(student))
+    assert r.status_code == 403
+
+
+def test_listar_auditoria_revocaciones_devuelve_registros(client, db_session):
+    admin = make_student(db_session, role="admin")
+    db_session.add(
+        RevocationAudit(
+            credential_hash="d" * 64,
+            reason="fraude comprobado",
+            revocation_txn_id="0xTXHASH",
+            revoked_by_id=admin.id,
+            revoked_by_email=admin.email,
+        )
+    )
+    db_session.commit()
+
+    r = client.get("/api/admin/credentials/revocations", headers=auth_headers(admin))
+    body = r.json()
+    assert r.status_code == 200
+    assert len(body) == 1
+    assert body[0]["credential_hash"] == "d" * 64
+    assert body[0]["reason"] == "fraude comprobado"
+    assert body[0]["revoked_by_email"] == "ada@utn.edu"
 
 
 def test_revoke_falla_si_la_blockchain_no_responde_devuelve_502(client, db_session, monkeypatch):

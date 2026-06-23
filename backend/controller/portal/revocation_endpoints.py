@@ -19,7 +19,7 @@ from blockchain import LedgerClient, get_ledger_client
 from blockchain.web3_client import besu_client
 from portal import moodle_queries
 from portal.dependencies import get_moodle_db, get_portal_db, require_admin
-from portal.models import CredentialAnchor, PortalStudent
+from portal.models import CredentialAnchor, PortalStudent, RevocationAudit
 from utils.hashing import compute_credential_hash
 
 import structlog
@@ -57,6 +57,16 @@ class RevokeResponse(BaseModel):
     reason: str
     revoked_at: str
     tx_hash: Optional[str] = None
+
+
+class RevocationAuditItem(BaseModel):
+    """A single immutable revocation audit record."""
+
+    credential_hash: str
+    reason: str
+    revocation_txn_id: Optional[str] = None
+    revoked_by_email: str
+    revoked_at: str
 
 
 class AdminCredentialItem(BaseModel):
@@ -156,6 +166,35 @@ async def list_all_credentials(
     return results
 
 
+@admin_credential_router.get(
+    "/revocations", response_model=List[RevocationAuditItem]
+)
+async def list_revocation_audit(
+    _admin: PortalStudent = Depends(require_admin),
+    portal_db: Session = Depends(get_portal_db),
+):
+    """Return the immutable revocation audit trail, most recent first.
+
+    Provides administrative oversight of who revoked which credential,
+    when, why, and the on-chain transaction that proves it.
+    """
+    rows = (
+        portal_db.query(RevocationAudit)
+        .order_by(RevocationAudit.revoked_at.desc())
+        .all()
+    )
+    return [
+        RevocationAuditItem(
+            credential_hash=r.credential_hash,
+            reason=r.reason,
+            revocation_txn_id=r.revocation_txn_id,
+            revoked_by_email=r.revoked_by_email,
+            revoked_at=r.revoked_at.isoformat() if r.revoked_at else "",
+        )
+        for r in rows
+    ]
+
+
 @admin_credential_router.post("/revoke", response_model=RevokeResponse)
 async def revoke_credential(
     body: RevokeRequest,
@@ -199,12 +238,23 @@ async def revoke_credential(
             "La credencial puede no estar anclada on-chain.",
         )
 
-    # 3. Mark revoked in portal DB and persist the revocation TX hash.
+    # 3. Mark revoked in portal DB, persist the revocation TX hash, and
+    #    write an immutable audit record — all in a single transaction.
     revoked_at = datetime.now(tz=timezone.utc)
     anchor.revoked = True
     anchor.revoked_at = revoked_at
     anchor.revoked_reason = body.reason
     anchor.revocation_txn_id = tx_hash
+    portal_db.add(
+        RevocationAudit(
+            credential_hash=body.credential_hash,
+            reason=body.reason,
+            revocation_txn_id=tx_hash,
+            revoked_by_id=admin.id,
+            revoked_by_email=admin.email,
+            revoked_at=revoked_at,
+        )
+    )
     portal_db.commit()
 
     logger.info(

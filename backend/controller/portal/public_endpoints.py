@@ -25,12 +25,16 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from blockchain import CredentialAnchor, LedgerClient, get_ledger_client
+from blockchain import AnchorStatus, CredentialAnchor, LedgerClient, get_ledger_client
 from portal import moodle_queries
 from portal.config import ISSUER_NAME
 from portal.dependencies import get_moodle_db, get_portal_db
 from portal.models import CredentialVisibility
-from portal.schemas import BlockchainEvidence, PublicVerificationResponse
+from portal.schemas import (
+    BlockchainEvidence,
+    PublicVerificationResponse,
+    VerificationVerdict,
+)
 from utils.hashing import compute_credential_hash
 
 public_router = APIRouter(prefix="/public", tags=["Public Verification"])
@@ -57,6 +61,28 @@ def _anchor_to_evidence(anchor: Optional[CredentialAnchor]) -> Optional[Blockcha
         ledger_timestamp=anchor.ledger_timestamp,
         explorer_url=anchor.explorer_url,
     )
+
+
+def _derive_verdict(anchor: Optional[CredentialAnchor]) -> VerificationVerdict:
+    """Map on-chain evidence to an authoritative third-party verdict.
+
+    The institutional registry already confirmed the credential exists
+    (the caller only invokes this after a hash match).  The *validity*,
+    however, is decided by the ledger — the single source of truth for
+    revocation:
+
+        on-chain ANCHORED  -> VALID
+        on-chain REVOKED   -> REVOKED   (explicitly NOT valid)
+        no confirmed proof -> NOT_ANCHORED
+    """
+    if anchor is None:
+        return VerificationVerdict.NOT_ANCHORED
+    if anchor.status == AnchorStatus.ANCHORED:
+        return VerificationVerdict.VALID
+    if anchor.status == AnchorStatus.REVOKED:
+        return VerificationVerdict.REVOKED
+    # PENDING_ANCHORING / UNAVAILABLE → no confirmed cryptographic proof yet.
+    return VerificationVerdict.NOT_ANCHORED
 
 
 def _is_credential_public(portal_db: Session, user_id: int, cred_hash: str) -> bool:
@@ -113,33 +139,45 @@ async def verify_public(
 
         if computed_hash == credential_hash:
             anchor = await ledger.resolve_anchor(credential_hash)
+
+            # The ledger is the authority on validity: a revoked credential
+            # MUST NOT be reported as valid, even though it exists in the
+            # institutional registry.
+            verdict = _derive_verdict(anchor)
+            is_valid = verdict == VerificationVerdict.VALID
+            revoked_at = (
+                anchor.ledger_timestamp
+                if anchor and verdict == VerificationVerdict.REVOKED
+                else None
+            )
+
             is_public = _is_credential_public(
                 portal_db, row["userid"], credential_hash
             )
 
-            if is_public:
-                # Full metadata visible
-                return PublicVerificationResponse(
-                    valid=True,
-                    credential_hash=credential_hash,
-                    student_name=f"{row['firstname']} {row['lastname']}",
-                    course_name=row["course_name"],
-                    completion_date=_unix_to_iso(row["timecreated"]),
-                    issuer=ISSUER_NAME,
-                    blockchain=_anchor_to_evidence(anchor),
-                )
-            else:
-                # Private: confirm valid but withhold personal details
-                return PublicVerificationResponse(
-                    valid=True,
-                    credential_hash=credential_hash,
-                    course_name=row["course_name"],
-                    completion_date=_unix_to_iso(row["timecreated"]),
-                    issuer=ISSUER_NAME,
-                    blockchain=_anchor_to_evidence(anchor),
-                )
+            # Personal data is revealed only when the student opted in AND the
+            # credential is currently valid — a revoked credential never
+            # discloses identity beyond what the ledger already makes public.
+            student_name = (
+                f"{row['firstname']} {row['lastname']}"
+                if (is_public and is_valid)
+                else None
+            )
+
+            return PublicVerificationResponse(
+                valid=is_valid,
+                verdict=verdict,
+                credential_hash=credential_hash,
+                student_name=student_name,
+                course_name=row["course_name"],
+                completion_date=_unix_to_iso(row["timecreated"]),
+                issuer=ISSUER_NAME,
+                revoked_at=revoked_at,
+                blockchain=_anchor_to_evidence(anchor),
+            )
 
     return PublicVerificationResponse(
         valid=False,
+        verdict=VerificationVerdict.NOT_FOUND,
         credential_hash=credential_hash,
     )
