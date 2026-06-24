@@ -18,6 +18,11 @@ MOODLE_PORTAL_JWT_SECRET = os.getenv("MOODLE_PORTAL_JWT_SECRET", "")
 # --- Frontend ---
 PORTAL_FRONTEND_URL = os.getenv("PORTAL_FRONTEND_URL", "http://localhost:5173")
 
+# --- Social sharing (Open Graph) ---
+# Absolute URL of a branded preview image (≈1200x630) used in social cards.
+# Optional: when empty, the OG card renders as a text-only summary.
+PORTAL_OG_IMAGE_URL = os.getenv("PORTAL_OG_IMAGE_URL", "")
+
 # --- Issuer info ---
 ISSUER_NAME = os.getenv("UNIVERSITY_NAME", "Universidad Tecnologica Nacional")
 

@@ -492,6 +492,54 @@ def test_public_blockchain_registry_usa_el_ledger(client, db_session, fake_ledge
     assert r.json()["network"] == "Fake Besu Net"
 
 
+def test_verify_embed_publica_incluye_open_graph_y_curso(client, db_session, fake_ledger, monkeypatch):
+    """La página embed de una credencial pública válida expone OG con el curso
+    y redirige al portal (para humanos)."""
+    row = moodle_row()
+    monkeypatch.setattr(moodle_queries, "get_all_credential_hashes", lambda *_a, **_k: [row])
+    monkeypatch.setattr(moodle_queries, "get_user_grade", lambda *_a, **_k: None)
+    fake_ledger.anchor = CredentialAnchor(status=AnchorStatus.ANCHORED, network="Fake Besu Net")
+
+    h = expected_hash(row)
+    db_session.add(
+        CredentialVisibility(moodle_user_id=row["userid"], credential_hash=h, is_public=True)
+    )
+    db_session.commit()
+
+    r = client.get(f"/api/public/verify/{h}/embed")
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    body = r.text
+    assert 'property="og:title"' in body
+    assert "Curso de Blockchain" in body            # curso visible (pública)
+    assert f"/verificar/{h}" in body                # redirige al portal canónico
+
+
+def test_verify_embed_privada_no_filtra_datos(client, db_session, fake_ledger, monkeypatch):
+    """La página embed de una credencial privada NO revela curso ni nombre."""
+    row = moodle_row()
+    monkeypatch.setattr(moodle_queries, "get_all_credential_hashes", lambda *_a, **_k: [row])
+    monkeypatch.setattr(moodle_queries, "get_user_grade", lambda *_a, **_k: None)
+    fake_ledger.anchor = CredentialAnchor(status=AnchorStatus.ANCHORED, network="Fake Besu Net")
+    # Sin fila de visibilidad => privada.
+
+    body = client.get(f"/api/public/verify/{expected_hash(row)}/embed").text
+    assert "Credencial privada" in body
+    assert "Curso de Blockchain" not in body        # privada => sin curso
+    assert "Ada Lovelace" not in body               # privada => sin nombre
+
+
+def test_verify_embed_revocada_muestra_revocacion(client, db_session, fake_ledger, monkeypatch):
+    """La página embed de una credencial revocada muestra la revocación."""
+    row = moodle_row()
+    monkeypatch.setattr(moodle_queries, "get_all_credential_hashes", lambda *_a, **_k: [row])
+    monkeypatch.setattr(moodle_queries, "get_user_grade", lambda *_a, **_k: None)
+    fake_ledger.anchor = CredentialAnchor(status=AnchorStatus.REVOKED, network="Fake Besu Net")
+
+    body = client.get(f"/api/public/verify/{expected_hash(row)}/embed").text
+    assert "revocada" in body.lower()
+
+
 def test_revoke_ok_marca_revocada_y_devuelve_tx(client, db_session, monkeypatch):
     admin = make_student(db_session, role="admin")
     h = "d" * 64
