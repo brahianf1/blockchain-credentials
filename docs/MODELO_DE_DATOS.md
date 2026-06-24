@@ -300,16 +300,39 @@ Las políticas que rigen la interacción entre componentes se agrupan en cuatro 
   sobre `issueCredential` y `revokeCredential`; sólo la cuenta de la institución
   emite o revoca, con independencia de la capa de aplicación.
 
-### 4.3 Privacidad (minimización de datos)
-- **Privado por defecto.** Una credencial sólo expone datos personales si el
-  alumno hizo *opt-in* explícito (`portal_credential_visibility.is_public`).
-- En la verificación pública de una credencial **privada**, se confirma su validez
-  y la evidencia on-chain (que es pública e inmutable) **sin revelar** el nombre
-  del alumno ni datos personales.
-- Una credencial **revocada nunca** divulga identidad, aun siendo pública: el
-  nombre sólo se muestra cuando el veredicto es `VALID`.
+### 4.3 Privacidad (minimización de datos y soberanía del titular)
+
+El diseño sigue el principio de **soberanía del titular** de la W3C VC Data
+Model 2.0: el alumno controla la divulgación de su propia identidad
+(*data minimization* + *selective disclosure*).
+
+- **Privado por defecto.** Una credencial sólo divulga sus datos si el alumno
+  hizo *opt-in* explícito (`portal_credential_visibility.is_public`).
+- **Privado = ocultar todo el certificado.** En la verificación pública de una
+  credencial **privada** se confirma únicamente su *existencia* y su *veredicto*
+  (válida / revocada) junto con el emisor; se **ocultan** el nombre, el curso, la
+  fecha y el *deep-link* a la evidencia on-chain. Al verificador se le informa que
+  la credencial es **privada por decisión del titular** (`is_private = true`), lo
+  que la distingue de una credencial inexistente.
+- **La revocación nunca se oculta.** El estado `REVOKED` se muestra siempre, aun
+  en credenciales privadas: es una declaración del *emisor* sobre la validez
+  (pública por diseño, análoga a una W3C *StatusList*), no un dato personal del
+  titular. Así, un titular no puede ocultar una revocación a un tercero.
+- Una credencial **revocada nunca** divulga identidad: el nombre sólo se muestra
+  cuando el veredicto es `VALID` y la credencial es pública.
 - La base de datos de Moodle se accede en modo **solo lectura**
   (`postgresql_readonly`), evitando cualquier escritura accidental sobre el LMS.
+
+> **Limitación conocida (inmutabilidad vs. privacidad).** El contrato actual
+> almacena `courseName` on-chain y lo emite en el evento `CredentialIssued`, por
+> lo que el nombre del curso queda registrado de forma pública e inmutable en la
+> blockchain, independientemente de lo que oculte la API. Nuestra política mitiga
+> el acceso por *click-through* (no exponemos el *deep-link* en credenciales
+> privadas), pero no puede retractar lo ya escrito. Es la tensión clásica entre la
+> inmutabilidad de la cadena y el derecho a la privacidad. **Recomendación a
+> futuro:** anclar únicamente el `credential_hash` (sin `courseName`) para que
+> ningún dato del certificado sea legible on-chain — el patrón estándar de
+> *off-chain PII + on-chain hash*.
 
 ### 4.4 Integridad y verificación por terceros
 - **Fuente de verdad de la validez = blockchain.** El veredicto público se deriva
@@ -321,6 +344,9 @@ Las políticas que rigen la interacción entre componentes se agrupan en cuatro 
   | `Revoked` | `REVOKED` | `false` |
   | sin prueba on-chain confirmada | `NOT_ANCHORED` | `false` |
   | hash sin coincidencia | `NOT_FOUND` | `false` |
+
+  El veredicto es **ortogonal** a la privacidad: una credencial privada igual
+  reporta su veredicto (incluido `REVOKED`), sólo que sin los datos del certificado.
 
 - **Inmutabilidad:** la emisión y la revocación quedan registradas como eventos
   (`CredentialIssued`, `CredentialRevoked`) en la blockchain, verificables de forma
