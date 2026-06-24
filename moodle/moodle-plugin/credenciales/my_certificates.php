@@ -1,5 +1,8 @@
 <?php
 require_once('../../config.php');
+// Moodle does not auto-load a block's lib.php for standalone scripts, so we
+// include it explicitly to use the credential-hash and share-link helpers.
+require_once(__DIR__ . '/lib.php');
 
 require_login();
 
