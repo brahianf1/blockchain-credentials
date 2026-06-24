@@ -203,7 +203,9 @@ def test_moodle_callback_token_invalido_devuelve_401(client):
     assert r.status_code == 401
 
 
-def test_public_verify_credencial_privada_oculta_el_nombre(client, db_session, fake_ledger, monkeypatch):
+def test_public_verify_credencial_privada_oculta_todo_el_certificado(client, db_session, fake_ledger, monkeypatch):
+    """Soberanía del titular (W3C VC 2.0): una credencial privada confirma su
+    validez pero NO revela nombre, curso, fecha ni la evidencia on-chain."""
     row = moodle_row()
     monkeypatch.setattr(moodle_queries, "get_all_credential_hashes", lambda *_a, **_k: [row])
     monkeypatch.setattr(moodle_queries, "get_user_grade", lambda *_a, **_k: None)
@@ -215,8 +217,34 @@ def test_public_verify_credencial_privada_oculta_el_nombre(client, db_session, f
     assert r.status_code == 200
     assert data["valid"] is True
     assert data["verdict"] == "valid"
-    assert data["student_name"] is None              # privada => sin datos personales
-    assert data["course_name"] == "Curso de Blockchain"
+    assert data["is_private"] is True
+    assert data["student_name"] is None              # privada => sin nombre
+    assert data["course_name"] is None               # privada => sin curso
+    assert data["completion_date"] is None           # privada => sin fecha
+    assert data["blockchain"] is None                # privada => sin deep-link on-chain
+    assert data["issuer"] == "Universidad Tecnologica Nacional"  # emisor sí, no es dato del titular
+
+
+def test_public_verify_privada_y_revocada_siempre_muestra_revocacion(client, db_session, fake_ledger, monkeypatch):
+    """Edge case: aunque sea privada, el estado REVOCADA siempre se muestra a
+    terceros (señal de integridad del emisor; el titular no puede ocultarla)."""
+    row = moodle_row()
+    monkeypatch.setattr(moodle_queries, "get_all_credential_hashes", lambda *_a, **_k: [row])
+    monkeypatch.setattr(moodle_queries, "get_user_grade", lambda *_a, **_k: None)
+    fake_ledger.anchor = CredentialAnchor(
+        status=AnchorStatus.REVOKED,
+        network="Fake Besu Net",
+        ledger_timestamp="2026-06-20T10:00:00+00:00",
+    )
+    # Sin fila de visibilidad => privada por defecto.
+
+    data = client.get(f"/api/public/verify/{expected_hash(row)}").json()
+    assert data["valid"] is False
+    assert data["verdict"] == "revoked"              # la revocación NO se oculta
+    assert data["is_private"] is True
+    assert data["student_name"] is None              # pero los datos del titular sí
+    assert data["course_name"] is None
+    assert data["revoked_at"] == "2026-06-20T10:00:00+00:00"
 
 
 def test_public_verify_credencial_publica_muestra_el_nombre(client, db_session, fake_ledger, monkeypatch):
@@ -444,7 +472,15 @@ def test_public_verify_incluye_evidencia_blockchain(client, db_session, fake_led
         explorer_url="https://explorer.test/tx/0x1",
     )
 
-    bc = client.get(f"/api/public/verify/{expected_hash(row)}").json()["blockchain"]
+    # La evidencia on-chain se expone en credenciales públicas (el titular
+    # optó por divulgarla); en las privadas se omite el deep-link.
+    h = expected_hash(row)
+    db_session.add(
+        CredentialVisibility(moodle_user_id=row["userid"], credential_hash=h, is_public=True)
+    )
+    db_session.commit()
+
+    bc = client.get(f"/api/public/verify/{h}").json()["blockchain"]
     assert bc is not None
     assert bc["status"] == "anchored"
     assert bc["explorer_url"] == "https://explorer.test/tx/0x1"

@@ -131,6 +131,10 @@ class PublicVerificationResponse(BaseModel):
     valid: bool
     verdict: VerificationVerdict = VerificationVerdict.NOT_FOUND
     credential_hash: str
+    # True when the credential exists but its holder keeps it private: the
+    # certificate data is withheld and only the verdict is disclosed. Lets a
+    # verifier tell "private by the holder's choice" apart from "not found".
+    is_private: bool = False
     student_name: Optional[str] = None
     course_name: Optional[str] = None
     completion_date: Optional[str] = None

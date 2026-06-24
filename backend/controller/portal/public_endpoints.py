@@ -111,10 +111,13 @@ async def verify_public(
 ):
     """Publicly verify a credential by its SHA-256 hash.
 
-    Respects the student's visibility preference:
-    - Public credentials: full metadata + blockchain evidence returned.
-    - Private credentials: hash confirmed as valid + blockchain evidence,
-      but student name and personal data are withheld.
+    Respects the holder's visibility preference (W3C VC 2.0 data
+    minimization):
+    - Public credentials: full certificate metadata + blockchain evidence.
+    - Private credentials: only the verdict is disclosed (it exists and is
+      valid/revoked); name, course, date and the on-chain evidence link are
+      withheld. The revocation signal is always surfaced regardless of
+      visibility, so a holder cannot hide a revocation from a verifier.
     """
     # Postel's Law (Robustness Principle): Be liberal in what you accept.
     # If the user copied the hash from the Blockscout explorer, it will
@@ -155,19 +158,38 @@ async def verify_public(
                 portal_db, row["userid"], credential_hash
             )
 
-            # Personal data is revealed only when the student opted in AND the
-            # credential is currently valid — a revoked credential never
-            # discloses identity beyond what the ledger already makes public.
+            # Holder sovereignty (W3C VC 2.0 data minimization): a private
+            # credential withholds ALL certificate data — name, course and
+            # date — and the on-chain evidence deep-link, disclosing only that
+            # it exists and its verdict. The verifier is told it is private by
+            # the holder's choice, not that it is missing.
+            #
+            # The revocation signal is the one exception: it is the issuer's
+            # statement about validity (public by design, like a W3C
+            # StatusList) and is ALWAYS surfaced so a holder cannot hide a
+            # revocation from a third party.
+            if not is_public:
+                return PublicVerificationResponse(
+                    valid=is_valid,
+                    verdict=verdict,
+                    credential_hash=credential_hash,
+                    is_private=True,
+                    issuer=ISSUER_NAME,
+                    revoked_at=revoked_at,
+                )
+
+            # Public: the holder opted in to full disclosure. Personal data is
+            # still only shown while the credential is valid — a revoked one
+            # never discloses identity beyond what the ledger already exposes.
             student_name = (
-                f"{row['firstname']} {row['lastname']}"
-                if (is_public and is_valid)
-                else None
+                f"{row['firstname']} {row['lastname']}" if is_valid else None
             )
 
             return PublicVerificationResponse(
                 valid=is_valid,
                 verdict=verdict,
                 credential_hash=credential_hash,
+                is_private=False,
                 student_name=student_name,
                 course_name=row["course_name"],
                 completion_date=_unix_to_iso(row["timecreated"]),
