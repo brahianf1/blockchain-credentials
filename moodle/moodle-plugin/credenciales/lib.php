@@ -163,6 +163,38 @@ function block_credenciales_get_verify_url($hash) {
 }
 
 /**
+ * Build the backend Open Graph "embed" URL for a credential.
+ *
+ * This backend page renders a rich social preview card (LinkedIn, WhatsApp…)
+ * and redirects human visitors to the canonical portal verification page.
+ * It exists because the portal SPA cannot serve Open Graph tags to crawlers
+ * (they don't run JavaScript).
+ *
+ * @param string $hash 64-char SHA-256 credential hash.
+ * @return string Absolute embed URL on the verification API.
+ */
+function block_credenciales_get_embed_url($hash) {
+    $config = get_config('block_credenciales');
+    $api = !empty($config->verification_api_url)
+        ? rtrim($config->verification_api_url, '/')
+        : 'https://api-credenciales.utnpf.site';
+
+    return $api . '/api/public/verify/' . $hash . '/embed';
+}
+
+/**
+ * Build a LinkedIn "share as post" URL pointing at the Open Graph embed page,
+ * so the published post renders a rich preview card.
+ *
+ * @param string $hash 64-char SHA-256 credential hash.
+ * @return string LinkedIn share-offsite URL.
+ */
+function block_credenciales_get_share_post_url($hash) {
+    return 'https://www.linkedin.com/sharing/share-offsite/?url='
+        . urlencode(block_credenciales_get_embed_url($hash));
+}
+
+/**
  * Build a LinkedIn "Add to Profile" deep-link for a microcredential.
  *
  * Uses LinkedIn's official certification prefill (Licenses & Certifications),

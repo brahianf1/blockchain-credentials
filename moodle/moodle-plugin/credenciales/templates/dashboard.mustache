@@ -48,8 +48,37 @@
                                 </button>
 
                                 <a href="{{linkedin_share_url}}" target="_blank" rel="noopener" class="btn btn-block md3-btn-linkedin mt-2">
-                                    <i class="fa fa-linkedin-square"></i> Compartir Logro en LinkedIn
+                                    <i class="fa fa-linkedin-square"></i> Agregar a mi LinkedIn
                                 </a>
+
+                                <a href="{{share_post_url}}" target="_blank" rel="noopener" class="btn btn-block md3-btn-outlined mt-2">
+                                    <i class="fa fa-share-square-o"></i> Publicar en LinkedIn
+                                </a>
+
+                                <details class="li-data mt-2">
+                                    <summary>Datos para el formulario de LinkedIn</summary>
+                                    <p class="text-muted small mb-2 mt-1">LinkedIn abre el formulario vacío. Copiá y pegá estos datos:</p>
+                                    <div class="li-field">
+                                        <div class="li-field-text"><span class="li-label">Nombre</span><span class="li-value">{{course_name}}</span></div>
+                                        <button type="button" class="li-copy" data-copy="{{course_name}}" aria-label="Copiar nombre"><i class="fa fa-copy"></i></button>
+                                    </div>
+                                    <div class="li-field">
+                                        <div class="li-field-text"><span class="li-label">Empresa emisora</span><span class="li-value">{{org_name}}</span></div>
+                                        <button type="button" class="li-copy" data-copy="{{org_name}}" aria-label="Copiar emisor"><i class="fa fa-copy"></i></button>
+                                    </div>
+                                    <div class="li-field">
+                                        <div class="li-field-text"><span class="li-label">Fecha de expedición</span><span class="li-value">{{issue_date_label}}</span></div>
+                                        <button type="button" class="li-copy" data-copy="{{issue_date_label}}" aria-label="Copiar fecha"><i class="fa fa-copy"></i></button>
+                                    </div>
+                                    <div class="li-field">
+                                        <div class="li-field-text"><span class="li-label">ID de la credencial</span><span class="li-value">{{credential_hash}}</span></div>
+                                        <button type="button" class="li-copy" data-copy="{{credential_hash}}" aria-label="Copiar ID"><i class="fa fa-copy"></i></button>
+                                    </div>
+                                    <div class="li-field">
+                                        <div class="li-field-text"><span class="li-label">URL de la credencial</span><span class="li-value">{{public_verify_url}}</span></div>
+                                        <button type="button" class="li-copy" data-copy="{{public_verify_url}}" aria-label="Copiar URL"><i class="fa fa-copy"></i></button>
+                                    </div>
+                                </details>
 
                                 {{#portal_url}}
                                 <a href="{{portal_url}}" target="_blank" class="btn btn-block btn-outline-success mt-2">
@@ -193,6 +222,21 @@
 
 {{#has_certificates}}
 <script>
+    // Copy-to-clipboard for the LinkedIn manual-entry fields (delegated, so it
+    // also works for credentials that have no pending poller).
+    document.addEventListener('click', function (ev) {
+        const btn = ev.target.closest('.li-copy');
+        if (!btn) return;
+        const value = btn.getAttribute('data-copy') || '';
+        navigator.clipboard.writeText(value).then(function () {
+            const icon = btn.querySelector('i');
+            if (!icon) return;
+            const prev = icon.className;
+            icon.className = 'fa fa-check';
+            setTimeout(function () { icon.className = prev; }, 1500);
+        });
+    });
+
     document.addEventListener("DOMContentLoaded", function() {
         const pollElements = document.querySelectorAll('[data-poll-id]');
         if (pollElements.length === 0) return;

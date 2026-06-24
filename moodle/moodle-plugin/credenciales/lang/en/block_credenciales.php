@@ -29,3 +29,5 @@ $string['portal_jwt_secret_desc'] = 'Shared key (HS256) between Moodle and the p
 $string['portal_url'] = 'Portal URL';
 $string['portal_url_desc'] = 'Web address of the student credential portal.';
 $string['go_to_portal'] = 'Go to Credential Portal';
+$string['verification_api_url'] = 'Verification API URL';
+$string['verification_api_url_desc'] = 'Web address of the backend (controller) that serves the social sharing preview page (Open Graph). E.g.: https://api-credenciales.utnpf.site';

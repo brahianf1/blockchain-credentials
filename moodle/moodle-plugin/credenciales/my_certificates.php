@@ -88,6 +88,8 @@ if ($credentials) {
             'public_verify_url' => $public_verify_url,
             'credential_hash' => $credential_hash,
             'linkedin_share_url' => $linkedin_share_url,
+            'share_post_url' => block_credenciales_get_share_post_url($credential_hash),
+            'issue_date_label' => userdate($cred->timecreated, '%B %Y'),
             'org_name' => get_config('block_credenciales', 'organization_name') ?: 'Universidad',
             'cert_id' => $cred->id,
             'hours' => '120' // Static illustration mock for 'horas reloj'

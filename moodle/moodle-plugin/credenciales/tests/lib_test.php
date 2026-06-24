@@ -323,6 +323,32 @@ class block_credenciales_lib_test extends TestCase {
         $this->assertStringContainsString('certId=abc', $url);
     }
 
+    // -- Open Graph embed / compartir como publicación ---------------------
+
+    public function test_get_embed_url_usa_api_configurada() {
+        $GLOBALS['mock_bc_config']->verification_api_url = 'https://api.test/';
+        $this->assertSame(
+            'https://api.test/api/public/verify/abc/embed',
+            block_credenciales_get_embed_url('abc')
+        );
+    }
+
+    public function test_get_embed_url_tiene_fallback() {
+        $url = block_credenciales_get_embed_url('abc');
+        $this->assertStringStartsWith('https://', $url);
+        $this->assertStringEndsWith('/api/public/verify/abc/embed', $url);
+    }
+
+    public function test_get_share_post_url_envuelve_el_embed() {
+        $GLOBALS['mock_bc_config']->verification_api_url = 'https://api.test';
+        $url = block_credenciales_get_share_post_url('abc');
+        $this->assertStringStartsWith('https://www.linkedin.com/sharing/share-offsite/?url=', $url);
+        $this->assertStringContainsString(
+            urlencode('https://api.test/api/public/verify/abc/embed'),
+            $url
+        );
+    }
+
     // -- Activacion del plugin: construccion del payload (course_completed) ----
 
     private function sample_user_course() {

@@ -60,4 +60,12 @@ if ($ADMIN->fulltree) {
         'https://portal-credenciales.utnpf.site',
         PARAM_URL
     ));
+
+    $settings->add(new admin_setting_configtext(
+        'block_credenciales/verification_api_url',
+        get_string('verification_api_url', 'block_credenciales'),
+        get_string('verification_api_url_desc', 'block_credenciales'),
+        'https://api-credenciales.utnpf.site',
+        PARAM_URL
+    ));
 }
