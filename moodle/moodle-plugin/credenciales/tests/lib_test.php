@@ -268,6 +268,61 @@ class block_credenciales_lib_test extends TestCase {
         $this->assertSame($expected, $hash);
     }
 
+    /**
+     * El helper compartido debe producir EXACTAMENTE el mismo vector conocido
+     * que el backend Python — es el que arma la URL del QR del diploma.
+     */
+    public function test_compute_credential_hash_helper_coincide_con_vector() {
+        $this->assertSame(
+            'f05c5a74f693c09731b130a39dcbeec9904a1e2ea366b8a5a61176596403dbea',
+            block_credenciales_compute_credential_hash('42', '7', '2026-06-10T12:00:00+00:00', 'Aprobado')
+        );
+    }
+
+    // -- Formateo de nota (paridad con get_user_grade del backend) ----------
+
+    public function test_format_grade_sin_nota_es_aprobado() {
+        $this->assertSame('Aprobado', block_credenciales_format_grade(null));
+        $this->assertSame('Aprobado', block_credenciales_format_grade(''));
+    }
+
+    public function test_format_grade_numerica_un_decimal() {
+        // str(round(float(x), 1)) del backend -> siempre un decimal.
+        $this->assertSame('8.0', block_credenciales_format_grade(8));
+        $this->assertSame('9.5', block_credenciales_format_grade('9.50000'));
+        $this->assertSame('10.0', block_credenciales_format_grade(10));
+    }
+
+    // -- URL de verificación pública ---------------------------------------
+
+    public function test_get_verify_url_usa_portal_url_configurada() {
+        $GLOBALS['mock_bc_config']->portal_url = 'https://portal.test/';
+        $this->assertSame(
+            'https://portal.test/verificar/abc123',
+            block_credenciales_get_verify_url('abc123')
+        );
+    }
+
+    public function test_get_verify_url_tiene_fallback() {
+        // Sin portal_url configurada, cae a un default y nunca rompe.
+        $url = block_credenciales_get_verify_url('deadbeef');
+        $this->assertStringEndsWith('/verificar/deadbeef', $url);
+        $this->assertStringStartsWith('https://', $url);
+    }
+
+    // -- Deep-link "Add to Profile" de LinkedIn ----------------------------
+
+    public function test_get_linkedin_url_es_add_to_profile_con_certurl() {
+        $url = block_credenciales_get_linkedin_url(
+            'Curso de Blockchain', 'UTN', 2026, 6,
+            'https://portal.test/verificar/abc', 'abc'
+        );
+        $this->assertStringStartsWith('https://www.linkedin.com/profile/add?', $url);
+        $this->assertStringContainsString('startTask=CERTIFICATION_NAME', $url);
+        $this->assertStringContainsString('certUrl=' . urlencode('https://portal.test/verificar/abc'), $url);
+        $this->assertStringContainsString('certId=abc', $url);
+    }
+
     // -- Activacion del plugin: construccion del payload (course_completed) ----
 
     private function sample_user_course() {

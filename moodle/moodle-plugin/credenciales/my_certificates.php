@@ -43,9 +43,31 @@ if ($credentials) {
         $course = $DB->get_record('course', array('id' => $cred->courseid));
         
         $is_claimed = ($cred->status === 'issued' || $cred->status === 'claimed');
-        // Mocking the public verification URL
-        $public_verify_url = $CFG->wwwroot . "/blocks/credenciales/public_verify.php?uuid=" . $cred->id; // Placeholder architecture
-        $linkedin_share_url = "https://www.linkedin.com/sharing/share-offsite/?url=" . urlencode($public_verify_url);
+
+        // Real public verification URL on the portal frontend, keyed by the
+        // canonical SHA-256 credential hash — the same hash the backend anchors
+        // on-chain and recomputes when verifying. Computed here (not stored) via
+        // the shared, test-validated helpers so the link works for every
+        // credential without an extra round-trip to the backend.
+        $completion_date_utc = gmdate('c', $cred->timecreated);
+        $grade = block_credenciales_get_course_grade($USER->id, $cred->courseid);
+        $credential_hash = block_credenciales_compute_credential_hash(
+            (string) $USER->id,
+            (string) $cred->courseid,
+            $completion_date_utc,
+            $grade
+        );
+        $public_verify_url = block_credenciales_get_verify_url($credential_hash);
+
+        // "Compartir Logro" → LinkedIn Add to Profile (Licenses & Certifications).
+        $linkedin_share_url = block_credenciales_get_linkedin_url(
+            $course ? $course->fullname : 'Microcredencial',
+            get_config('block_credenciales', 'organization_name') ?: 'Universidad',
+            (int) gmdate('Y', $cred->timecreated),
+            (int) gmdate('n', $cred->timecreated),
+            $public_verify_url,
+            $credential_hash
+        );
 
         $data['certificates'][] = [
             'student_name' => fullname($USER),
@@ -61,6 +83,7 @@ if ($credentials) {
             'is_pending' => !$is_claimed,
             'is_claimed' => $is_claimed,
             'public_verify_url' => $public_verify_url,
+            'credential_hash' => $credential_hash,
             'linkedin_share_url' => $linkedin_share_url,
             'org_name' => get_config('block_credenciales', 'organization_name') ?: 'Universidad',
             'cert_id' => $cred->id,

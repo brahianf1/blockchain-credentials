@@ -47,8 +47,8 @@
                                     <i class="fa fa-search-plus"></i> Ver Diploma Ilustrativo
                                 </button>
 
-                                <a href="{{linkedin_share_url}}" target="_blank" class="btn btn-block md3-btn-linkedin mt-2">
-                                    <i class="fa fa-linkedin-square"></i> Compartir Logro
+                                <a href="{{linkedin_share_url}}" target="_blank" rel="noopener" class="btn btn-block md3-btn-linkedin mt-2">
+                                    <i class="fa fa-linkedin-square"></i> Compartir Logro en LinkedIn
                                 </a>
 
                                 {{#portal_url}}
@@ -159,9 +159,10 @@
                                                 </svg>
                                             </div>
                                             <div class="cert-public-qr">
-                                                <a href="{{public_verify_url}}" target="_blank" title="Verificar en Web Pública (Mock)">
-                                                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data={{public_verify_url}}" alt="QR Validación">
+                                                <a href="{{public_verify_url}}" target="_blank" rel="noopener" title="Verificar la autenticidad de esta credencial">
+                                                    <span class="cert-verify-qr" data-verify-url="{{public_verify_url}}" aria-label="Código QR de verificación pública"></span>
                                                 </a>
+                                                <small class="d-block text-muted mt-1" style="font-size: 0.65rem; letter-spacing: 0.5px;">VERIFICACIÓN PÚBLICA</small>
                                             </div>
                                         </div>
                                     </div>
@@ -295,4 +296,41 @@
 </script>
 <!-- CDN para motor de renderizado Canvas -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<!-- CDN para generación de QR en el cliente (sin servicios externos: la URL nunca sale del navegador) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+    // Genera el QR de verificación pública localmente y lo embebe como <img>
+    // data-URL, de modo que html2canvas pueda capturarlo al descargar el diploma.
+    (function () {
+        function renderVerificationQRs() {
+            if (typeof qrcode === 'undefined') return;
+            document.querySelectorAll('.cert-verify-qr[data-verify-url]').forEach(function (el) {
+                if (el.dataset.rendered) return;
+                var url = el.getAttribute('data-verify-url');
+                if (!url) return;
+                var qr = qrcode(0, 'M'); // type auto, corrección de errores media
+                qr.addData(url);
+                qr.make();
+                el.innerHTML = qr.createImgTag(4, 8);
+                var img = el.querySelector('img');
+                if (img) {
+                    img.alt = 'QR de verificación';
+                    img.removeAttribute('width');
+                    img.removeAttribute('height');
+                    img.style.width = '110px';
+                    img.style.height = '110px';
+                    img.style.display = 'block';
+                }
+                el.dataset.rendered = '1';
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', renderVerificationQRs);
+        } else {
+            renderVerificationQRs();
+        }
+    })();
+</script>
 {{/has_certificates}}
