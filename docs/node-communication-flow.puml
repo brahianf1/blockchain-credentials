@@ -1,0 +1,57 @@
+@startuml
+skinparam handwritten false
+skinparam monochrome false
+skinparam packageBackgroundColor white
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+' Configuración de estilo
+skinparam rectangle {
+    BackgroundColor white
+    BorderColor black
+    RoundCorner 15
+}
+
+skinparam database {
+    BackgroundColor white
+    BorderColor black
+}
+
+' Capa Backend
+package "Capa de Lógica de Negocio (Backend)" {
+    rectangle "FastAPI Controller\n(Emisor OID4VCI)" as backend
+    database "PostgreSQL\n(portal-db)" as db
+    rectangle "BesuWeb3Client\n(Cliente Web3.py)" as client
+    
+    backend -down-> db : Persiste metadata & hashes\n(portal_blockchain_anchors)
+    backend -right-> client : Invoca operaciones\n(issue/revoke)
+}
+
+' Capa Blockchain
+package "Capa Blockchain (Hyperledger Besu)" {
+    rectangle "Besu Node\n(EVM Dev Network / JSON-RPC)" as besu
+    rectangle "Smart Contract\n(CredentialRegistry.sol)" as contract
+    
+    client -down-> besu : Firma & Envía Transacciones\n(JSON-RPC puerto 8545)
+    besu -down-> contract : Aloja y Ejecuta bytecode
+}
+
+' Capa de Monitoreo
+package "Capa de Visualización y Auditoría" {
+    rectangle "Blockscout Explorer\n(Servicio de Indexación)" as blockscout
+    
+    blockscout -left-> besu : Lee bloques / Eventos\n(CredentialIssued / CredentialRevoked)
+    blockscout .down.> contract : Decodifica transacciones\nmediante ABI verificado
+}
+
+' Clientes e Integraciones Externas
+rectangle "Moodle LMS\n(Plugin de Calificaciones)" as moodle
+rectangle "Billetera Digital\n(Wallet OID4VCI)" as wallet
+rectangle "Verificador Tercero\n(Portal de RRHH)" as verifier
+
+moodle -down-> backend : Notifica fin de curso\n(Webhook HTTP)
+wallet -up-> backend : Resuelve did:web e interactúa\n(Pre-Authorized Code flow)
+verifier -down-> backend : Consulta validez pública\n(/api/public/verify)
+verifier -down-> blockscout : Valida TX Hash\nde forma independiente
+
+@enduml
