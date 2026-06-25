@@ -1,4 +1,4 @@
-# Controller Python - Integración Moodle + ACA-Py + Indy (VON Network)
+# Controller Python — Microcredenciales Blockchain (Besu + OpenID4VCI)
 fastapi
 uvicorn[standard]
 pydantic[email]
@@ -34,3 +34,6 @@ psycopg2-binary
 
 # Autenticación portal
 bcrypt>=4.0.0
+
+# Blockchain EVM (Smart Contracts)
+web3>=6.11.0

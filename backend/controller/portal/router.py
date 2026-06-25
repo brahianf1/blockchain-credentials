@@ -5,6 +5,7 @@ from portal.auth_endpoints import auth_router
 from portal.blockchain_endpoints import blockchain_public_router
 from portal.credential_endpoints import credential_router
 from portal.public_endpoints import public_router
+from portal.revocation_endpoints import admin_credential_router
 from portal.stats_endpoints import stats_router
 
 # Authenticated portal routes → /api/portal/*
@@ -21,3 +22,4 @@ portal_public_router.include_router(blockchain_public_router)
 # Admin routes → /api/admin/*
 portal_admin_router = APIRouter(prefix="/api")
 portal_admin_router.include_router(admin_router)
+portal_admin_router.include_router(admin_credential_router)

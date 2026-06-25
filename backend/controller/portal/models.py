@@ -20,6 +20,7 @@ class PortalStudent(Base):
     email = Column(String(254), unique=True, nullable=False, index=True)
     full_name = Column(String(200), nullable=False)
     password_hash = Column(String(128), nullable=True)
+    role = Column(String(16), default="student", nullable=False, index=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
@@ -28,8 +29,8 @@ class PortalStudent(Base):
     last_login_at = Column(DateTime(timezone=True), nullable=True)
 
 
-# Institutional ledger artifacts (schema, cred_def, rev_reg_def).
-# One row per distinct artifact registered on Hyperledger Indy by the issuer.
+# Institutional ledger artifacts (contract addresses, deployment records).
+# One row per distinct artifact registered on Hyperledger Besu by the issuer.
 class LedgerArtifact(Base):
     __tablename__ = "portal_ledger_artifacts"
     __table_args__ = (
@@ -60,8 +61,9 @@ class LedgerArtifact(Base):
     )
 
 
-# On-ledger anchor for a specific credential issued by the institution.
-# Populated whenever a credential is emitted (Fase 2).
+# On-chain anchor for a specific credential issued by the institution.
+# Populated whenever a credential hash is written to the CredentialRegistry
+# smart contract on Hyperledger Besu.
 class CredentialAnchor(Base):
     __tablename__ = "portal_blockchain_anchors"
 
@@ -81,6 +83,35 @@ class CredentialAnchor(Base):
     revoked = Column(Boolean, default=False, nullable=False, index=True)
     revoked_at = Column(DateTime(timezone=True), nullable=True)
     revoked_reason = Column(String(256), nullable=True)
+    revocation_txn_id = Column(String(128), nullable=True)
     anchored_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+# Student-controlled visibility for public credential verification.
+# Default is private (is_public=False) — students opt-in to public visibility.
+class CredentialVisibility(Base):
+    __tablename__ = "portal_credential_visibility"
+    __table_args__ = (
+        UniqueConstraint(
+            "moodle_user_id",
+            "credential_hash",
+            name="uq_visibility_user_hash",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    moodle_user_id = Column(Integer, nullable=False, index=True)
+    credential_hash = Column(String(64), nullable=False, index=True)
+    is_public = Column(Boolean, default=False, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+

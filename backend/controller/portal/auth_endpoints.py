@@ -34,6 +34,10 @@ def moodle_callback(request: MoodleCallbackRequest, db: Session = Depends(get_po
     email = payload["email"]
     full_name = payload["full_name"]
 
+    # Derive role from the Moodle JWT claim — Moodle is the
+    # Single Source of Truth for identity and authorization.
+    role = "admin" if payload.get("is_admin") else "student"
+
     student = (
         db.query(PortalStudent)
         .filter(PortalStudent.moodle_user_id == moodle_user_id)
@@ -45,12 +49,14 @@ def moodle_callback(request: MoodleCallbackRequest, db: Session = Depends(get_po
     if student:
         student.email = email
         student.full_name = full_name
+        student.role = role
         student.last_login_at = now
     else:
         student = PortalStudent(
             moodle_user_id=moodle_user_id,
             email=email,
             full_name=full_name,
+            role=role,
             last_login_at=now,
         )
         db.add(student)
@@ -68,6 +74,7 @@ def moodle_callback(request: MoodleCallbackRequest, db: Session = Depends(get_po
             email=student.email,
             full_name=student.full_name,
             has_password=student.password_hash is not None,
+            role=student.role,
             created_at=student.created_at,
         ),
     )
@@ -110,6 +117,7 @@ def login(request: LoginRequest, db: Session = Depends(get_portal_db)):
             email=student.email,
             full_name=student.full_name,
             has_password=True,
+            role=student.role,
             created_at=student.created_at,
         ),
     )
@@ -124,6 +132,7 @@ def get_me(current_user: PortalStudent = Depends(get_current_user)):
         email=current_user.email,
         full_name=current_user.full_name,
         has_password=current_user.password_hash is not None,
+        role=current_user.role,
         created_at=current_user.created_at,
     )
 
@@ -148,5 +157,6 @@ def set_password(
         email=current_user.email,
         full_name=current_user.full_name,
         has_password=True,
+        role=current_user.role,
         created_at=current_user.created_at,
     )

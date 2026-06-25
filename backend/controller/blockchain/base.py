@@ -2,9 +2,9 @@
 
 The abstractions in this module follow the hexagonal architecture style:
 business code depends on the ``LedgerClient`` port, while concrete adapters
-(Hyperledger Indy via ACA-Py, no-op for tests, etc.) live in sibling
-modules. This keeps the rest of the application ledger-agnostic and makes
-it trivial to swap the underlying blockchain without touching callers.
+(Hyperledger Besu via Web3, no-op for tests, etc.) live in sibling modules.
+This keeps the rest of the application ledger-agnostic and makes it trivial
+to swap the underlying blockchain without touching callers.
 """
 from __future__ import annotations
 
@@ -38,6 +38,34 @@ class AnchorStatus(str, Enum):
     UNAVAILABLE = "unavailable"
 
 
+# Solidity ``CredentialState`` enum from CredentialRegistry.sol.
+_STATE_NOT_ISSUED = 0
+_STATE_VALID = 1
+_STATE_REVOKED = 2
+
+
+def state_to_anchor_status(state: int) -> Optional[AnchorStatus]:
+    """Map the on-chain ``CredentialState`` to a domain :class:`AnchorStatus`.
+
+    This is the core verification rule of the system: it decides whether a
+    credential is valid, revoked or simply not present on the ledger. It is
+    kept as a pure function (no I/O) so the rule can be tested in isolation,
+    independently of the Web3/database plumbing that reads the state.
+
+        0 (NotIssued) -> None         # credential not found on-chain
+        1 (Valid)     -> ANCHORED
+        2 (Revoked)   -> REVOKED
+        other         -> UNAVAILABLE  # defensive: unexpected on-chain state
+    """
+    if state == _STATE_NOT_ISSUED:
+        return None
+    if state == _STATE_VALID:
+        return AnchorStatus.ANCHORED
+    if state == _STATE_REVOKED:
+        return AnchorStatus.REVOKED
+    return AnchorStatus.UNAVAILABLE
+
+
 @dataclass(frozen=True)
 class LedgerStatus:
     """Operational snapshot of the ledger.
@@ -46,8 +74,8 @@ class LedgerStatus:
         name: Human-readable network label surfaced to clients.
         health: Current :class:`LedgerHealth`.
         issuer_did: Canonical DID of the issuing institution, if known.
-        endpoint: Service endpoint registered on-ledger for the issuer.
-        explorer_url: Public URL of the ledger explorer, when available.
+        endpoint: Service endpoint registered for the issuer.
+        explorer_url: Public URL of the Blockscout blockchain explorer.
     """
 
     name: str
@@ -61,14 +89,24 @@ class LedgerStatus:
 class CredentialAnchor:
     """Verifiable on-ledger evidence bound to a credential hash.
 
-    Fields are progressively populated as the anchoring pipeline matures
-    across phases. Callers should drive their UI from :attr:`status`
-    rather than from the presence of optional fields.
+    The primary fields driving the UI are ``status`` and ``explorer_url``.
+    Callers should derive their presentation from ``status`` rather than
+    from the presence of optional metadata fields.
+
+    Attributes:
+        status: Current lifecycle state of the credential on-chain.
+        network: Human-readable name of the blockchain network.
+        issuer_did: DID of the issuing institution (``did:ethr:0x...``).
+        txn_id: Ethereum transaction hash (``0x...``), when available.
+        ledger_timestamp: ISO 8601 timestamp of the on-chain event.
+        explorer_url: Deep-link into Blockscout for transparent verification.
     """
 
     status: AnchorStatus
     network: str
     issuer_did: Optional[str] = None
+    # Legacy fields kept for backward API compatibility; not populated
+    # by the Besu adapter.  Will be removed in a future major version.
     schema_id: Optional[str] = None
     cred_def_id: Optional[str] = None
     rev_reg_id: Optional[str] = None

@@ -984,54 +984,125 @@ async def credential_endpoint(
             f"| Formato Único: {format_name}"
         )
 
-        # ─── Notificar a Moodle vía Webhook (Actualizar status a 'claimed') ───
+        # ─── Anclaje Web3 y Notificación a Moodle ───
         import httpx
         import os
+        from blockchain.web3_client import besu_client
+        from utils.hashing import compute_credential_hash
 
-        async def notify_moodle_webhook(conn_id: str):
-            # Accedemos a Moodle por la red interna de Docker usando el service name 'moodle-app'
-            # y previniendo el error [Errno -3] Temporary failure in name resolution.
+        async def anchor_and_notify(
+            conn_id: str,
+            cred_data: dict,
+            c_name: str,
+        ):
+            """Background job: anchor the portal hash on-chain and notify Moodle.
+
+            The hash anchored on Besu is the **same** canonical SHA-256 digest
+            displayed in the student portal and used for public verification.
+            This guarantees a single cryptographic identity end-to-end.
+            """
+            logger.info("⚙️ Iniciando Job en Background: Blockchain Anchor + Webhook")
+
+            # PASO 1: Calcular el Portal Hash canónico
+            _sid = str(cred_data.get("student_id", ""))
+            _cid = str(cred_data.get("course_id", ""))
+            _cd  = cred_data.get("completion_date", "")
+            _gr  = cred_data.get("grade", "Aprobado")
+            logger.info(
+                f"🔍 HASH INPUTS: student_id={repr(_sid)} "
+                f"course_id={repr(_cid)} "
+                f"completion_date={repr(_cd)} "
+                f"grade={repr(_gr)}"
+            )
+            logger.info(f"🔍 RAW CONCAT: {repr(_sid + _cid + _cd + _gr)}")
+            portal_hash = compute_credential_hash(
+                student_id=_sid,
+                course_id=_cid,
+                completion_date=_cd,
+                grade=_gr,
+            )
+            logger.info(f"🔗 Portal Hash calculado: {portal_hash}")
+
+            # PASO 2: Anclar el Portal Hash en Besu
+            tx_hash = await besu_client.anchor_credential_hash(portal_hash, c_name)
+
+            # PASO 3: Persistir el anchor (con tx_hash) en la DB del portal
+            if tx_hash:
+                try:
+                    from portal.database import PortalSessionLocal
+                    from portal.models import CredentialAnchor as CredentialAnchorModel
+
+                    db = PortalSessionLocal()
+                    try:
+                        # Upsert: update if hash exists, insert otherwise
+                        existing = (
+                            db.query(CredentialAnchorModel)
+                            .filter(CredentialAnchorModel.credential_hash == portal_hash)
+                            .first()
+                        )
+                        issuer_did = (
+                            f"did:ethr:{besu_client.admin_account.address}"
+                            if besu_client.admin_account
+                            else None
+                        )
+
+                        if existing:
+                            existing.txn_id = tx_hash
+                            existing.issuer_did = issuer_did
+                        else:
+                            anchor = CredentialAnchorModel(
+                                credential_hash=portal_hash,
+                                moodle_user_id=int(cred_data.get("student_id", 0)),
+                                moodle_course_id=int(cred_data.get("course_id", 0)),
+                                txn_id=tx_hash,
+                                issuer_did=issuer_did,
+                            )
+                            db.add(anchor)
+
+                        db.commit()
+                        logger.info(f"💾 Anchor persistido: hash={portal_hash[:16]}... tx={tx_hash}")
+                    finally:
+                        db.close()
+                except Exception as db_err:
+                    logger.warning(f"⚠️ Error persistiendo anchor en DB: {db_err}")
+
+            # PASO 4: Mandar Webhook al LMS
             moodle_internal_url = os.getenv("MOODLE_INTERNAL_URL", "http://moodle-app")
             webhook_url = f"{moodle_internal_url}/blocks/credenciales/webhook.php"
-            
-            # Recuperamos el dominio público para pasarlo como Host header y engañar a config.php
             moodle_domain = os.getenv("MOODLE_DOMAIN", "moodle.utnpf.site")
-            
+
+            payload = {"connection_id": conn_id, "status": "claimed"}
+            if tx_hash:
+                payload["tx_hash"] = tx_hash
+                logger.info(f"🪙 Adjuntando Hash de Transacción On-Chain al Webhook: {tx_hash}")
+
             try:
-                # Quitamos timeout=5.0 y dejamos fluir ya que es tarea en background
-                # o usamos un timeout más holgado ya que no bloquea la UI principal
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
                         webhook_url,
-                        json={"connection_id": conn_id, "status": "claimed"},
-                        headers={
-                            "Host": moodle_domain,
-                            "X-Forwarded-Proto": "https",
-                            "X-Forwarded-Port": "443"
-                        },
+                        json=payload,
+                        headers={"Host": moodle_domain, "X-Forwarded-Proto": "https", "X-Forwarded-Port": "443"},
                         timeout=10.0,
                         follow_redirects=True
                     )
-                logger.info(f"✅ Webhook sent to {webhook_url}. Status: {response.status_code}, Body: {response.text}")
+                logger.info(f"✅ Webhook enviado a Moodle. Status: {response.status_code}")
             except Exception as w_e:
-                logger.warning(f"⚠️ Webhook Moodle falló: {w_e}")
+                logger.warning(f"⚠️ Alerta: El Webhook de Moodle falló: {w_e}")
 
         # Sacar el connection_id (pre-auth_code) de la sesión
-        # Lo buscamos primero en credential_data (donde el controller guarda la data original de Moodle)
         conn_id = session.get("credential_data", {}).get("pre_authorized_code")
-        
-        # Fallback al guardado por los flujos de openid4vc
         if not conn_id and session.get("flows"):
             pre_auth_flow = session["flows"].get("pre_authorized")
             if pre_auth_flow:
                 conn_id = pre_auth_flow.get("code")
         
-        if conn_id:
-            # Usar background_tasks provisto nativamente por FastAPI
-            background_tasks.add_task(notify_moodle_webhook, conn_id)
-            logger.info("🟢 Tarea asíncrona (Webhook) registrada en BackgroundTasks")
+        c_name = credential_data.get("course_name", "Curso Desconocido")
 
-        # ─── Construir respuesta con un solo formato ───
+        if conn_id:
+            background_tasks.add_task(anchor_and_notify, conn_id, credential_data, c_name)
+            logger.info("🟢 Job 'Anchor on-chain & Notify Moodle' registrado en BackgroundTasks.")
+        
+        # ─── Construir respuesta para la Wallet ───
         response_data = build_credential_response(
             credential, format_name
         )

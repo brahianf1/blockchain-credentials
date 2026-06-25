@@ -10,9 +10,9 @@ def compute_credential_hash(
     """Compute the canonical SHA-256 hash that identifies a credential.
 
     This is the single source of truth for the credential hash used by
-    both the student portal API (for display and lookup) and the future
-    ledger anchoring pipeline (which will register the same hash on
-    Hyperledger Indy via ACA-Py).
+    both the student portal API (for display and lookup) and the
+    CredentialRegistry smart contract on Hyperledger Besu (which anchors
+    the same hash on-chain for immutable proof of issuance).
     """
     data = f"{student_id}{course_id}{completion_date}{grade}"
     return hashlib.sha256(data.encode()).hexdigest()

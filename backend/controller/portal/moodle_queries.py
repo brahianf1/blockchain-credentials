@@ -105,7 +105,7 @@ def get_all_credential_hashes(db: Session) -> List[dict]:
         SELECT bc.id, bc.userid, bc.courseid, bc.status,
                bc.timecreated, bc.timemodified,
                c.fullname AS course_name,
-               u.firstname, u.lastname
+               u.firstname, u.lastname, u.email
         FROM {P}block_credenciales bc
         JOIN {P}course c ON c.id = bc.courseid
         JOIN {P}user u ON u.id = bc.userid
