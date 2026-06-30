@@ -1,0 +1,57 @@
+@startuml
+skinparam handwritten false
+skinparam monochrome false
+skinparam packageBackgroundColor white
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+' Configuración de estilo
+skinparam rectangle {
+    BackgroundColor white
+    BorderColor black
+    RoundCorner 15
+}
+
+skinparam database {
+    BackgroundColor white
+    BorderColor black
+}
+
+' Capa Backend (Lógica de Negocio)
+package "Capa de Lógica de Negocio (Backend)" {
+    rectangle "FastAPI Controller\n(Emisor OID4VCI)" as backend
+    database "PostgreSQL\n(portal-db)" as db
+    rectangle "BesuWeb3Client\n(Cliente Web3.py)" as client
+    
+    backend -down-> db : Persiste metadata & hashes\n(portal_blockchain_anchors)
+    backend -right-> client : Invoca operaciones\n(issue/revoke)
+}
+
+' Capa Blockchain (Hyperledger Besu)
+package "Capa Blockchain (Hyperledger Besu)" {
+    rectangle "Blockscout Explorer\n(Interfaz Web)" as blockscout
+    rectangle "Besu Node\n(EVM Dev Network / JSON-RPC)" as besu
+    rectangle "Smart Contract\n(CredentialRegistry.sol)" as contract
+    
+    client -down-> besu : Firma & Envía Transacciones\n(JSON-RPC puerto 8545)
+    besu -down-> contract : Aloja y Ejecuta bytecode
+    blockscout -left-> besu : Consulta bloques e indexa\n(JSON-RPC)
+}
+
+' Clientes e Integraciones Externas
+rectangle "Plugin Moodle\n(block_credenciales)" as moodle
+rectangle "Billetera Digital\n(Wallet OID4VCI)" as wallet
+rectangle "Portal de Verificación\n(React Web)" as verifier
+
+' Relación Moodle <-> Backend (Bidireccional asíncrona)
+moodle -down-> backend : 1. Solicita emisión\n(HTTP POST /request-credential)
+backend -up-> moodle : 4. Actualiza estado a 'claimed'\n(HTTP POST Webhook /webhook.php)
+
+' Relación Billetera <-> Backend (OpenID4VCI)
+wallet -up-> backend : 2. Reclama credencial (SD-JWT VC)\n(OAuth2 Pre-Authorized Code flow)
+
+' Relación Verificador <-> Backend <-> Blockscout
+verifier -down-> backend : Consulta validez pública\n(HTTP GET /public/verify/{hash})
+verifier -down-> blockscout : Provee enlace hipervínculo\nde auditoría independiente (Tx Hash)
+
+@enduml
