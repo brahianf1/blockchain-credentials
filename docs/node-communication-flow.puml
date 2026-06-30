@@ -17,7 +17,7 @@ skinparam database {
     BorderColor black
 }
 
-' Capa Backend
+' Capa Backend (Lógica de Negocio)
 package "Capa de Lógica de Negocio (Backend)" {
     rectangle "FastAPI Controller\n(Emisor OID4VCI)" as backend
     database "PostgreSQL\n(portal-db)" as db
@@ -27,31 +27,31 @@ package "Capa de Lógica de Negocio (Backend)" {
     backend -right-> client : Invoca operaciones\n(issue/revoke)
 }
 
-' Capa Blockchain
+' Capa Blockchain (Hyperledger Besu)
 package "Capa Blockchain (Hyperledger Besu)" {
+    rectangle "Blockscout Explorer\n(Interfaz Web)" as blockscout
     rectangle "Besu Node\n(EVM Dev Network / JSON-RPC)" as besu
     rectangle "Smart Contract\n(CredentialRegistry.sol)" as contract
     
     client -down-> besu : Firma & Envía Transacciones\n(JSON-RPC puerto 8545)
     besu -down-> contract : Aloja y Ejecuta bytecode
-}
-
-' Capa de Monitoreo
-package "Capa de Visualización y Auditoría" {
-    rectangle "Blockscout Explorer\n(Servicio de Indexación)" as blockscout
-    
-    blockscout -left-> besu : Lee bloques / Eventos\n(CredentialIssued / CredentialRevoked)
-    blockscout .down.> contract : Decodifica transacciones\nmediante ABI verificado
+    blockscout -left-> besu : Consulta bloques e indexa\n(JSON-RPC)
 }
 
 ' Clientes e Integraciones Externas
-rectangle "Moodle LMS\n(Plugin de Calificaciones)" as moodle
+rectangle "Plugin Moodle\n(block_credenciales)" as moodle
 rectangle "Billetera Digital\n(Wallet OID4VCI)" as wallet
-rectangle "Verificador Tercero\n(Portal de RRHH)" as verifier
+rectangle "Portal de Verificación\n(React Web)" as verifier
 
-moodle -down-> backend : Notifica fin de curso\n(Webhook HTTP)
-wallet -up-> backend : Resuelve did:web e interactúa\n(Pre-Authorized Code flow)
-verifier -down-> backend : Consulta validez pública\n(/api/public/verify)
-verifier -down-> blockscout : Valida TX Hash\nde forma independiente
+' Relación Moodle <-> Backend (Bidireccional asíncrona)
+moodle -down-> backend : 1. Solicita emisión\n(HTTP POST /request-credential)
+backend -up-> moodle : 4. Actualiza estado a 'claimed'\n(HTTP POST Webhook /webhook.php)
+
+' Relación Billetera <-> Backend (OpenID4VCI)
+wallet -up-> backend : 2. Reclama credencial (SD-JWT VC)\n(OAuth2 Pre-Authorized Code flow)
+
+' Relación Verificador <-> Backend <-> Blockscout
+verifier -down-> backend : Consulta validez pública\n(HTTP GET /public/verify/{hash})
+verifier -down-> blockscout : Provee enlace hipervínculo\nde auditoría independiente (Tx Hash)
 
 @enduml
