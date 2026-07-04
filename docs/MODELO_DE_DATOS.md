@@ -34,7 +34,7 @@ Se puede renderizar con la extensión PlantUML de VS Code, en <https://www.plant
 o con cualquier servidor PlantUML, y exportarse a PNG/SVG/PDF para la tesis.
 
 ```plantuml
-@startuml modelo_de_datos
+@startuml
 ' ─────────────────────────────────────────────────────────────
 ' Microcredenciales Blockchain (UTN) — Modelo de datos integral
 ' ─────────────────────────────────────────────────────────────
@@ -45,10 +45,10 @@ skinparam shadowing false
 skinparam defaultFontName "Segoe UI"
 
 skinparam class {
-  BackgroundColor #0f172a
-  BorderColor #334155
-  FontColor #e2e8f0
-  AttributeFontColor #cbd5e1
+  BackgroundColor #f8fafc
+  BorderColor #cbd5e1
+  FontColor #0f172a
+  AttributeFontColor #334155
 }
 
 ' ── Notación ──
@@ -57,7 +57,7 @@ skinparam class {
 ' ============================================================
 ' ZONA 1 — MOODLE (PostgreSQL, solo lectura desde el backend)
 ' ============================================================
-package "Zona Moodle — LMS (solo lectura)" #1e1b4b {
+package "Zona Moodle — LMS (solo lectura)" #f0fdf4 {
 
   entity "mdl_user" as mdl_user {
     * id : int <<PK>>
@@ -102,7 +102,7 @@ package "Zona Moodle — LMS (solo lectura)" #1e1b4b {
 ' ============================================================
 ' ZONA 2 — PORTAL (PostgreSQL, lectura/escritura del backend)
 ' ============================================================
-package "Zona Portal — Backend (lectura/escritura)" #0c4a6e {
+package "Zona Portal — Backend (lectura/escritura)" #f0f9ff {
 
   entity "portal_students" as students {
     * id : int <<PK>>
@@ -177,7 +177,7 @@ package "Zona Portal — Backend (lectura/escritura)" #0c4a6e {
 ' ============================================================
 ' ZONA 3 — ON-CHAIN (Hyperledger Besu, contrato inteligente)
 ' ============================================================
-package "Zona On-chain — Hyperledger Besu" #064e3b {
+package "Zona On-chain — Hyperledger Besu" #fff7ed {
 
   entity "CredentialRegistry\n(RegistryEntry)" as registry {
     * credentialHash : bytes32 <<PK>>
@@ -190,6 +190,8 @@ package "Zona On-chain — Hyperledger Besu" #064e3b {
     event CredentialRevoked
   }
 }
+
+"Zona Moodle — LMS (solo lectura)" -up[hidden]-> "Zona Portal — Backend (lectura/escritura)"
 
 ' ── Relaciones intra-Moodle ──
 mdl_user   ||--o{ mdl_cred   : "userid"
@@ -206,7 +208,6 @@ anchors   ||..|| registry   : "credential_hash\n= bytes32(hash)"
 anchors   ||..o{ visibility : "credential_hash"
 anchors   ||..o{ audit      : "credential_hash"
 students  ||..o{ visibility : "moodle_user_id"
-
 @enduml
 ```
 
