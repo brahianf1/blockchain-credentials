@@ -99,133 +99,136 @@
     padding-bottom: 2rem !important; /* Recover some padding for QR dialog */
 }
 
-/* Certificate Illustration (Vector-like Scaling) */
+/* ── Diploma — lenguaje visual de la tarjeta Open Graph (moderno, de marca) ── */
 .md3-certificate-illustration {
-    background-color: #ffffff;
-    border: calc(1cqw) solid var(--md-sys-color-primary);
-    padding: calc(0.4cqw);
     position: relative;
-    box-shadow: var(--md-elevation-1);
-    
-    /* El ancho máximo nunca excederá los 1000px, NI TAMPOCO el equivalente horizontal de el 75% de la altura de la pantalla, evitando el scroll vertical por completo */
     max-width: min(100%, 1000px, calc(75vh * 1.414));
-    aspect-ratio: 1.414 / 1; /* Formato A4 Apaisado Exacto */
+    aspect-ratio: 1.414 / 1; /* A4 apaisado */
     margin: 0 auto;
-    
+    border-radius: calc(1.6cqw);
+    overflow: hidden;
+    box-shadow: var(--md-elevation-1);
     display: flex;
     flex-direction: column;
-    
-    /* Activamos Container Queries para que todas las fuentes internas escale en función a este contenedor */
+    /* Container queries: las fuentes escalan respecto al ancho del diploma */
     container-type: inline-size;
     container-name: cert;
+    font-family: 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
 }
 
 .cert-inner {
-    border: calc(0.2cqw) solid #bdbdbd;
-    padding: calc(4cqw) calc(6cqw);
-    text-align: center;
-    background-color: #fafafa;
     position: relative;
-    overflow: hidden;
     flex-grow: 1;
+    padding: calc(5cqw) calc(6cqw);
+    background: linear-gradient(160deg, #041c3a 0%, #0c4a84 100%);
+    color: #ffffff;
+    overflow: hidden;
+}
+
+/* Anillos decorativos (divs con borde → fiables en html2canvas) */
+.cert-rings { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.cert-ring {
+    position: absolute;
+    top: 50%;
+    right: calc(-16cqw);
+    transform: translateY(-50%);
+    border-radius: 50%;
+    border: calc(0.18cqw) solid rgba(255, 255, 255, 0.08);
+}
+.cert-ring--1 { width: calc(34cqw); height: calc(34cqw); }
+.cert-ring--2 { width: calc(52cqw); height: calc(52cqw); }
+.cert-ring--3 { width: calc(70cqw); height: calc(70cqw); }
+
+.cert-content {
+    position: relative;
+    z-index: 1;
+    height: 100%;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
 }
 
-/* Abstract UI Watermark (No images, strict CSS MD3 geometric approach) */
-.cert-watermark {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background-image: linear-gradient(135deg, rgba(0, 95, 115, 0.03) 25%, transparent 25%),
-                      linear-gradient(225deg, rgba(0, 95, 115, 0.03) 25%, transparent 25%),
-                      linear-gradient(45deg, rgba(0, 95, 115, 0.03) 25%, transparent 25%),
-                      linear-gradient(315deg, rgba(0, 95, 115, 0.03) 25%, transparent 25%);
-    background-position: 10px 0, 10px 0, 0 0, 0 0;
-    background-size: 20px 20px;
-    background-repeat: repeat;
-    pointer-events: none;
-    z-index: 0;
-}
-
-.cert-header, .cert-body, .cert-footer {
-    position: relative;
-    z-index: 1;
-}
-
-.cert-logo-placeholder {
-    font-size: calc(2.4cqw);
-    color: var(--md-sys-color-primary);
-    text-transform: uppercase;
-    letter-spacing: calc(0.2cqw);
-}
-
-.cert-body h1 {
-    font-family: 'Georgia', serif;
-    font-size: calc(3.2cqw);
-    color: #424242;
-    margin-bottom: calc(1cqw);
-}
-
-.cert-student {
-    font-family: 'Georgia', serif;
-    font-size: calc(4.6cqw);
-    color: var(--md-sys-color-primary);
-    margin-bottom: calc(0.8cqw);
-    font-weight: bold;
-}
-
-.cert-dni {
-    font-family: 'Roboto', sans-serif;
-    font-size: calc(1.6cqw);
-    color: #616161;
-    margin-bottom: calc(2cqw);
-}
-
-.cert-text {
+/* Top row: institución + pill "verificada" */
+.cert-toprow { display: flex; align-items: center; justify-content: space-between; gap: calc(2cqw); }
+.cert-eyebrow {
     font-size: calc(1.7cqw);
-    line-height: 1.5;
-    color: #424242;
-    max-width: 85%;
-    margin: 0 auto;
+    font-weight: 700;
+    letter-spacing: calc(0.22cqw);
+    text-transform: uppercase;
+    color: #96b6dc;
 }
-
-.cert-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    width: 100%;
-}
-
-.cert-public-qr {
+.cert-pill {
     flex-shrink: 0;
+    font-size: calc(1.35cqw);
+    font-weight: 600;
+    color: #6ee7b7;
+    border: calc(0.15cqw) solid rgba(16, 185, 129, 0.55);
+    border-radius: 999px;
+    padding: calc(0.6cqw) calc(1.6cqw);
+    white-space: nowrap;
 }
 
-.cert-public-qr img {
-    width: calc(9cqw);
-    height: calc(9cqw);
-    border: calc(0.2cqw) solid #eeeeee;
-    padding: calc(0.4cqw);
-    background: #fff;
+/* Bloque principal: badge esmeralda + datos */
+.cert-main { display: flex; align-items: center; gap: calc(3.2cqw); }
+.cert-badge {
+    flex-shrink: 0;
+    width: calc(11cqw);
+    height: calc(11cqw);
+    border-radius: 50%;
+    background: #10B981;
+    position: relative;
+    box-shadow: 0 0 0 calc(1cqw) rgba(16, 185, 129, 0.18);
+}
+.cert-badge::after { /* check dibujado con bordes (sin icon-font → fiable en html2canvas) */
+    content: "";
+    position: absolute;
+    left: 50%; top: 45%;
+    width: calc(3.2cqw);
+    height: calc(5.8cqw);
+    border-right: calc(1.1cqw) solid #ffffff;
+    border-bottom: calc(1.1cqw) solid #ffffff;
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.cert-maintext { min-width: 0; }
+.cert-kicker { font-size: calc(2cqw); color: #b7cde8; margin: 0 0 calc(0.5cqw); }
+.cert-name {
+    font-size: calc(6cqw);
+    font-weight: 700;
+    line-height: 1.04;
+    margin: 0;
+    color: #ffffff;
+    display: inline-block;
+    border-bottom: calc(0.55cqw) solid #10B981;
+    padding-bottom: calc(0.7cqw);
+}
+.cert-dni { font-size: calc(1.7cqw); color: #96b6dc; margin: calc(1.2cqw) 0 0; }
+.cert-desc { font-size: calc(2.5cqw); color: #ffffff; margin: calc(1.6cqw) 0 0; }
+.cert-meta { font-size: calc(1.7cqw); color: #b7cde8; margin: calc(0.8cqw) 0 0; }
+
+/* Pie: dominio + QR sobre caja blanca */
+.cert-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: calc(3cqw); }
+.cert-bottom-left { min-width: 0; }
+.cert-divider { width: calc(42cqw); max-width: 100%; height: 1px; background: rgba(255, 255, 255, 0.18); margin-bottom: calc(1.4cqw); }
+.cert-domain { font-size: calc(1.9cqw); font-weight: 700; color: #ffffff; display: block; }
+.cert-foot { font-size: calc(1.5cqw); color: #b7cde8; margin-top: calc(0.3cqw); display: block; }
+
+.cert-qr-card {
+    flex-shrink: 0;
+    background: #ffffff;
+    border-radius: calc(1.4cqw);
+    padding: calc(1.3cqw);
+    text-align: center;
     box-shadow: var(--md-elevation-1);
 }
-
-/* Compact Responsive logic to prevent vertical scrolling on laptops (Height < 900px) */
-@media (max-height: 900px) {
-    .cert-inner { padding: 24px; }
-    .cert-header { margin-bottom: 16px; }
-    .cert-logo-placeholder { font-size: 22px; }
-    .cert-body h1 { font-size: 26px; margin-bottom: 8px; }
-    .cert-student { font-size: 32px; margin-bottom: 4px; }
-    .cert-dni { margin-bottom: 16px; font-size: 14px; }
-    .cert-text { font-size: 15px; margin-bottom: 24px; }
-    .cert-public-qr img { width: 70px; height: 70px; }
-}
-
-@media (max-height: 700px) {
-    .cert-inner { padding: 16px; }
-    .cert-text { font-size: 14px; margin-bottom: 12px; }
-    .cert-student { font-size: 26px; }
+.cert-qr-card .cert-verify-qr { display: block; line-height: 0; }
+.cert-qr-cap {
+    display: block;
+    font-size: calc(1cqw);
+    font-weight: 600;
+    color: #5a6b7e;
+    margin-top: calc(0.6cqw);
+    letter-spacing: 0.3px;
 }
 
 /* Buttons and interactions - Hardened against Moodle CSS Override */
@@ -384,3 +387,18 @@
 .li-copy:hover {
     background-color: var(--md-sys-color-secondary-container, #d7e3ff);
 }
+
+/* ── Share modal: fila de enlace de verificación con copiar ── */
+.share-link-row { display: flex; gap: 8px; align-items: center; }
+.share-link-input {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid #d6dce3;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-family: monospace;
+    background: #f6f8fa;
+    color: #1c1b1f;
+}
+.share-link-copy { width: 40px; height: 40px; }
