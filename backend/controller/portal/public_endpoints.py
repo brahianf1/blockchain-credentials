@@ -24,8 +24,8 @@ import json
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.orm import Session
 
 from blockchain import AnchorStatus, CredentialAnchor, LedgerClient, get_ledger_client
@@ -39,6 +39,7 @@ from portal.schemas import (
     VerificationVerdict,
 )
 from utils.hashing import compute_credential_hash
+from portal.image_generator import generate_dynamic_og_image
 
 public_router = APIRouter(prefix="/public", tags=["Public Verification"])
 
@@ -258,7 +259,7 @@ def _build_og_card(result: PublicVerificationResponse) -> tuple[str, str]:
     )
 
 
-def _render_og_html(result: PublicVerificationResponse) -> str:
+def _render_og_html(result: PublicVerificationResponse, request: Request) -> str:
     """Render a minimal HTML page carrying Open Graph tags for social crawlers.
 
     Social bots (LinkedIn, WhatsApp, X…) don't run JavaScript, so the SPA's
@@ -271,11 +272,11 @@ def _render_og_html(result: PublicVerificationResponse) -> str:
 
     def e(value: str) -> str:
         return html.escape(str(value), quote=True)
+        
+    image_url = str(request.url_for("verify_image", credential_hash=result.credential_hash))
 
     image_tag = (
-        f'<meta property="og:image" content="{e(PORTAL_OG_IMAGE_URL)}"/>'
-        if PORTAL_OG_IMAGE_URL
-        else ""
+        f'<meta property="og:image" content="{e(image_url)}"/>'
     )
 
     return (
@@ -304,6 +305,7 @@ def _render_og_html(result: PublicVerificationResponse) -> str:
 
 @public_router.get("/verify/{credential_hash}/embed", response_class=HTMLResponse)
 async def verify_embed(
+    request: Request,
     credential_hash: str,
     moodle_db: Session = Depends(get_moodle_db),
     portal_db: Session = Depends(get_portal_db),
@@ -316,4 +318,29 @@ async def verify_embed(
     credential's card discloses no certificate data.
     """
     result = await _resolve_verification(credential_hash, moodle_db, portal_db, ledger)
-    return HTMLResponse(content=_render_og_html(result))
+    return HTMLResponse(content=_render_og_html(result, request))
+
+
+@public_router.get("/verify/{credential_hash}/image", response_class=Response)
+async def verify_image(
+    credential_hash: str,
+    moodle_db: Session = Depends(get_moodle_db),
+    portal_db: Session = Depends(get_portal_db),
+    ledger: LedgerClient = Depends(get_ledger_client),
+):
+    """Dynamic Open Graph image generation.
+    
+    Returns a PNG image. If the credential is public and valid, it prints the
+    course name and student name on the certificate image.
+    """
+    result = await _resolve_verification(credential_hash, moodle_db, portal_db, ledger)
+    
+    course_name = None
+    student_name = None
+    
+    if result.verdict == VerificationVerdict.VALID and not result.is_private:
+        course_name = result.course_name
+        student_name = result.student_name
+
+    image_bytes = generate_dynamic_og_image(course_name, student_name)
+    return Response(content=image_bytes, media_type="image/png")

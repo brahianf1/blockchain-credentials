@@ -25,21 +25,10 @@ $data = [
     'certificates' => []
 ];
 
-// Extract DNI (Assuming custom profile field 'dni' exists, otherwise simulate a realistic Argentine DNI for dev)
-$user_dni = null;
-if ($dni_field = $DB->get_record('user_info_field', array('shortname' => 'dni'))) {
-    if ($dni_data = $DB->get_record('user_info_data', array('userid' => $USER->id, 'fieldid' => $dni_field->id))) {
-        $user_dni = $dni_data->data;
-    }
-}
-
-// Dev Mock: Si no hay DNI, generamos uno realista (XX.XXX.XXX) basado en el ID de usuario para que sea consistente
-if (empty($user_dni)) {
-    // Usamos el id del usuario como semilla para que el DNI no cambie en cada recarga
-    srand($USER->id + 42000000); 
-    $random_dni = mt_rand(40000000, 48999999);
-    $user_dni = number_format($random_dni, 0, ',', '.'); // Ejemplo: 45.123.456
-}
+// Para fines de la tesis y cumplimiento de la Ley 25.326 de Protección de Datos 
+// Personales en Argentina, el DNI se enmascara para evitar exponer datos reales 
+// en las capturas de pantalla de la tesis.
+$user_dni = 'XX.XXX.XXX';
 
 if ($credentials) {
     foreach ($credentials as $cred) {

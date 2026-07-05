@@ -215,11 +215,14 @@ function block_credenciales_get_linkedin_url($cert_name, $org_name, $year, $mont
         'startTask'        => 'CERTIFICATION_NAME',
         'name'             => $cert_name,
         'organizationName' => $org_name,
-        'issueYear'        => (string) $year,
-        'issueMonth'       => (string) $month,
         'certUrl'          => $verify_url,
         'certId'           => $cert_id,
     );
+    
+    if (!empty($year) && !empty($month)) {
+        $params['issueYear'] = (string) $year;
+        $params['issueMonth'] = (string) $month;
+    }
 
-    return 'https://www.linkedin.com/profile/add?' . http_build_query($params);
+    return 'https://www.linkedin.com/profile/add?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 }
