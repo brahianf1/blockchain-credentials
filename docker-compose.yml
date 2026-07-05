@@ -213,6 +213,7 @@ services:
       - PORTAL_JWT_SECRET=${PORTAL_JWT_SECRET}
       - MOODLE_PORTAL_JWT_SECRET=${MOODLE_PORTAL_JWT_SECRET}
       - PORTAL_FRONTEND_URL=${PORTAL_FRONTEND_URL}
+      - PORTAL_OG_IMAGE_URL=${PORTAL_OG_IMAGE_URL}
     volumes:
       - ${OPENID_PRIVATE_KEY_PATH}:/run/secrets/openid_private_key:ro
       - ${OPENID_PUBLIC_KEY_PATH}:/run/secrets/openid_public_key:ro
