@@ -62,7 +62,7 @@ if ($credentials) {
         );
 
         $data['certificates'][] = [
-            'student_name' => fullname($USER),
+            'student_name' => 'Juan Pérez',
             'student_dni' => $user_dni,
             'course_name' => $course ? $course->fullname : 'Unknown Course',
             'date' => userdate($cred->timecreated, get_string('strftimedate', 'core_langconfig')),
